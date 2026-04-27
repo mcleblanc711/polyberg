@@ -1,0 +1,162 @@
+from __future__ import annotations
+
+import re
+from datetime import date, datetime
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+Side = Literal["YES", "NO"]
+MARKET_ID_RE = re.compile(r"^[a-z0-9_]+$")
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+def require_timezone(value: datetime) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("datetime values must include a timezone offset")
+    return value
+
+
+def require_market_id(value: str) -> str:
+    if not MARKET_ID_RE.fullmatch(value):
+        raise ValueError("market_id must be lowercase letters, numbers, and underscores only")
+    return value
+
+
+class Market(StrictModel):
+    market_id: str
+    name: str
+    polymarket_url: str
+    category: str
+    rule_key: str
+    oracle_type: str
+    preferred_side: Side
+    risk_flags: list[str] = Field(default_factory=list)
+    resolution_date: date
+    notes: str
+
+    @field_validator("market_id")
+    @classmethod
+    def validate_market_id(cls, value: str) -> str:
+        return require_market_id(value)
+
+
+class MarketRegistry(StrictModel):
+    markets: list[Market]
+
+    @model_validator(mode="after")
+    def require_unique_market_ids(self) -> MarketRegistry:
+        ids = [market.market_id for market in self.markets]
+        duplicates = sorted({market_id for market_id in ids if ids.count(market_id) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate market_id values in registry: {', '.join(duplicates)}")
+        return self
+
+    @property
+    def market_ids(self) -> set[str]:
+        return {market.market_id for market in self.markets}
+
+
+class Position(StrictModel):
+    market_id: str
+    market_name: str
+    side: Side
+    avg_price: float = Field(ge=0, le=1)
+    mark_price: float = Field(ge=0, le=1)
+    shares: float = Field(ge=0)
+    current_value: float = Field(ge=0)
+    pnl: float
+    thesis_bucket: str
+
+    @field_validator("market_id")
+    @classmethod
+    def validate_market_id(cls, value: str) -> str:
+        return require_market_id(value)
+
+
+class Portfolio(StrictModel):
+    as_of: datetime
+    portfolio_value: float = Field(ge=0)
+    cash_available: float = Field(ge=0)
+    positions: list[Position]
+
+    @field_validator("as_of")
+    @classmethod
+    def validate_as_of_timezone(cls, value: datetime) -> datetime:
+        return require_timezone(value)
+
+
+class Order(StrictModel):
+    market_id: str
+    side: Side
+    price: float = Field(ge=0, le=1)
+    shares: float = Field(ge=0)
+    order_type: str
+    notes: str = ""
+
+    @field_validator("market_id")
+    @classmethod
+    def validate_market_id(cls, value: str) -> str:
+        return require_market_id(value)
+
+    @field_validator("order_type")
+    @classmethod
+    def require_limit_order(cls, value: str) -> str:
+        if value.lower() == "market":
+            raise ValueError("market orders are not allowed")
+        return value
+
+
+class OpenOrders(StrictModel):
+    as_of: datetime
+    buy_orders: list[Order] = Field(default_factory=list)
+    sell_orders: list[Order] = Field(default_factory=list)
+
+    @field_validator("as_of")
+    @classmethod
+    def validate_as_of_timezone(cls, value: datetime) -> datetime:
+        return require_timezone(value)
+
+
+class AccountSnapshot(StrictModel):
+    portfolio_value: float = Field(ge=0)
+    cash_available: float = Field(ge=0)
+    notes: str = ""
+
+
+class LiveState(StrictModel):
+    as_of: datetime
+    mode: Literal["research_only", "paper_trading"]
+    account_snapshot: AccountSnapshot
+    active_thesis: list[str]
+    constraints: dict[str, Any]
+    watchlist: list[str]
+    notes: list[str]
+
+    @field_validator("as_of")
+    @classmethod
+    def validate_as_of_timezone(cls, value: datetime) -> datetime:
+        return require_timezone(value)
+
+    @field_validator("watchlist")
+    @classmethod
+    def validate_watchlist_market_ids(cls, value: list[str]) -> list[str]:
+        for market_id in value:
+            require_market_id(market_id)
+        return value
+
+    @model_validator(mode="after")
+    def require_safety_constraints(self) -> LiveState:
+        required_true = ["no_market_orders", "use_sell_ladders", "avoid_99c_dispute_tax"]
+        missing_or_false = [key for key in required_true if self.constraints.get(key) is not True]
+        if missing_or_false:
+            raise ValueError(
+                "live_state constraints must explicitly set these values to true: "
+                + ", ".join(missing_or_false)
+            )
+        if self.constraints.get("min_limit_order_size_oil", 0) < 0:
+            raise ValueError("min_limit_order_size_oil must be non-negative")
+        return self

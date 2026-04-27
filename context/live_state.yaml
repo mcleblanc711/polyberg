@@ -1,0 +1,22 @@
+as_of: 2026-04-26T09:00:00-06:00
+mode: research_only
+account_snapshot:
+  portfolio_value: 2400.50
+  cash_available: 415.25
+  notes: Manual snapshot for local-first packet generation.
+active_thesis:
+  - Hormuz data-oracle markets should be judged by Portwatch mechanics, not headline tone.
+  - Announcement markets carry wording risk and can flip on a single qualifying statement.
+  - Oil tail markets are correlated with Hormuz escalation but resolve on contract-specific prints.
+constraints:
+  no_market_orders: true
+  use_sell_ladders: true
+  avoid_99c_dispute_tax: true
+  min_limit_order_size_oil: 5
+watchlist:
+  - hormuz_normal_may15
+  - trump_blockade_lifted_apr30
+  - cl_high_120_end_june
+notes:
+  - Treat all model outputs as advisory and untrusted until validated.
+  - Do not automate trade execution.

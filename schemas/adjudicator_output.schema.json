@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/polymarket-desk/adjudicator_output.schema.json",
+  "title": "AdjudicatorOutput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "as_of",
+    "agreed_trades",
+    "disputed_trades",
+    "rejected_trades",
+    "final_order_list",
+    "invalidation_triggers",
+    "missing_info_checklist",
+    "adjudicator_notes"
+  ],
+  "properties": {
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "agreed_trades": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/trade_note"
+      }
+    },
+    "disputed_trades": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/trade_note"
+      }
+    },
+    "rejected_trades": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/trade_note"
+      }
+    },
+    "final_order_list": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/final_order"
+      }
+    },
+    "invalidation_triggers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "missing_info_checklist": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "adjudicator_notes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "trade_note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["market_id", "market_name", "side", "rationale", "source_model_support"],
+      "properties": {
+        "market_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$",
+          "minLength": 1
+        },
+        "market_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "side": {
+          "type": "string",
+          "enum": ["YES", "NO"]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_model_support": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": ["model_a", "model_b", "both", "neither"]
+          }
+        }
+      }
+    },
+    "final_order": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "market_id",
+        "market_name",
+        "side",
+        "action",
+        "price",
+        "shares",
+        "rationale",
+        "source_model_support",
+        "human_review_required"
+      ],
+      "properties": {
+        "market_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$",
+          "minLength": 1
+        },
+        "side": {
+          "type": "string",
+          "enum": ["YES", "NO"]
+        },
+        "market_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "type": "string",
+          "enum": ["buy_limit", "sell_limit", "cancel_limit_order"]
+        },
+        "price": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "shares": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_model_support": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": ["model_a", "model_b", "both"]
+          }
+        },
+        "human_review_required": {
+          "const": true
+        }
+      }
+    }
+  }
+}

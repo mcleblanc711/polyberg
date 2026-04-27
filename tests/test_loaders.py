@@ -1,0 +1,48 @@
+from __future__ import annotations
+
+import pytest
+
+from polymarket_desk.loaders import (
+    LoaderError,
+    load_live_state,
+    load_market_registry,
+    load_open_orders,
+    load_portfolio,
+)
+
+
+def test_load_yaml_context_files() -> None:
+    registry = load_market_registry()
+    portfolio = load_portfolio(registry=registry)
+    open_orders = load_open_orders(registry=registry)
+    live_state = load_live_state(registry=registry)
+
+    assert len(registry.markets) == 3
+    assert portfolio.cash_available >= 0
+    assert open_orders.sell_orders[0].side == "NO"
+    assert "hormuz_normal_may15" in live_state.watchlist
+
+
+def test_portfolio_references_must_exist_in_registry(tmp_path) -> None:
+    portfolio_path = tmp_path / "portfolio_current.yaml"
+    portfolio_path.write_text(
+        """
+as_of: 2026-04-26T09:00:00-06:00
+portfolio_value: 10
+cash_available: 5
+positions:
+  - market_id: missing_market
+    market_name: Missing
+    side: "NO"
+    avg_price: 0.5
+    mark_price: 0.5
+    shares: 1
+    current_value: 0.5
+    pnl: 0
+    thesis_bucket: test
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(LoaderError, match="Unknown market_id"):
+        load_portfolio(path=portfolio_path, registry=load_market_registry())

@@ -1,0 +1,31 @@
+as_of: 2026-04-26T09:00:00-06:00
+portfolio_value: 2400.50
+cash_available: 415.25
+positions:
+  - market_id: hormuz_normal_may15
+    market_name: Hormuz normal by May 15
+    side: "NO"
+    avg_price: 0.64
+    mark_price: 0.71
+    shares: 300
+    current_value: 213.00
+    pnl: 21.00
+    thesis_bucket: core_hormuz
+  - market_id: trump_blockade_lifted_apr30
+    market_name: Trump blockade lifted by Apr 30
+    side: "NO"
+    avg_price: 0.86
+    mark_price: 0.915
+    shares: 80
+    current_value: 73.20
+    pnl: 4.40
+    thesis_bucket: announcement_risk
+  - market_id: cl_high_120_end_june
+    market_name: CL HIGH $120 by end June
+    side: "NO"
+    avg_price: 0.78
+    mark_price: 0.74
+    shares: 50
+    current_value: 37.00
+    pnl: -2.00
+    thesis_bucket: oil

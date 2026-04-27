@@ -1,0 +1,27 @@
+as_of: 2026-04-26T09:00:00-06:00
+buy_orders:
+  - market_id: hormuz_normal_may15
+    side: "NO"
+    price: 0.66
+    shares: 25
+    order_type: limit
+    notes: Add only if oracle context remains unchanged.
+  - market_id: cl_high_120_end_june
+    side: "NO"
+    price: 0.70
+    shares: 10
+    order_type: limit
+    notes: Small size due to oil headline gap risk.
+sell_orders:
+  - market_id: trump_blockade_lifted_apr30
+    side: "NO"
+    price: 0.94
+    shares: 15
+    order_type: limit
+    notes: First sell ladder level before deadline.
+  - market_id: trump_blockade_lifted_apr30
+    side: "NO"
+    price: 0.96
+    shares: 20
+    order_type: limit
+    notes: Reduce dispute-tax exposure if market rallies.

@@ -1,0 +1,39 @@
+markets:
+  - market_id: hormuz_normal_may15
+    name: Hormuz normal by May 15
+    polymarket_url: https://polymarket.com/event/example-hormuz-normal
+    category: core_hormuz
+    rule_key: hormuz_portwatch_60_7dma
+    oracle_type: IMF Portwatch data
+    preferred_side: "NO"
+    risk_flags:
+      - pure data oracle
+      - low media ambiguity
+    resolution_date: 2026-05-15
+    notes: Resolves on IMF Portwatch 7-day moving average of transit calls.
+  - market_id: trump_blockade_lifted_apr30
+    name: Trump blockade lifted by Apr 30
+    polymarket_url: https://polymarket.com/event/example-trump-blockade
+    category: announcement_risk
+    rule_key: official_blockade_lifted_announcement
+    oracle_type: Official Trump or US government announcement
+    preferred_side: "NO"
+    risk_flags:
+      - Trump social post can qualify
+      - media fallback may matter
+      - deadline gamma
+    resolution_date: 2026-04-30
+    notes: Requires explicit official announcement that the blockade has ended or will end.
+  - market_id: cl_high_120_end_june
+    name: CL HIGH $120 by end June
+    polymarket_url: https://polymarket.com/event/example-cl-high-120
+    category: oil
+    rule_key: nymex_cl_high_print
+    oracle_type: NYMEX WTI crude oil futures price
+    preferred_side: "NO"
+    risk_flags:
+      - high volatility
+      - correlated with Hormuz escalation
+      - liquidity can gap
+    resolution_date: 2026-06-30
+    notes: Resolves on whether the specified CL contract reaches or exceeds $120 by deadline.
