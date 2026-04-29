@@ -12,6 +12,8 @@ dependencies = [
   "jsonschema>=4.22",
   "pydantic>=2.7",
   "pyyaml>=6.0",
+  "rfc3339-validator>=0.1",
+  "tzdata; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

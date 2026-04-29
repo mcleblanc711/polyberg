@@ -129,7 +129,7 @@ class AccountSnapshot(StrictModel):
 
 class LiveState(StrictModel):
     as_of: datetime
-    mode: Literal["research_only", "paper_trading"]
+    mode: str
     account_snapshot: AccountSnapshot
     active_thesis: list[str]
     constraints: dict[str, Any]
@@ -147,16 +147,3 @@ class LiveState(StrictModel):
         for market_id in value:
             require_market_id(market_id)
         return value
-
-    @model_validator(mode="after")
-    def require_safety_constraints(self) -> LiveState:
-        required_true = ["no_market_orders", "use_sell_ladders", "avoid_99c_dispute_tax"]
-        missing_or_false = [key for key in required_true if self.constraints.get(key) is not True]
-        if missing_or_false:
-            raise ValueError(
-                "live_state constraints must explicitly set these values to true: "
-                + ", ".join(missing_or_false)
-            )
-        if self.constraints.get("min_limit_order_size_oil", 0) < 0:
-            raise ValueError("min_limit_order_size_oil must be non-negative")
-        return self

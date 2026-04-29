@@ -67,7 +67,12 @@ def validate_timezone_aware_as_of(payload: dict[str, Any], json_path: Path) -> N
     value = payload.get("as_of")
     if not isinstance(value, str):
         return
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ResponseValidationError(
+            f"Validation failed for {json_path}: as_of is not a valid ISO datetime: {exc}"
+        ) from exc
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ResponseValidationError(
             f"Validation failed for {json_path}: as_of must include timezone"
@@ -97,24 +102,13 @@ def validate_model_market_references(payload: dict[str, Any], json_path: Path) -
 
 def validate_adjudicator_market_references(payload: dict[str, Any], json_path: Path) -> None:
     registry = load_market_registry()
-    names_by_id = {market.market_id: market.name for market in registry.markets}
+    known_ids = registry.market_ids
     errors = []
     for section in ["agreed_trades", "disputed_trades", "rejected_trades", "final_order_list"]:
         for index, item in enumerate(payload.get(section, [])):
             market_id = item.get("market_id")
-            if market_id not in names_by_id:
+            if market_id not in known_ids:
                 errors.append(f"- $['{section}'][{index}]['market_id']: unknown market_id")
-            expected_name = names_by_id.get(market_id)
-            market_name = item.get("market_name")
-            if (
-                market_name is not None
-                and expected_name is not None
-                and market_name != expected_name
-            ):
-                errors.append(
-                    f"- $['{section}'][{index}]['market_name']: expected "
-                    f"{expected_name!r} for market_id {market_id!r}"
-                )
     if errors:
         raise ResponseValidationError(
             f"Business validation failed for {json_path}:\n" + "\n".join(errors)

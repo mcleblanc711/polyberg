@@ -24,6 +24,4 @@ Source hierarchy:
 - Social-media rumours are not facts and must not be treated as official evidence.
 
 Do not suggest market orders, automated execution, wallet actions, or private-key handling.
-Set `human_review_required` to `true` on every candidate trade. Every suggested order must use
-`order_type: "limit"` and include a rationale.
 Output must validate against `schemas/model_trade_response.schema.json`.

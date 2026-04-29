@@ -24,7 +24,6 @@ Compare the models for:
 - Ignoring official resolution rules or media fallback clauses.
 
 Every final order must include `human_review_required: true`. Do not recommend automated execution.
-Every final order must be a limit-order action, reference a known `market_id`, include the matching
-`market_name`, and include non-zero shares. If no trade is justified, leave `final_order_list` empty
-and explain the reason in `adjudicator_notes`.
+Every final order must reference a `market_id` that exists in `context/market_registry.yaml`. If no
+trade is justified, leave `final_order_list` empty and explain the reason in `adjudicator_notes`.
 Output must validate against `schemas/adjudicator_output.schema.json`.

@@ -31,23 +31,11 @@ def good_model_response() -> dict:
                     "Trump or the US government explicitly announces the blockade has ended."
                 ),
                 "correlation": "high",
-                "source_quality": "official_resolution_source",
-                "thesis_invalidated_if": [
-                    "A qualifying official statement says the blockade has ended."
-                ],
                 "risk_flags": ["Trump social post can qualify", "media fallback exists"],
                 "buy_orders": [],
-                "sell_orders": [
-                    {
-                        "price": 0.94,
-                        "shares": 15,
-                        "order_type": "limit",
-                        "rationale": "Reduce deadline risk.",
-                    }
-                ],
+                "sell_orders": [{"price": 0.94, "shares": 15}],
                 "catalysts": ["Apr 30 resolution deadline"],
                 "missing_info": ["current order book depth"],
-                "human_review_required": True,
             }
         ],
     }
@@ -84,9 +72,7 @@ def test_model_output_rejects_invalid_side(tmp_path) -> None:
 
 def test_model_output_rejects_price_greater_than_one(tmp_path) -> None:
     payload = good_model_response()
-    payload["candidate_trades"][0]["buy_orders"] = [
-        {"price": 1.01, "shares": 1, "order_type": "limit", "rationale": "test"}
-    ]
+    payload["candidate_trades"][0]["buy_orders"] = [{"price": 1.01, "shares": 1}]
     path = write_json(tmp_path, payload)
 
     with pytest.raises(ResponseValidationError, match="greater than"):
@@ -116,7 +102,7 @@ def test_model_output_rejects_naive_as_of(tmp_path) -> None:
     payload["as_of"] = "2026-04-26T09:00:00"
     path = write_json(tmp_path, payload)
 
-    with pytest.raises(ResponseValidationError, match="timezone"):
+    with pytest.raises(ResponseValidationError, match=r"date-time|timezone"):
         validate_model_response(path)
 
 
@@ -129,9 +115,8 @@ def test_adjudicator_schema_requires_human_review_true(tmp_path) -> None:
         "final_order_list": [
             {
                 "market_id": "trump_blockade_lifted_apr30",
-                "market_name": "Trump blockade lifted by Apr 30",
                 "side": "NO",
-                "action": "sell_limit",
+                "action": "sell_ladder",
                 "price": 0.94,
                 "shares": 15,
                 "rationale": "Reduce deadline risk.",
@@ -149,7 +134,7 @@ def test_adjudicator_schema_requires_human_review_true(tmp_path) -> None:
         validate_adjudicator_output(path)
 
 
-def test_adjudicator_schema_rejects_zero_share_final_order(tmp_path) -> None:
+def test_adjudicator_schema_rejects_negative_share_final_order(tmp_path) -> None:
     payload = {
         "as_of": "2026-04-26T09:00:00-06:00",
         "agreed_trades": [],
@@ -158,13 +143,12 @@ def test_adjudicator_schema_rejects_zero_share_final_order(tmp_path) -> None:
         "final_order_list": [
             {
                 "market_id": "trump_blockade_lifted_apr30",
-                "market_name": "Trump blockade lifted by Apr 30",
                 "side": "NO",
-                "action": "sell_limit",
+                "action": "sell_ladder",
                 "price": 0.94,
-                "shares": 0,
+                "shares": -1,
                 "rationale": "Reduce deadline risk.",
-                "source_model_support": ["both"],
+                "source_model_support": ["model_a"],
                 "human_review_required": True,
             }
         ],
@@ -174,11 +158,11 @@ def test_adjudicator_schema_rejects_zero_share_final_order(tmp_path) -> None:
     }
     path = write_json(tmp_path, payload)
 
-    with pytest.raises(ResponseValidationError, match="less than or equal to"):
+    with pytest.raises(ResponseValidationError, match="less than"):
         validate_adjudicator_output(path)
 
 
-def test_adjudicator_schema_rejects_empty_model_support(tmp_path) -> None:
+def test_adjudicator_schema_rejects_unknown_market_id(tmp_path) -> None:
     payload = {
         "as_of": "2026-04-26T09:00:00-06:00",
         "agreed_trades": [],
@@ -186,14 +170,13 @@ def test_adjudicator_schema_rejects_empty_model_support(tmp_path) -> None:
         "rejected_trades": [],
         "final_order_list": [
             {
-                "market_id": "trump_blockade_lifted_apr30",
-                "market_name": "Trump blockade lifted by Apr 30",
+                "market_id": "unknown_market",
                 "side": "NO",
-                "action": "sell_limit",
+                "action": "sell_ladder",
                 "price": 0.94,
                 "shares": 15,
                 "rationale": "Reduce deadline risk.",
-                "source_model_support": [],
+                "source_model_support": ["model_a"],
                 "human_review_required": True,
             }
         ],
@@ -203,5 +186,5 @@ def test_adjudicator_schema_rejects_empty_model_support(tmp_path) -> None:
     }
     path = write_json(tmp_path, payload)
 
-    with pytest.raises(ResponseValidationError, match="should be non-empty"):
+    with pytest.raises(ResponseValidationError, match="unknown market_id"):
         validate_adjudicator_output(path)

@@ -10,12 +10,9 @@ finding actionable trades, but do not invent facts that are not in the packet.
 
 Requirements:
 
-- Every recommendation must include `market_id`, `market_name`, `side`, `recommendation`,
-  `confidence`, `rule_edge`, `opposing_side_wins_if`, `correlation`, `risk_flags`, `buy_orders`,
-  `sell_orders`, `catalysts`, `missing_info`, `source_quality`, `thesis_invalidated_if`, and
-  `human_review_required`.
-- Set `human_review_required` to `true` on every candidate trade.
-- Every suggested order must include `order_type: "limit"` and a rationale.
+- Every recommendation must include `market_id`, `market_name`, `side`, `current_mark`,
+  `recommendation`, `confidence`, `rule_edge`, `opposing_side_wins_if`, `correlation`, `risk_flags`,
+  `buy_orders`, `sell_orders`, `catalysts`, and `missing_info`.
 - Cite rule mechanics in `rule_edge`.
 - Flag liquidity weakness when known or when order book depth is missing.
 - Do not suggest market orders.
