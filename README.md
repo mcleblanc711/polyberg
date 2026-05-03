@@ -66,6 +66,8 @@ python -m polymarket_desk.cli build-packet --output reports/generated/packet.md
 python -m polymarket_desk.cli snapshot-markets --output data/snapshots/markets_YYYY-MM-DD_HHMM.json
 python -m polymarket_desk.cli diff-snapshots --old data/snapshots/markets_OLD.json --new data/snapshots/markets_NEW.json
 python -m polymarket_desk.cli build-trade-ticket --adjudicator-output reports/generated/adjudicator_output.json --output reports/generated/trade_ticket.md
+python -m polymarket_desk.cli import-public-positions --address 0x... --output reports/generated/account_positions_raw.json
+python -m polymarket_desk.cli import-account-snapshot --output-dir reports/generated/account
 ```
 
 Validate model JSON:
@@ -151,26 +153,41 @@ B. Optional: create/read a market snapshot:
 python -m polymarket_desk.cli snapshot-markets --output data/snapshots/markets_YYYY-MM-DD_HHMM.json
 ```
 
-C. Build packet:
+C. Optional: import read-only account data to generated raw JSON:
+
+```bash
+python -m polymarket_desk.cli import-public-positions \
+  --address 0x... \
+  --output reports/generated/account_positions_raw.json
+
+python -m polymarket_desk.cli import-account-snapshot \
+  --output-dir reports/generated/account
+```
+
+The public positions import uses a wallet/proxy-wallet address. The authenticated account snapshot
+uses `POLYMARKET_US_API_KEY_ID` and `POLYMARKET_US_SECRET_KEY` from the environment and only calls
+GET endpoints for positions, balances, and open orders.
+
+D. Build packet:
 
 ```bash
 python -m polymarket_desk.cli build-packet --snapshot data/snapshots/markets_YYYY-MM-DD_HHMM.json --output reports/generated/packet.md
 ```
 
-D. Paste packet into Claude trader prompt and save JSON to
+E. Paste packet into Claude trader prompt and save JSON to
 `reports/generated/claude_output.json`.
 
-E. Paste packet into ChatGPT risk prompt and save JSON to
+F. Paste packet into ChatGPT risk prompt and save JSON to
 `reports/generated/chatgpt_output.json`.
 
-F. Validate model outputs:
+G. Validate model outputs:
 
 ```bash
 python -m polymarket_desk.cli validate-response reports/generated/claude_output.json
 python -m polymarket_desk.cli validate-response reports/generated/chatgpt_output.json
 ```
 
-G. Build adjudicator input:
+H. Build adjudicator input:
 
 ```bash
 python -m polymarket_desk.cli build-adjudicator-input \
@@ -180,16 +197,16 @@ python -m polymarket_desk.cli build-adjudicator-input \
   --output reports/generated/adjudicator_input.md
 ```
 
-H. Paste adjudicator input into the adjudicator model and save JSON to
+I. Paste adjudicator input into the adjudicator model and save JSON to
 `reports/generated/adjudicator_output.json`.
 
-I. Validate adjudicator:
+J. Validate adjudicator:
 
 ```bash
 python -m polymarket_desk.cli validate-adjudicator reports/generated/adjudicator_output.json
 ```
 
-J. Build human trade ticket:
+K. Build human trade ticket:
 
 ```bash
 python -m polymarket_desk.cli build-trade-ticket \
@@ -197,7 +214,7 @@ python -m polymarket_desk.cli build-trade-ticket \
   --output reports/generated/trade_ticket.md
 ```
 
-K. A human manually reviews and places/cancels orders on Polymarket if desired.
+L. A human manually reviews and places/cancels orders on Polymarket if desired.
 
 ## Git Setup
 

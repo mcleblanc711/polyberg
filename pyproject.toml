@@ -9,6 +9,7 @@ description = "Local-first Polymarket research packet and validation tools."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "cryptography>=42.0",
   "jsonschema>=4.22",
   "pydantic>=2.7",
   "pyyaml>=6.0",

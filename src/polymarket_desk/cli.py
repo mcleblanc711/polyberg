@@ -5,6 +5,11 @@ import sys
 from pathlib import Path
 
 from polymarket_desk.adjudicator_builder import write_adjudicator_input
+from polymarket_desk.collectors.polymarket_account import (
+    AccountImportError,
+    write_authenticated_account_snapshot,
+    write_public_positions,
+)
 from polymarket_desk.config import repo_path
 from polymarket_desk.packet_builder import write_packet
 from polymarket_desk.snapshots import build_market_snapshot, default_snapshot_path, diff_snapshots
@@ -74,6 +79,29 @@ def build_parser() -> argparse.ArgumentParser:
     ticket.add_argument("--output", type=Path, required=True)
     ticket.set_defaults(func=command_build_trade_ticket)
 
+    public_positions = subparsers.add_parser(
+        "import-public-positions",
+        help="Import read-only public positions by address.",
+    )
+    public_positions.add_argument("--address", type=str, required=True)
+    public_positions.add_argument(
+        "--output",
+        type=Path,
+        default=repo_path("reports", "generated", "account_positions_raw.json"),
+    )
+    public_positions.set_defaults(func=command_import_public_positions)
+
+    account_snapshot = subparsers.add_parser(
+        "import-account-snapshot",
+        help="Import read-only authenticated account positions, balances, and open orders.",
+    )
+    account_snapshot.add_argument(
+        "--output-dir",
+        type=Path,
+        default=repo_path("reports", "generated", "account"),
+    )
+    account_snapshot.set_defaults(func=command_import_account_snapshot)
+
     return parser
 
 
@@ -132,6 +160,27 @@ def command_diff_snapshots(args: argparse.Namespace) -> int:
 def command_build_trade_ticket(args: argparse.Namespace) -> int:
     path = build_trade_ticket(args.adjudicator_output, args.output)
     print(f"Wrote human trade ticket to {path}")
+    return 0
+
+
+def command_import_public_positions(args: argparse.Namespace) -> int:
+    try:
+        path = write_public_positions(args.address, args.output)
+    except AccountImportError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"Wrote public positions import to {path}")
+    return 0
+
+
+def command_import_account_snapshot(args: argparse.Namespace) -> int:
+    try:
+        paths = write_authenticated_account_snapshot(args.output_dir)
+    except AccountImportError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    for path in paths:
+        print(f"Wrote authenticated account import to {path}")
     return 0
 
 
