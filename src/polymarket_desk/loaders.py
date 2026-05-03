@@ -7,7 +7,7 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from polymarket_desk.config import repo_path
-from polymarket_desk.models import LiveState, MarketRegistry, OpenOrders, Portfolio
+from polymarket_desk.models import LiveState, MarketRegistry, MarketSnapshot, OpenOrders, Portfolio
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -48,6 +48,14 @@ def load_market_registry(path: Path | None = None) -> MarketRegistry:
     return parse_model(MarketRegistry, path or repo_path("context", "market_registry.yaml"))
 
 
+def context_path(context_dir: Path | None, filename: str) -> Path:
+    return (context_dir or repo_path("context")).joinpath(filename)
+
+
+def load_market_registry_from_context(context_dir: Path | None = None) -> MarketRegistry:
+    return load_market_registry(context_path(context_dir, "market_registry.yaml"))
+
+
 def load_portfolio(path: Path | None = None, registry: MarketRegistry | None = None) -> Portfolio:
     portfolio = parse_model(Portfolio, path or repo_path("context", "portfolio_current.yaml"))
     if registry is not None:
@@ -78,6 +86,14 @@ def load_live_state(path: Path | None = None, registry: MarketRegistry | None = 
     if registry is not None:
         validate_market_references(live_state.watchlist, registry, "live state watchlist")
     return live_state
+
+
+def load_market_snapshot(path: Path) -> MarketSnapshot:
+    data = load_yaml_file(path)
+    try:
+        return MarketSnapshot.model_validate(data)
+    except ValidationError as exc:
+        raise LoaderError(f"Validation failed for {path}:\n{exc}") from exc
 
 
 def validate_market_references(

@@ -35,6 +35,16 @@
         "shares": {
           "type": "number",
           "minimum": 0
+        },
+        "order_type": {
+          "type": "string",
+          "const": "limit"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
         }
       }
     },
@@ -55,7 +65,8 @@
         "buy_orders",
         "sell_orders",
         "catalysts",
-        "missing_info"
+        "missing_info",
+        "human_review_required"
       ],
       "properties": {
         "market_id": {
@@ -128,6 +139,18 @@
           "items": {
             "type": "string",
             "minLength": 1
+          }
+        },
+        "human_review_required": {
+          "const": true
+        },
+        "source_quality": {
+          "type": "string"
+        },
+        "thesis_invalidated_if": {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       }

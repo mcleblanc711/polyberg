@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/polymarket-desk/twitter_sentiment_response.schema.json",
+  "title": "TwitterSentimentResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "as_of",
+    "source_class",
+    "authoritative",
+    "dominant_narratives",
+    "unverified_claims",
+    "emotional_liquidity_signal",
+    "possible_market_overreaction",
+    "verification_needed"
+  ],
+  "properties": {
+    "as_of": {"type": "string", "format": "date-time"},
+    "source_class": {"const": "twitter_sentiment"},
+    "authoritative": {"const": false},
+    "dominant_narratives": {"type": "array", "items": {"type": "string"}},
+    "unverified_claims": {"type": "array", "items": {"type": "string"}},
+    "emotional_liquidity_signal": {"type": "string"},
+    "possible_market_overreaction": {"type": "string"},
+    "verification_needed": {"type": "array", "items": {"type": "string"}}
+  }
+}

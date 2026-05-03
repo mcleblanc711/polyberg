@@ -9,6 +9,20 @@ markets:
     risk_flags:
       - pure data oracle
       - low media ambiguity
+    event_slug: example-hormuz-normal
+    condition_id: ""
+    yes_token_id: ""
+    no_token_id: ""
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: pure_data
+      ambiguity: low
+      media_fallback: false
+      official_statement_required: false
+      dispute_risk: low
     resolution_date: 2026-05-15
     notes: Resolves on IMF Portwatch 7-day moving average of transit calls.
   - market_id: trump_blockade_lifted_apr30
@@ -22,6 +36,20 @@ markets:
       - Trump social post can qualify
       - media fallback may matter
       - deadline gamma
+    event_slug: example-trump-blockade
+    condition_id: ""
+    yes_token_id: ""
+    no_token_id: ""
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
     resolution_date: 2026-04-30
     notes: Requires explicit official announcement that the blockade has ended or will end.
   - market_id: cl_high_120_end_june
@@ -35,5 +63,19 @@ markets:
       - high volatility
       - correlated with Hormuz escalation
       - liquidity can gap
+    event_slug: example-cl-high-120
+    condition_id: ""
+    yes_token_id: ""
+    no_token_id: ""
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: pure_data
+      ambiguity: low
+      media_fallback: false
+      official_statement_required: false
+      dispute_risk: low
     resolution_date: 2026-06-30
     notes: Resolves on whether the specified CL contract reaches or exceeds $120 by deadline.

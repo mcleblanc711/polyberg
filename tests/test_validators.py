@@ -7,6 +7,7 @@ import pytest
 from polymarket_desk.validators import (
     ResponseValidationError,
     validate_adjudicator_output,
+    validate_market_snapshot,
     validate_model_response,
 )
 
@@ -36,6 +37,7 @@ def good_model_response() -> dict:
                 "sell_orders": [{"price": 0.94, "shares": 15}],
                 "catalysts": ["Apr 30 resolution deadline"],
                 "missing_info": ["current order book depth"],
+                "human_review_required": True,
             }
         ],
     }
@@ -50,6 +52,63 @@ def write_json(tmp_path, payload: dict):
 def test_validating_good_model_response(tmp_path) -> None:
     path = write_json(tmp_path, good_model_response())
     validate_model_response(path)
+
+
+def test_model_order_contract_allows_minimal_limit_order_edges(tmp_path) -> None:
+    payload = good_model_response()
+    trade = payload["candidate_trades"][0]
+    payload["agent_role"] = "future_grok_twitter_sentiment_parser"
+    trade["buy_orders"] = [{"price": 0, "shares": 0}, {"price": 1, "shares": 15}]
+    trade["sell_orders"] = [{"price": 0.94, "shares": 15, "order_type": "limit"}]
+    path = write_json(tmp_path, payload)
+
+    validate_model_response(path)
+
+
+def test_model_optional_fields_are_optional(tmp_path) -> None:
+    payload = good_model_response()
+    path = write_json(tmp_path, payload)
+
+    validate_model_response(path)
+
+
+def test_model_optional_fields_are_allowed(tmp_path) -> None:
+    payload = good_model_response()
+    trade = payload["candidate_trades"][0]
+    trade["source_quality"] = "mixed but usable"
+    trade["thesis_invalidated_if"] = ["Official statement resolves against thesis."]
+    path = write_json(tmp_path, payload)
+
+    validate_model_response(path)
+
+
+def test_model_schema_requires_human_review_true(tmp_path) -> None:
+    payload = good_model_response()
+    payload["candidate_trades"][0]["human_review_required"] = False
+    path = write_json(tmp_path, payload)
+
+    with pytest.raises(ResponseValidationError, match="True"):
+        validate_model_response(path)
+
+
+def test_model_schema_requires_human_review_present(tmp_path) -> None:
+    payload = good_model_response()
+    del payload["candidate_trades"][0]["human_review_required"]
+    path = write_json(tmp_path, payload)
+
+    with pytest.raises(ResponseValidationError, match="human_review_required"):
+        validate_model_response(path)
+
+
+def test_model_order_rejects_non_limit_order_type(tmp_path) -> None:
+    payload = good_model_response()
+    payload["candidate_trades"][0]["buy_orders"] = [
+        {"price": 0.5, "shares": 1, "order_type": "market"}
+    ]
+    path = write_json(tmp_path, payload)
+
+    with pytest.raises(ResponseValidationError):
+        validate_model_response(path)
 
 
 def test_rejecting_malformed_model_response(tmp_path) -> None:
@@ -134,6 +193,33 @@ def test_adjudicator_schema_requires_human_review_true(tmp_path) -> None:
         validate_adjudicator_output(path)
 
 
+def test_adjudicator_schema_requires_human_review_present(tmp_path) -> None:
+    payload = {
+        "as_of": "2026-04-26T09:00:00-06:00",
+        "agreed_trades": [],
+        "disputed_trades": [],
+        "rejected_trades": [],
+        "final_order_list": [
+            {
+                "market_id": "trump_blockade_lifted_apr30",
+                "side": "NO",
+                "action": "hold",
+                "price": 0.94,
+                "shares": 15,
+                "rationale": "No manual action until liquidity improves.",
+                "source_model_support": "claude",
+            }
+        ],
+        "invalidation_triggers": ["Official announcement invalidates NO thesis."],
+        "missing_info_checklist": [],
+        "adjudicator_notes": ["Human review required before any action."],
+    }
+    path = write_json(tmp_path, payload)
+
+    with pytest.raises(ResponseValidationError):
+        validate_adjudicator_output(path)
+
+
 def test_adjudicator_schema_rejects_negative_share_final_order(tmp_path) -> None:
     payload = {
         "as_of": "2026-04-26T09:00:00-06:00",
@@ -188,3 +274,29 @@ def test_adjudicator_schema_rejects_unknown_market_id(tmp_path) -> None:
 
     with pytest.raises(ResponseValidationError, match="unknown market_id"):
         validate_adjudicator_output(path)
+
+
+def test_market_snapshot_validation(tmp_path) -> None:
+    path = write_json(
+        tmp_path,
+        {
+            "as_of": "2026-04-26T09:00:00-06:00",
+            "markets": [
+                {
+                    "market_id": "hormuz_normal_may15",
+                    "yes_price": 0,
+                    "no_price": 1,
+                    "best_bid_yes": None,
+                    "best_ask_yes": None,
+                    "best_bid_no": None,
+                    "best_ask_no": None,
+                    "spread": 0.02,
+                    "orderbook_depth_top": 0,
+                    "liquidity_warning": False,
+                    "missing_info": [],
+                }
+            ],
+        },
+    )
+
+    validate_market_snapshot(path)

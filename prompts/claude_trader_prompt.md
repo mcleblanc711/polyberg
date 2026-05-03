@@ -12,7 +12,7 @@ Requirements:
 
 - Every recommendation must include `market_id`, `market_name`, `side`, `current_mark`,
   `recommendation`, `confidence`, `rule_edge`, `opposing_side_wins_if`, `correlation`, `risk_flags`,
-  `buy_orders`, `sell_orders`, `catalysts`, and `missing_info`.
+  `buy_orders`, `sell_orders`, `catalysts`, `missing_info`, and `human_review_required: true`.
 - Cite rule mechanics in `rule_edge`.
 - Flag liquidity weakness when known or when order book depth is missing.
 - Do not suggest market orders.

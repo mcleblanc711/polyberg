@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/polymarket-desk/market_snapshot.schema.json",
+  "title": "MarketSnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["as_of", "markets"],
+  "properties": {
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "markets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/market"
+      }
+    }
+  },
+  "$defs": {
+    "nullable_price": {
+      "anyOf": [
+        {"type": "number", "minimum": 0, "maximum": 1},
+        {"type": "null"}
+      ]
+    },
+    "market": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "market_id",
+        "yes_price",
+        "no_price",
+        "best_bid_yes",
+        "best_ask_yes",
+        "best_bid_no",
+        "best_ask_no",
+        "spread",
+        "orderbook_depth_top",
+        "liquidity_warning",
+        "missing_info"
+      ],
+      "properties": {
+        "market_id": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+        "yes_price": {"$ref": "#/$defs/nullable_price"},
+        "no_price": {"$ref": "#/$defs/nullable_price"},
+        "best_bid_yes": {"$ref": "#/$defs/nullable_price"},
+        "best_ask_yes": {"$ref": "#/$defs/nullable_price"},
+        "best_bid_no": {"$ref": "#/$defs/nullable_price"},
+        "best_ask_no": {"$ref": "#/$defs/nullable_price"},
+        "spread": {"$ref": "#/$defs/nullable_price"},
+        "orderbook_depth_top": {
+          "anyOf": [
+            {"type": "number", "minimum": 0},
+            {"type": "null"}
+          ]
+        },
+        "liquidity_warning": {"type": "boolean"},
+        "missing_info": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    }
+  }
+}

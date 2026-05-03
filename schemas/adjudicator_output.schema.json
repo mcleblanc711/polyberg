@@ -79,6 +79,9 @@
         "rationale": {
           "type": "string",
           "minLength": 1
+        },
+        "source_model_support": {
+          "$ref": "#/$defs/source_model_support"
         }
       }
     },
@@ -123,16 +126,27 @@
           "minLength": 1
         },
         "source_model_support": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
+          "$ref": "#/$defs/source_model_support"
         },
         "human_review_required": {
           "const": true
         }
       }
+    },
+    "source_model_support": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ]
     }
   }
 }

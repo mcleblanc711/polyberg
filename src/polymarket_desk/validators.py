@@ -63,6 +63,12 @@ def validate_adjudicator_output(json_path: Path) -> None:
     validate_adjudicator_market_references(payload, json_path)
 
 
+def validate_market_snapshot(json_path: Path) -> None:
+    payload = load_json(json_path)
+    validate_json_file(json_path, repo_path("schemas", "market_snapshot.schema.json"))
+    validate_timezone_aware_as_of(payload, json_path)
+
+
 def validate_timezone_aware_as_of(payload: dict[str, Any], json_path: Path) -> None:
     value = payload.get("as_of")
     if not isinstance(value, str):

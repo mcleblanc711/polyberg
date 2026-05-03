@@ -37,6 +37,12 @@ class Market(StrictModel):
     risk_flags: list[str] = Field(default_factory=list)
     resolution_date: date
     notes: str
+    event_slug: str | None = None
+    condition_id: str | None = None
+    yes_token_id: str | None = None
+    no_token_id: str | None = None
+    data_collection: DataCollection | None = None
+    rule_risk: RuleRisk | None = None
 
     @field_validator("market_id")
     @classmethod
@@ -94,7 +100,7 @@ class Order(StrictModel):
     side: Side
     price: float = Field(ge=0, le=1)
     shares: float = Field(ge=0)
-    order_type: str
+    order_type: str = "limit"
     notes: str = ""
 
     @field_validator("market_id")
@@ -105,8 +111,8 @@ class Order(StrictModel):
     @field_validator("order_type")
     @classmethod
     def require_limit_order(cls, value: str) -> str:
-        if value.lower() == "market":
-            raise ValueError("market orders are not allowed")
+        if value != "limit":
+            raise ValueError("order_type must be 'limit'")
         return value
 
 
@@ -147,3 +153,53 @@ class LiveState(StrictModel):
         for market_id in value:
             require_market_id(market_id)
         return value
+
+    @field_validator("mode")
+    @classmethod
+    def validate_mode(cls, value: str) -> str:
+        if not value:
+            raise ValueError("mode must be a non-empty string")
+        return value
+
+
+class DataCollection(StrictModel):
+    fetch_gamma: bool = False
+    fetch_clob: bool = False
+    fetch_orderbook: bool = False
+
+
+class RuleRisk(StrictModel):
+    oracle_type: str
+    ambiguity: str
+    media_fallback: bool
+    official_statement_required: bool
+    dispute_risk: str
+
+
+class MarketSnapshotEntry(StrictModel):
+    market_id: str
+    yes_price: float | None = Field(default=None, ge=0, le=1)
+    no_price: float | None = Field(default=None, ge=0, le=1)
+    best_bid_yes: float | None = Field(default=None, ge=0, le=1)
+    best_ask_yes: float | None = Field(default=None, ge=0, le=1)
+    best_bid_no: float | None = Field(default=None, ge=0, le=1)
+    best_ask_no: float | None = Field(default=None, ge=0, le=1)
+    spread: float | None = Field(default=None, ge=0, le=1)
+    orderbook_depth_top: float | None = Field(default=None, ge=0)
+    liquidity_warning: bool = False
+    missing_info: list[str] = Field(default_factory=list)
+
+    @field_validator("market_id")
+    @classmethod
+    def validate_market_id(cls, value: str) -> str:
+        return require_market_id(value)
+
+
+class MarketSnapshot(StrictModel):
+    as_of: datetime
+    markets: list[MarketSnapshotEntry]
+
+    @field_validator("as_of")
+    @classmethod
+    def validate_as_of_timezone(cls, value: datetime) -> datetime:
+        return require_timezone(value)
