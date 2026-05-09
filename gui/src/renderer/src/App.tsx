@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { pmData } from './lib/pmData'
 import { DashboardScreen } from './screens/dashboard/DashboardScreen'
 import { CatalystsScreen } from './screens/catalysts/CatalystsScreen'
+import { IntakeScreen } from './screens/intake/IntakeScreen'
 import { MarketsScreen } from './screens/markets/MarketsScreen'
 import { PacketScreen } from './screens/packet/PacketScreen'
 import { SnapshotsScreen } from './screens/snapshots/SnapshotsScreen'
@@ -106,13 +107,6 @@ const StatusBar = ({ screen }: { screen: ScreenId }) => {
   )
 }
 
-const ScreenStub = ({ name }: { name: string }) => (
-  <div style={S.stub}>
-    <div style={S.stubLabel}>{name}</div>
-    <div style={S.stubHint}>screen not yet ported · step 2 placeholder</div>
-  </div>
-)
-
 export const App = () => {
   const [screen, setScreen] = useState<ScreenId>('dashboard')
 
@@ -124,25 +118,28 @@ export const App = () => {
     }
   }
 
+  const renderScreen = (): JSX.Element => {
+    switch (screen) {
+      case 'dashboard':
+        return <DashboardScreen onRunNextStage={onRunNextStage} />
+      case 'markets':
+        return <MarketsScreen />
+      case 'packet':
+        return <PacketScreen />
+      case 'catalysts':
+        return <CatalystsScreen />
+      case 'snapshots':
+        return <SnapshotsScreen />
+      case 'intake':
+        return <IntakeScreen />
+    }
+  }
+
   return (
     <>
       <div style={S.shell}>
         <TopBar screen={screen} setScreen={setScreen} onRunNextStage={onRunNextStage} />
-        <div style={S.body}>
-          {screen === 'dashboard' ? (
-            <DashboardScreen onRunNextStage={onRunNextStage} />
-          ) : screen === 'markets' ? (
-            <MarketsScreen />
-          ) : screen === 'packet' ? (
-            <PacketScreen />
-          ) : screen === 'catalysts' ? (
-            <CatalystsScreen />
-          ) : screen === 'snapshots' ? (
-            <SnapshotsScreen />
-          ) : (
-            <ScreenStub name={screen.toUpperCase()} />
-          )}
-        </div>
+        <div style={S.body}>{renderScreen()}</div>
         <StatusBar screen={screen} />
       </div>
       <div className="scanline-overlay" />
@@ -335,27 +332,5 @@ const S: Record<string, CSSProperties> = {
     position: 'relative',
     zIndex: 2,
     flexShrink: 0
-  },
-  stub: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10
-  },
-  stubLabel: {
-    fontFamily: F.display,
-    fontSize: 22,
-    fontWeight: 700,
-    letterSpacing: 0.5,
-    color: C.magenta,
-    textShadow: `0 0 14px ${C.magenta}55`
-  },
-  stubHint: {
-    fontFamily: F.mono,
-    fontSize: 10.5,
-    letterSpacing: 1.2,
-    color: C.textDim
   }
 }
