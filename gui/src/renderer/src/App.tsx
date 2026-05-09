@@ -4,6 +4,7 @@ import { DashboardScreen } from './screens/dashboard/DashboardScreen'
 import { CatalystsScreen } from './screens/catalysts/CatalystsScreen'
 import { MarketsScreen } from './screens/markets/MarketsScreen'
 import { PacketScreen } from './screens/packet/PacketScreen'
+import { SnapshotsScreen } from './screens/snapshots/SnapshotsScreen'
 import { colors as C, fonts as F } from './styles/tokens'
 
 type ScreenId = 'dashboard' | 'intake' | 'snapshots' | 'catalysts' | 'packet' | 'markets'
@@ -136,6 +137,8 @@ export const App = () => {
             <PacketScreen />
           ) : screen === 'catalysts' ? (
             <CatalystsScreen />
+          ) : screen === 'snapshots' ? (
+            <SnapshotsScreen />
           ) : (
             <ScreenStub name={screen.toUpperCase()} />
           )}
