@@ -17,3 +17,9 @@ reports/generated/**
 
 # Local Claude Code workspace settings
 .claude/
+
+# Electron GUI build artifacts
+gui/node_modules/
+gui/out/
+gui/dist/
+gui/*.tsbuildinfo
