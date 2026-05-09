@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 import { pmData } from './lib/pmData'
+import { DashboardScreen } from './screens/dashboard/DashboardScreen'
 import { colors as C, fonts as F } from './styles/tokens'
 
 type ScreenId = 'dashboard' | 'intake' | 'snapshots' | 'catalysts' | 'packet' | 'markets'
@@ -124,7 +125,11 @@ export const App = () => {
       <div style={S.shell}>
         <TopBar screen={screen} setScreen={setScreen} onRunNextStage={onRunNextStage} />
         <div style={S.body}>
-          <ScreenStub name={screen.toUpperCase()} />
+          {screen === 'dashboard' ? (
+            <DashboardScreen onRunNextStage={onRunNextStage} />
+          ) : (
+            <ScreenStub name={screen.toUpperCase()} />
+          )}
         </div>
         <StatusBar screen={screen} />
       </div>
