@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import { pmData } from './lib/pmData'
 import { DashboardScreen } from './screens/dashboard/DashboardScreen'
+import { MarketsScreen } from './screens/markets/MarketsScreen'
 import { colors as C, fonts as F } from './styles/tokens'
 
 type ScreenId = 'dashboard' | 'intake' | 'snapshots' | 'catalysts' | 'packet' | 'markets'
@@ -127,6 +128,8 @@ export const App = () => {
         <div style={S.body}>
           {screen === 'dashboard' ? (
             <DashboardScreen onRunNextStage={onRunNextStage} />
+          ) : screen === 'markets' ? (
+            <MarketsScreen />
           ) : (
             <ScreenStub name={screen.toUpperCase()} />
           )}
