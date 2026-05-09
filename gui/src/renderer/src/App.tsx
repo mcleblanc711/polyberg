@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import { pmData } from './lib/pmData'
 import { DashboardScreen } from './screens/dashboard/DashboardScreen'
+import { CatalystsScreen } from './screens/catalysts/CatalystsScreen'
 import { MarketsScreen } from './screens/markets/MarketsScreen'
 import { PacketScreen } from './screens/packet/PacketScreen'
 import { colors as C, fonts as F } from './styles/tokens'
@@ -133,6 +134,8 @@ export const App = () => {
             <MarketsScreen />
           ) : screen === 'packet' ? (
             <PacketScreen />
+          ) : screen === 'catalysts' ? (
+            <CatalystsScreen />
           ) : (
             <ScreenStub name={screen.toUpperCase()} />
           )}
