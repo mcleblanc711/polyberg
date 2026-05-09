@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.local/polymarket-desk/model_trade_response.schema.json",
+  "$id": "https://example.local/polyberg/model_trade_response.schema.json",
   "title": "ModelTradeResponse",
   "type": "object",
   "additionalProperties": false,

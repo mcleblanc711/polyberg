@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.local/polymarket-desk/market_snapshot.schema.json",
+  "$id": "https://example.local/polyberg/market_snapshot.schema.json",
   "title": "MarketSnapshot",
   "type": "object",
   "additionalProperties": false,

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import shutil
 
-from polymarket_desk.config import repo_path
-from polymarket_desk.packet_builder import build_packet
+from polyberg.config import repo_path
+from polyberg.packet_builder import build_packet
 
 
 def test_build_packet_contains_required_sections() -> None:

@@ -7,11 +7,11 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from polymarket_desk.cli import build_parser
-from polymarket_desk.config import windows_safe_timestamp
-from polymarket_desk.snapshots import build_market_snapshot, diff_snapshots
-from polymarket_desk.trade_ticket import build_trade_ticket
-from polymarket_desk.validators import ResponseValidationError
+from polyberg.cli import build_parser
+from polyberg.config import windows_safe_timestamp
+from polyberg.snapshots import build_market_snapshot, diff_snapshots
+from polyberg.trade_ticket import build_trade_ticket
+from polyberg.validators import ResponseValidationError
 
 
 def write_json(tmp_path, name: str, payload: dict):

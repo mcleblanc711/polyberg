@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from polymarket_desk.config import get_max_context_age_hours, get_timezone
-from polymarket_desk.loaders import (
+from polyberg.config import get_max_context_age_hours, get_timezone
+from polyberg.loaders import (
     context_path,
     load_live_state,
     load_market_registry,
@@ -14,7 +14,7 @@ from polymarket_desk.loaders import (
     load_portfolio,
     read_text_file,
 )
-from polymarket_desk.models import LiveState, MarketRegistry, MarketSnapshot, OpenOrders, Portfolio
+from polyberg.models import LiveState, MarketRegistry, MarketSnapshot, OpenOrders, Portfolio
 
 
 @dataclass(frozen=True)

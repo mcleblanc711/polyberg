@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from polymarket_desk.validators import (
+from polyberg.validators import (
     ResponseValidationError,
     validate_adjudicator_output,
     validate_market_snapshot,

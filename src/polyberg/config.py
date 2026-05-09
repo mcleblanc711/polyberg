@@ -15,7 +15,7 @@ def repo_path(*parts: str) -> Path:
 
 
 def get_timezone_name() -> str:
-    return os.environ.get("POLYMARKET_DESK_TIMEZONE", DEFAULT_TIMEZONE)
+    return os.environ.get("POLYBERG_TIMEZONE", DEFAULT_TIMEZONE)
 
 
 def get_timezone(timezone_name: str | None = None) -> ZoneInfo:
@@ -24,24 +24,24 @@ def get_timezone(timezone_name: str | None = None) -> ZoneInfo:
         return ZoneInfo(name)
     except ZoneInfoNotFoundError as exc:
         raise ValueError(
-            f"Invalid timezone {name!r}. Set POLYMARKET_DESK_TIMEZONE to a valid IANA "
+            f"Invalid timezone {name!r}. Set POLYBERG_TIMEZONE to a valid IANA "
             "timezone such as 'America/Edmonton' or 'UTC'."
         ) from exc
 
 
 def get_max_context_age_hours() -> float:
-    raw = os.environ.get("POLYMARKET_DESK_MAX_CONTEXT_AGE_HOURS")
+    raw = os.environ.get("POLYBERG_MAX_CONTEXT_AGE_HOURS")
     if raw is None:
         return DEFAULT_MAX_CONTEXT_AGE_HOURS
     try:
         value = float(raw)
     except ValueError as exc:
         raise ValueError(
-            "Invalid POLYMARKET_DESK_MAX_CONTEXT_AGE_HOURS. Set it to a positive number."
+            "Invalid POLYBERG_MAX_CONTEXT_AGE_HOURS. Set it to a positive number."
         ) from exc
     if value <= 0:
         raise ValueError(
-            "Invalid POLYMARKET_DESK_MAX_CONTEXT_AGE_HOURS. Set it to a positive number."
+            "Invalid POLYBERG_MAX_CONTEXT_AGE_HOURS. Set it to a positive number."
         )
     return value
 

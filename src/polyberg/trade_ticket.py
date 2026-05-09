@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from polymarket_desk.validators import load_json, validate_adjudicator_output
+from polyberg.validators import load_json, validate_adjudicator_output
 
 
 def build_trade_ticket(adjudicator_output: Path, output_path: Path) -> Path:

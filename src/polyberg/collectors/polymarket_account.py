@@ -18,7 +18,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from polymarket_desk.config import get_timezone
+from polyberg.config import get_timezone
 
 PUBLIC_DATA_API_BASE_URL = "https://data-api.polymarket.com"
 POLYMARKET_US_API_BASE_URL = "https://api.polymarket.us"

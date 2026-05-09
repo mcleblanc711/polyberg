@@ -6,8 +6,8 @@ from typing import Any, TypeVar
 import yaml
 from pydantic import BaseModel, ValidationError
 
-from polymarket_desk.config import repo_path
-from polymarket_desk.models import LiveState, MarketRegistry, MarketSnapshot, OpenOrders, Portfolio
+from polyberg.config import repo_path
+from polyberg.models import LiveState, MarketRegistry, MarketSnapshot, OpenOrders, Portfolio
 
 T = TypeVar("T", bound=BaseModel)
 

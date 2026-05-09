@@ -41,11 +41,11 @@ should be read from environment variables at runtime and never written into repo
 Implemented commands:
 
 ```bash
-python -m polymarket_desk.cli import-public-positions \
+python -m polyberg.cli import-public-positions \
   --address 0x... \
   --output reports/generated/account_positions_raw.json
 
-python -m polymarket_desk.cli import-account-snapshot \
+python -m polyberg.cli import-account-snapshot \
   --output-dir reports/generated/account
 ```
 

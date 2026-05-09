@@ -7,8 +7,8 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-from polymarket_desk.config import repo_path
-from polymarket_desk.loaders import load_market_registry
+from polyberg.config import repo_path
+from polyberg.loaders import load_market_registry
 
 
 class ResponseValidationError(RuntimeError):

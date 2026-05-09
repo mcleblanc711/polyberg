@@ -1,6 +1,6 @@
-# Polymarket Desk
+# Polyberg
 
-Polymarket Desk is a local-first research repo for structured prediction-market analysis. It keeps
+Polyberg is a local-first research repo for structured prediction-market analysis. It keeps
 stable market rules, live trading context, portfolio state, open orders, prompts, schemas, and
 generated model packets in separate files so LLM analysis can be repeated and validated.
 
@@ -16,8 +16,8 @@ dashboard, scrape websites, or touch wallets/private keys.
 - Model outputs are never trusted until validated against local JSON schemas.
 - Twitter/X sentiment, if added later, must be labelled noisy, non-authoritative, and catalyst-only.
 - Every final order recommendation requires human review.
-- `POLYMARKET_DESK_TIMEZONE` overrides the default `America/Edmonton` timezone.
-- `POLYMARKET_DESK_MAX_CONTEXT_AGE_HOURS` overrides the default 36-hour freshness warning.
+- `POLYBERG_TIMEZONE` overrides the default `America/Edmonton` timezone.
+- `POLYBERG_MAX_CONTEXT_AGE_HOURS` overrides the default 36-hour freshness warning.
 - JSON Schema validation uses `jsonschema` with `rfc3339-validator`; Python post-checks also
   require timezone-aware `as_of` values.
 
@@ -62,30 +62,30 @@ Plain Python equivalents that work in Bash and PowerShell:
 python -m pip install -e ".[dev]"
 pytest
 ruff check src tests
-python -m polymarket_desk.cli build-packet --output reports/generated/packet.md
-python -m polymarket_desk.cli snapshot-markets --output data/snapshots/markets_YYYY-MM-DD_HHMM.json
-python -m polymarket_desk.cli diff-snapshots --old data/snapshots/markets_OLD.json --new data/snapshots/markets_NEW.json
-python -m polymarket_desk.cli build-trade-ticket --adjudicator-output reports/generated/adjudicator_output.json --output reports/generated/trade_ticket.md
-python -m polymarket_desk.cli import-public-positions --address 0x... --output reports/generated/account_positions_raw.json
-python -m polymarket_desk.cli import-account-snapshot --output-dir reports/generated/account
+python -m polyberg.cli build-packet --output reports/generated/packet.md
+python -m polyberg.cli snapshot-markets --output data/snapshots/markets_YYYY-MM-DD_HHMM.json
+python -m polyberg.cli diff-snapshots --old data/snapshots/markets_OLD.json --new data/snapshots/markets_NEW.json
+python -m polyberg.cli build-trade-ticket --adjudicator-output reports/generated/adjudicator_output.json --output reports/generated/trade_ticket.md
+python -m polyberg.cli import-public-positions --address 0x... --output reports/generated/account_positions_raw.json
+python -m polyberg.cli import-account-snapshot --output-dir reports/generated/account
 ```
 
 Validate model JSON:
 
 ```bash
-python -m polymarket_desk.cli validate-response reports/generated/claude_output.json
+python -m polyberg.cli validate-response reports/generated/claude_output.json
 ```
 
 Validate adjudicator JSON:
 
 ```bash
-python -m polymarket_desk.cli validate-adjudicator reports/generated/adjudicator_output.json
+python -m polyberg.cli validate-adjudicator reports/generated/adjudicator_output.json
 ```
 
 Build adjudicator input in Bash:
 
 ```bash
-python -m polymarket_desk.cli build-adjudicator-input \
+python -m polyberg.cli build-adjudicator-input \
   --packet reports/generated/packet.md \
   --model-output-a reports/generated/claude_output.json \
   --model-output-b reports/generated/chatgpt_output.json \
@@ -95,7 +95,7 @@ python -m polymarket_desk.cli build-adjudicator-input \
 Build adjudicator input in PowerShell:
 
 ```powershell
-python -m polymarket_desk.cli build-adjudicator-input `
+python -m polyberg.cli build-adjudicator-input `
   --packet reports/generated/packet.md `
   --model-output-a reports/generated/claude_output.json `
   --model-output-b reports/generated/chatgpt_output.json `
@@ -105,7 +105,7 @@ python -m polymarket_desk.cli build-adjudicator-input `
 Build packets from another context directory:
 
 ```bash
-python -m polymarket_desk.cli build-packet \
+python -m polyberg.cli build-packet \
   --context-dir context \
   --snapshot data/snapshots/markets_YYYY-MM-DD_HHMM.json \
   --output reports/generated/packet.md
@@ -150,17 +150,17 @@ A. Update local context files:
 B. Optional: create/read a market snapshot:
 
 ```bash
-python -m polymarket_desk.cli snapshot-markets --output data/snapshots/markets_YYYY-MM-DD_HHMM.json
+python -m polyberg.cli snapshot-markets --output data/snapshots/markets_YYYY-MM-DD_HHMM.json
 ```
 
 C. Optional: import read-only account data to generated raw JSON:
 
 ```bash
-python -m polymarket_desk.cli import-public-positions \
+python -m polyberg.cli import-public-positions \
   --address 0x... \
   --output reports/generated/account_positions_raw.json
 
-python -m polymarket_desk.cli import-account-snapshot \
+python -m polyberg.cli import-account-snapshot \
   --output-dir reports/generated/account
 ```
 
@@ -171,7 +171,7 @@ GET endpoints for positions, balances, and open orders.
 D. Build packet:
 
 ```bash
-python -m polymarket_desk.cli build-packet --snapshot data/snapshots/markets_YYYY-MM-DD_HHMM.json --output reports/generated/packet.md
+python -m polyberg.cli build-packet --snapshot data/snapshots/markets_YYYY-MM-DD_HHMM.json --output reports/generated/packet.md
 ```
 
 E. Paste packet into Claude trader prompt and save JSON to
@@ -183,14 +183,14 @@ F. Paste packet into ChatGPT risk prompt and save JSON to
 G. Validate model outputs:
 
 ```bash
-python -m polymarket_desk.cli validate-response reports/generated/claude_output.json
-python -m polymarket_desk.cli validate-response reports/generated/chatgpt_output.json
+python -m polyberg.cli validate-response reports/generated/claude_output.json
+python -m polyberg.cli validate-response reports/generated/chatgpt_output.json
 ```
 
 H. Build adjudicator input:
 
 ```bash
-python -m polymarket_desk.cli build-adjudicator-input \
+python -m polyberg.cli build-adjudicator-input \
   --packet reports/generated/packet.md \
   --model-output-a reports/generated/claude_output.json \
   --model-output-b reports/generated/chatgpt_output.json \
@@ -203,13 +203,13 @@ I. Paste adjudicator input into the adjudicator model and save JSON to
 J. Validate adjudicator:
 
 ```bash
-python -m polymarket_desk.cli validate-adjudicator reports/generated/adjudicator_output.json
+python -m polyberg.cli validate-adjudicator reports/generated/adjudicator_output.json
 ```
 
 K. Build human trade ticket:
 
 ```bash
-python -m polymarket_desk.cli build-trade-ticket \
+python -m polyberg.cli build-trade-ticket \
   --adjudicator-output reports/generated/adjudicator_output.json \
   --output reports/generated/trade_ticket.md
 ```
@@ -223,7 +223,7 @@ If starting from an unpacked directory rather than a cloned repo:
 ```bash
 git init
 git add .
-git commit -m "initial local-first polymarket desk"
+git commit -m "initial local-first polyberg"
 ```
 
 ## Scope Boundaries

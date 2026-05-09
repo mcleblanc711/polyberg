@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.local/polymarket-desk/twitter_sentiment_response.schema.json",
+  "$id": "https://example.local/polyberg/twitter_sentiment_response.schema.json",
   "title": "TwitterSentimentResponse",
   "type": "object",
   "additionalProperties": false,

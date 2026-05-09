@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from polymarket_desk.config import repo_path
-from polymarket_desk.loaders import read_text_file
+from polyberg.config import repo_path
+from polyberg.loaders import read_text_file
 
 
 def build_adjudicator_input(packet_path: Path, model_output_a: Path, model_output_b: Path) -> str:

@@ -7,9 +7,9 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from polymarket_desk.config import get_timezone, windows_safe_timestamp
-from polymarket_desk.loaders import LoaderError, load_market_registry
-from polymarket_desk.models import MarketSnapshot, MarketSnapshotEntry
+from polyberg.config import get_timezone, windows_safe_timestamp
+from polyberg.loaders import LoaderError, load_market_registry
+from polyberg.models import MarketSnapshot, MarketSnapshotEntry
 
 
 def build_market_snapshot(

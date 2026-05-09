@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from polymarket_desk.loaders import (
+from polyberg.loaders import (
     LoaderError,
     load_live_state,
     load_market_registry,
     load_open_orders,
     load_portfolio,
 )
-from polymarket_desk.models import LiveState, OpenOrders
+from polyberg.models import LiveState, OpenOrders
 
 
 def test_load_yaml_context_files() -> None:

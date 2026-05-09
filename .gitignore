@@ -14,3 +14,6 @@ data/snapshots/**
 
 reports/generated/**
 !reports/generated/.gitkeep
+
+# Local Claude Code workspace settings
+.claude/

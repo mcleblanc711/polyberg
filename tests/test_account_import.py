@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from polymarket_desk.collectors.polymarket_account import (
+from polyberg.collectors.polymarket_account import (
     AccountImportError,
     PolymarketUSReadOnlyClient,
     PublicDataAccountClient,
@@ -91,7 +91,7 @@ def test_authenticated_client_refuses_to_sign_non_get() -> None:
 
 def test_authenticated_snapshot_writes_three_raw_files(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "polymarket_desk.collectors.polymarket_account.sign_ed25519_message",
+        "polyberg.collectors.polymarket_account.sign_ed25519_message",
         lambda secret, message: "signed",
     )
     opener = RecordingOpener({"ok": True})

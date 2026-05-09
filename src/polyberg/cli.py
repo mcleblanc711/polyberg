@@ -4,17 +4,17 @@ import argparse
 import sys
 from pathlib import Path
 
-from polymarket_desk.adjudicator_builder import write_adjudicator_input
-from polymarket_desk.collectors.polymarket_account import (
+from polyberg.adjudicator_builder import write_adjudicator_input
+from polyberg.collectors.polymarket_account import (
     AccountImportError,
     write_authenticated_account_snapshot,
     write_public_positions,
 )
-from polymarket_desk.config import repo_path
-from polymarket_desk.packet_builder import write_packet
-from polymarket_desk.snapshots import build_market_snapshot, default_snapshot_path, diff_snapshots
-from polymarket_desk.trade_ticket import build_trade_ticket
-from polymarket_desk.validators import (
+from polyberg.config import repo_path
+from polyberg.packet_builder import write_packet
+from polyberg.snapshots import build_market_snapshot, default_snapshot_path, diff_snapshots
+from polyberg.trade_ticket import build_trade_ticket
+from polyberg.validators import (
     ResponseValidationError,
     validate_adjudicator_output,
     validate_model_response,
@@ -22,7 +22,7 @@ from polymarket_desk.validators import (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="polymarket-desk")
+    parser = argparse.ArgumentParser(prog="polyberg")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     packet = subparsers.add_parser("build-packet", help="Build a markdown model context packet.")
