@@ -1,6 +1,6 @@
 # Polyberg Project Summary
 
-Last reviewed: 2026-05-08
+Last reviewed: 2026-05-08 (evening)
 
 ## Purpose
 
@@ -12,6 +12,80 @@ renders a human trade ticket from validated adjudicator output.
 The project is intentionally not an automated trading system. Its safety posture is that every
 model recommendation is untrusted until validated, and every final order still requires manual
 human review and manual execution outside this repo.
+
+A read-mostly GUI ("Polyberg Terminal") is being built on top of the CLI in `gui/`.
+
+## GUI (Polyberg Terminal)
+
+Local Electron app that renders the existing yaml/md research repo and shells out to the CLI
+for stage advancement. Read-mostly; the only state-change affordance is a draft-order panel
+that writes to `open_orders.yaml` for manual exec — nothing executes orders.
+
+### Stack
+
+- **electron-vite** + **React 18** + **TypeScript** under `gui/`.
+- Hardened BrowserWindow: `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`,
+  `autoHideMenuBar: true`. Min size 1200×800, default 1480×1100.
+- Three TS configs: root references node + web. `npm run typecheck && npm run build` is the
+  smoke test.
+- Linux dev requires the Chromium sandbox helper to be setuid root after every `npm install`
+  that re-extracts Electron:
+  `sudo chown root:root gui/node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 …`
+
+### Strategy: visual-first, IPC last (path B)
+
+The plan deliberately ports the visual layer against typed fixture data first, then swaps the
+data source to a real `window.pm` IPC bridge as the last step. The bundled `pmData` shape in
+`gui/src/renderer/src/lib/pmData.ts` mirrors the prototype's `window.pmData` exactly, so the
+final swap is one substitution rather than a rewrite. Tauri is the planned upgrade if polyberg
+becomes more serious; Electron was chosen now for Chromium-perfect rendering of the locked
+visual system.
+
+### What's ported
+
+- **Skeleton** (`commit 17a469a`) — 1480×1100 hardened window, palette/font tokens, scanline
+  + vignette overlay, Google Fonts.
+- **Fixtures** (`commit 096bacc`) — `lib/types.ts` + `lib/format.ts` + `lib/pmData.ts`. Bundled
+  `PmData` object plus individual exports.
+- **AppShell** (`commit a8fe00d`) — top bar (brand, version, six tabs, search placeholder,
+  mode chip, refresh, run-next-stage), tab routing, status bar with derived aging count.
+- **Dashboard** (`commit 61ec881`) — six modules under `screens/dashboard/`: charts.tsx
+  (Spark, PriceChart, Treemap), Strips.tsx (Metric + Heat), WorkflowRail, PositionCard
+  (with 5-tab ExpandedBody), RightRail, DashboardScreen entry.
+
+### What's still stubbed
+
+Five tabs still render the `ScreenStub` placeholder. Priority order to port them:
+
+1. **MarketsScreen** — registry table. Smallest. (~50 lines from `design/screens.jsx`.)
+2. **PacketScreen** — packet.yaml left + adjudicator status right.
+3. **CatalystsScreen** — market list left + per-catalyst rows right.
+4. **SnapshotsScreen** — timeline table + KV grid + diff vs previous.
+5. **IntakeScreen** — biggest. Paste + suggest + queue + retag + rebuild diff modal.
+   Most behaviorally complete in the prototype (`design/intake.jsx`).
+
+### After the screens
+
+1. **IPC bridge** (`window.pm`) in the preload script. Core methods:
+   `readContext()` → typed `PmData` from real yaml/md;
+   `runStage(name, args)` and `runStageStream(...)` shelling out to the CLI;
+   `appendCatalyst(marketId, entry)` and `writeDraftOrder(order)` for the rare write paths;
+   `onContextChange(cb)` via chokidar (debounced 300ms).
+   Allowlist paths to `context/`, `reports/generated/`, `data/snapshots/`. Allowlist CLI
+   subcommands by name — never accept free-form commands.
+2. **Swap fixtures → IPC** at the data layer. Should be one commit if the contract holds.
+3. **File watcher** — re-read on focus + chokidar events.
+4. **localStorage persistence** — intake queue + expanded-position id.
+5. **electron-builder packaging** — AppImage / deb for distribution.
+6. **Cosmetic stubs** still no-op: search bar (⌘K), refresh button, filter buttons,
+   `+ ADD CATALYST`, `+ CONNECT GROK`, `import-account-snapshot` button, draft order
+   WRITE/DISCARD.
+
+### Frame note
+
+The prototype's `transform: scale()` Frame was dropped — Electron sizes the window directly.
+At widths below ~1300 the dashboard's `gridTemplateColumns: '540px 1fr'` expanded body gets
+cramped. Min window size is 1200×800 in `main/index.ts`; bump or make responsive when needed.
 
 ## Current Shape
 
