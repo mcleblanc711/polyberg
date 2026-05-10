@@ -80,10 +80,14 @@ visual system.
 ### Next phase
 
 The visual-first phase is complete. All six tabs render real screens against the bundled
-`pmData` fixture, and `ScreenStub` has been removed. The visual layer has not been hand-
-verified end-to-end at this commit — typecheck and build pass, but layout under different
-widths, the modal overlay, the textarea behavior, and the retag dropdown were not visually
-checked the day Intake landed and are worth a careful first pass.
+`pmData` fixture, `ScreenStub` has been removed, and the visual layer was hand-verified
+end-to-end on 2026-05-09 across all tabs. Polish from that pass: dashboard layout was
+made robust at narrow widths (the right rail used to clip when snap-tiled to half-screen
+because Electron's minWidth was forcing the renderer past the visible area), the intake
+retag `<select>` text was switched from white to cyan to match its magenta border, and a
+new `C.cyanText` token (`#5cf3d3`) was introduced for body-text accents in catalysts and
+markets — per-row EDIT picks up the tint while `+ NEW CATALYST` / `+ ADD MARKET` stay
+white to mark the panel-level "create" action distinctly.
 
 The next phase is the data swap. In order:
 
