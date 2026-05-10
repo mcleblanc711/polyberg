@@ -663,7 +663,7 @@ const S: Record<string, CSSProperties> = {
   select: {
     background: C.bgInput,
     border: `1px solid ${C.magenta}`,
-    color: C.text,
+    color: C.cyan,
     padding: '4px 8px',
     fontFamily: F.mono,
     fontSize: 10.5,
