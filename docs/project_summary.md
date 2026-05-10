@@ -1,6 +1,6 @@
 # Polyberg Project Summary
 
-Last reviewed: 2026-05-09
+Last reviewed: 2026-05-10
 
 ## Purpose
 
@@ -77,34 +77,150 @@ visual system.
   appends to `recent_catalysts.md` as a +/= diff. All mutations are local state only —
   nothing is written. `showRebuild` is owned inside the screen, not lifted to App.
 
-### Next phase
+### IPC bridge (live)
 
-The visual-first phase is complete. All six tabs render real screens against the bundled
-`pmData` fixture, `ScreenStub` has been removed, and the visual layer was hand-verified
-end-to-end on 2026-05-09 across all tabs. Polish from that pass: dashboard layout was
-made robust at narrow widths (the right rail used to clip when snap-tiled to half-screen
-because Electron's minWidth was forcing the renderer past the visible area), the intake
-retag `<select>` text was switched from white to cyan to match its magenta border, and a
-new `C.cyanText` token (`#5cf3d3`) was introduced for body-text accents in catalysts and
-markets — per-row EDIT picks up the tint while `+ NEW CATALYST` / `+ ADD MARKET` stay
-white to mark the panel-level "create" action distinctly.
+Implemented end-to-end in `gui/src/main/ipc/` and exposed on `window.pm` via
+`gui/src/preload/index.ts`. Shared types live in `gui/src/shared/contract.ts`.
 
-The next phase is the data swap. In order:
+- `readContext()` parses `market_registry.yaml`, `live_state.yaml`, `portfolio_current.yaml`,
+  `open_orders.yaml`; stats those files for freshness; lists `data/snapshots/*.json`. Returns
+  a `PmDataPayload` (data only — formatting/lookup helpers stay in the renderer). Markets
+  carry registry fields only; per-snapshot mark/bid/ask/spread/liq/hist read 0/`[]` until
+  snapshots exist. `catalysts: []` per market — `recent_catalysts.md` is section-based not
+  market-keyed, so the per-market timeline is empty until a structured catalysts file lands.
+- `runStage(name, args)` / `runStageStream(name, args, onChunk)` spawn
+  `<.venv/bin/python|python3> -m polyberg.cli <name>` with the 9-stage CLI allowlist
+  enforced in `runStage.ts`. Stream variant pipes stdout/stderr chunks through ipcMain →
+  renderer keyed by request id.
+- `appendCatalyst(marketId, {t, src, txt})` validates marketId against the registry and
+  inserts a bullet under `## Credible Reporting Watch` in `recent_catalysts.md`.
+- `writeDraftOrder(order)` validates `marketId/side/kind`, `price ∈ (0,1)`, `shares > 0`;
+  parse-and-dump appends to `buy_orders` or `sell_orders` in `open_orders.yaml`. The file
+  was reformatted on the first write — comments would be lost (the file currently has none).
+- `onContextChange(cb)` watches `context/`, `reports/generated/`, `data/snapshots/` via
+  chokidar (pinned to v3 — v5 is ESM-only and the main bundle is CJS). 300 ms debounce,
+  per-window subscription, cleaned up on `webContents.destroyed`.
 
-1. **IPC bridge** (`window.pm`) in the preload script. Core methods:
-   `readContext()` → typed `PmData` from real yaml/md;
-   `runStage(name, args)` and `runStageStream(...)` shelling out to the CLI;
-   `appendCatalyst(marketId, entry)` and `writeDraftOrder(order)` for the rare write paths;
-   `onContextChange(cb)` via chokidar (debounced 300ms).
-   Allowlist paths to `context/`, `reports/generated/`, `data/snapshots/`. Allowlist CLI
-   subcommands by name — never accept free-form commands.
-2. **Swap fixtures → IPC** at the data layer. Should be one commit if the contract holds.
-3. **File watcher** — re-read on focus + chokidar events.
-4. **localStorage persistence** — intake queue + expanded-position id.
-5. **electron-builder packaging** — AppImage / deb for distribution.
-6. **Cosmetic stubs** still no-op: search bar (⌘K), refresh button, filter buttons,
-   `+ ADD CATALYST`, `+ CONNECT GROK`, `import-account-snapshot` button, draft order
-   WRITE/DISCARD.
+Read paths gated to those three directory roots; write paths gated to
+`context/recent_catalysts.md` and `context/open_orders.yaml`.
+
+### Renderer (live data)
+
+`<PmDataProvider>` in `gui/src/renderer/src/lib/pmDataContext.tsx` wraps `<App />` in
+`main.tsx`. It calls `window.pm.readContext()` on mount, attaches helpers
+(`fmtUsd/fmtPct/fmtCents/suggestMarket/marketById`), and re-fetches whenever
+`window.pm.onContextChange` fires. `usePmData()` returns the typed `PmData`;
+`usePmDataRefresh()` returns the manual refresh fn.
+
+`gui/src/renderer/src/lib/pmData.ts` shrunk to two factory exports
+(`makeSuggestMarket`, `makeMarketById`); the bundled fixture is gone. All eleven consumer
+files migrated from module-level `pmData` import to `const pmData = usePmData()` inside
+each component. `Treemap` takes `marketById` as a prop. Empty-state guards added in
+`SnapshotsScreen`, `CatalystsScreen`, `MarketsScreen`, `PositionCard`, `Strips`.
+
+Polish from the visual-first pass: dashboard layout made robust at narrow widths (the
+right rail used to clip when snap-tiled to half-screen because Electron's minWidth was
+forcing the renderer past the visible area), the intake retag `<select>` text was
+switched from white to cyan to match its magenta border, and a new `C.cyanText` token
+(`#5cf3d3`) was introduced for body-text accents in catalysts and markets — per-row
+EDIT picks up the tint while `+ NEW CATALYST` / `+ ADD MARKET` stay white to mark the
+panel-level "create" action distinctly.
+
+### Action surfaces wired
+
+- **RUN NEXT STAGE** (TopBar + WorkflowRail) → finds the first non-`ok` workflow stage
+  whose CLI is in the bridge allowlist, opens `<StageRunnerModal>` that streams
+  `runStageStream` stdout/stderr into a scrollable monospace pre and shows exit-code
+  status. Pre-existing pending-intake diversion preserved (jumps to intake screen if
+  there are unreviewed items).
+- **Draft order WRITE** (PositionCard → expand → DRAFT ORDER tab) → form is fully
+  editable (side toggle, kind toggle, price/shares text inputs, optional notes, live
+  YAML preview, computed notional). WRITE calls `window.pm.writeDraftOrder(...)`; the
+  watcher refresh propagates the new entry into the OPEN ORDERS pane on the next tick.
+  Validation matches the main-process invariants.
+- **+ NEW CATALYST** (Catalysts tab) and **+ ADD CATALYST** (PositionCard → CATALYSTS
+  pane) → toggle a `<CatalystForm>` (timestamp prefilled to now, source, body); APPEND
+  calls `window.pm.appendCatalyst(...)` and the watcher pushes the update.
+- **$ REFRESH** (TopBar) → forces an immediate `readContext()` (also still triggered by
+  the file watcher).
+- **$ import-account-snapshot** (RightRail) → opens the stage runner modal. Requires
+  `POLYMARKET_US_API_KEY_ID` and `POLYMARKET_US_SECRET_KEY` env vars; without them the
+  modal shows the error.
+
+`+ CONNECT GROK` and the entire "sentiment · grok" box were removed in this session.
+Through OpenRouter (or any LLM API surface) Grok is just an LLM — there is no live X
+firehose; that's a feature of grok.com itself. Keeping the stub would have implied
+otherwise. The `Sentiment` / `SentimentEntry` / `Lean` types and the `sentiment` field
+on `PmDataPayload` were dropped at the same time.
+
+### localStorage persistence
+
+`gui/src/renderer/src/lib/useLocalState.ts` wraps `useState` with a localStorage
+hydrate-on-init / persist-on-change pattern, both wrapped in try/catch so a quota or
+serialization failure degrades silently to in-memory state.
+
+- `polyberg:dashboard.expanded` — last expanded position id on the Dashboard tab.
+- `polyberg:intake.queue` — the IntakeScreen queue items (paste-panel additions survive
+  a window reload). Real source for intake is still the GUI itself; the read-only
+  context files don't carry intake data.
+
+### Packaging
+
+`gui/electron-builder.yml` produces an AppImage and a `.deb` from `gui/dist/` via
+`npm run dist:linux`:
+
+- `appId: com.polyberg.terminal`, `productName: Polyberg Terminal`, asar with chokidar
+  unpacked, deb runtime deps include `libsecret-1-0` so the keyring is available.
+- Icon at `gui/build/icon.png` (512×512, rendered from `gui/build/icon.svg`).
+- `gui/build/` is force-tracked despite the top-level `build/` gitignore line, via a
+  negation rule (`!gui/build/`, `!gui/build/**`).
+- A first build downloads `electron-v32.3.3-linux-x64.zip` (~107 MB) and the AppImage
+  builder; subsequent builds cache those.
+
+The packaged binary needs `POLYBERG_REPO=<repo path>` set, since `findRepoRoot()` first
+honors that env var, then walks up from `__dirname` (which won't reach a repo when the
+binary lives under `/opt/Polyberg Terminal/` from a deb install). Missing → clear error
+on launch.
+
+### Next phase — account import workflow
+
+The current `import-account-snapshot` CLI lands raw authenticated Polymarket US JSON
+under `reports/generated/account/` but there's no GUI flow to view that output or
+promote it into canonical context. Two paths planned for next session, both strictly
+read-only:
+
+1. **Live authenticated account view (read-only).** Surface raw account-import results
+   in a new `ACCOUNT` tab (or panel within Dashboard's RightRail). Display:
+   imported positions / balances / open orders side-by-side with the canonical
+   `portfolio_current.yaml` / `open_orders.yaml` so diffs are obvious. Add an explicit
+   "PROMOTE TO CONTEXT" affordance that requires user confirmation per file. No
+   automation — manual review is the point. Already-allowlisted: the
+   `import-account-snapshot` CLI runs from RightRail's button.
+2. **Manual entry via screenshot-to-LLM.** For users who don't want the authenticated
+   import path, the GUI provides:
+   - A copy-to-clipboard prompt block tailored to portfolio + open-order extraction,
+     formatted for paste into Claude or ChatGPT alongside a screenshot of the
+     Polymarket portfolio/orders UI.
+   - The prompt forces a strict JSON output that matches the same shape as
+     `portfolio_current.yaml` / `open_orders.yaml` (probably referencing the existing
+     Pydantic schemas via `schemas/`).
+   - A paste-back textarea in the GUI that validates the JSON against the schemas and
+     previews a write-diff before any file is touched.
+   - Confirm → write to context. No automation, no execution, audit trail in the diff.
+
+Both paths preserve the project's hard safety boundary: no order placement, no wallet
+keys, no automation. The workflow is "human captures state → human reviews diff →
+human writes." The screenshot/LLM step is the user's existing process formalized so
+the output lands in the right schema on the first try.
+
+Other work that's been deferred:
+- Cosmetic stubs still no-op: search bar (⌘K), filter buttons.
+- `recent_catalysts.md` could be restructured to per-market sections so the catalyst
+  timeline on each tab has data; today the file is section-based and the GUI shows
+  empty timelines.
+- Workflow-stage detection in `readContext.ts` probes guessed filenames in
+  `reports/generated/` (`packet.md`, `model_a_validation.txt`, etc.) — tighten once
+  the report layout stabilizes.
 
 ### Frame note
 
