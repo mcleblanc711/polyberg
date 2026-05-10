@@ -1,6 +1,6 @@
 # Polyberg Project Summary
 
-Last reviewed: 2026-05-08 (evening)
+Last reviewed: 2026-05-09
 
 ## Purpose
 
@@ -43,28 +43,49 @@ visual system.
 
 ### What's ported
 
-- **Skeleton** (`commit 17a469a`) — 1480×1100 hardened window, palette/font tokens, scanline
-  + vignette overlay, Google Fonts.
+- **Skeleton** (`commit 17a469a`) — 1480×1100 hardened window, palette/font tokens, vignette
+  overlay, Google Fonts. The repeating-linear-gradient scanline was dropped in `259b817`
+  because it read as visual noise rather than CRT atmosphere; the radial vignette stays and
+  the `.scanline-overlay` class name was kept so `App.tsx` did not need to change.
 - **Fixtures** (`commit 096bacc`) — `lib/types.ts` + `lib/format.ts` + `lib/pmData.ts`. Bundled
   `PmData` object plus individual exports.
 - **AppShell** (`commit a8fe00d`) — top bar (brand, version, six tabs, search placeholder,
   mode chip, refresh, run-next-stage), tab routing, status bar with derived aging count.
+  Routing was simplified to an exhaustive switch in `89a2eb5` once every tab had a real
+  screen.
 - **Dashboard** (`commit 61ec881`) — six modules under `screens/dashboard/`: charts.tsx
   (Spark, PriceChart, Treemap), Strips.tsx (Metric + Heat), WorkflowRail, PositionCard
   (with 5-tab ExpandedBody), RightRail, DashboardScreen entry.
+- **Markets** (`commit f781f06`) — `screens/markets/MarketsScreen.tsx`. Registry table with
+  rule-key, oracle, resolution date, severity-colored rule-risk chip, and current mark in
+  cents. `+ ADD MARKET` and `EDIT` are cosmetic ghosts.
+- **Packet** (`commit 1c3bfe5`) — `screens/packet/PacketScreen.tsx`. Two-pane: packet.yaml
+  block on the left, adjudicator status (amber) plus dashed "waiting" placeholder for
+  proposed-actions on the right. Hardcoded text mirrors the prototype.
+- **Catalysts** (`commit 1bb1c95`) — `screens/catalysts/CatalystsScreen.tsx`. 260px market
+  list on the left, per-market catalyst timeline on the right with timestamp + cyan source
+  chip, body text, and ghost EDIT/DEL.
+- **Snapshots** (`commit 13b5d5d`) — `screens/snapshots/SnapshotsScreen.tsx`. Clickable
+  timeline table on the left (diffs amber/cyan by threshold, missing-info red when
+  nonzero), KV-grid JSON view + verbatim diff-vs-previous block on the right keyed off the
+  selected row.
+- **Intake** (`commit 5ae148b`) — `screens/intake/IntakeScreen.tsx`. Largest screen. Paste
+  panel (kind toggle, author input, textarea, live SUGGESTED-MARKET hint driven by
+  `pmData.suggestMarket`), loaded queue with status dot, kind icon, click-to-edit retag
+  dropdown, and confirm/reject/remove actions, warn-line footer, and the
+  `RebuildModal` diff preview that groups confirmed entries by market and renders proposed
+  appends to `recent_catalysts.md` as a +/= diff. All mutations are local state only —
+  nothing is written. `showRebuild` is owned inside the screen, not lifted to App.
 
-### What's still stubbed
+### Next phase
 
-Five tabs still render the `ScreenStub` placeholder. Priority order to port them:
+The visual-first phase is complete. All six tabs render real screens against the bundled
+`pmData` fixture, and `ScreenStub` has been removed. The visual layer has not been hand-
+verified end-to-end at this commit — typecheck and build pass, but layout under different
+widths, the modal overlay, the textarea behavior, and the retag dropdown were not visually
+checked the day Intake landed and are worth a careful first pass.
 
-1. **MarketsScreen** — registry table. Smallest. (~50 lines from `design/screens.jsx`.)
-2. **PacketScreen** — packet.yaml left + adjudicator status right.
-3. **CatalystsScreen** — market list left + per-catalyst rows right.
-4. **SnapshotsScreen** — timeline table + KV grid + diff vs previous.
-5. **IntakeScreen** — biggest. Paste + suggest + queue + retag + rebuild diff modal.
-   Most behaviorally complete in the prototype (`design/intake.jsx`).
-
-### After the screens
+The next phase is the data swap. In order:
 
 1. **IPC bridge** (`window.pm`) in the preload script. Core methods:
    `readContext()` → typed `PmData` from real yaml/md;
