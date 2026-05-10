@@ -39,7 +39,7 @@ export const CatalystsScreen = () => {
                     fontSize: 11.5,
                     fontFamily: F.display,
                     fontWeight: on ? 700 : 500,
-                    color: on ? C.magenta : C.text
+                    color: on ? C.magenta : C.cyanText
                   }}
                 >
                   {mm.id}
@@ -100,7 +100,7 @@ export const CatalystsScreen = () => {
                 style={{
                   flex: 1,
                   fontSize: 12.5,
-                  color: C.text,
+                  color: C.cyanText,
                   lineHeight: 1.5,
                   fontFamily: F.body
                 }}
@@ -108,7 +108,7 @@ export const CatalystsScreen = () => {
                 {c.txt}
               </div>
               <div style={{ display: 'flex', gap: 4 }}>
-                <button style={S.btnGhost}>EDIT</button>
+                <button style={{ ...S.btnGhost, color: C.cyanText }}>EDIT</button>
                 <button style={{ ...S.btnGhost, color: C.red }}>DEL</button>
               </div>
             </div>

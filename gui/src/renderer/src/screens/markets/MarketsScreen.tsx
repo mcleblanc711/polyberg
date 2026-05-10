@@ -56,7 +56,7 @@ export const MarketsScreen = () => {
                 </td>
                 <td style={{ ...S.td, color: C.cyan }}>{(m.mark * 100).toFixed(1)}¢</td>
                 <td style={S.td}>
-                  <button style={S.btnGhost}>EDIT</button>
+                  <button style={{ ...S.btnGhost, color: C.cyanText }}>EDIT</button>
                 </td>
               </tr>
             ))}
@@ -121,7 +121,7 @@ const S: Record<string, CSSProperties> = {
   td: {
     padding: '8px 10px',
     borderBottom: `1px solid ${C.line2}`,
-    color: C.text
+    color: C.cyan
   },
   chip: {
     padding: '2px 7px',

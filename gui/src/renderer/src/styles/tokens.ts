@@ -10,6 +10,7 @@ export const colors = {
   text: '#f0e8f5',
   textDim: '#a08aa0',
   textMute: '#7a5e7a',
+  cyanText: '#5cf3d3',
   magenta: '#ff3df0',
   magentaSft: 'rgba(255,61,240,0.14)',
   magentaDim: 'rgba(255,61,240,0.06)',
