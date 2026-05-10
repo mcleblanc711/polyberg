@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import { pmData } from '../../lib/pmData'
+import { usePmData } from '../../lib/pmDataContext'
 import { colors as C, fonts as F } from '../../styles/tokens'
 import type { SnapshotMeta } from '../../lib/types'
 
@@ -20,8 +20,21 @@ const DIFF_TEXT = `+ hormuz_normal_may15 · mark 0.76 → 0.78  (+2.0¢)
 + trump_blockade_lifted_apr30 · spread 3¢ → 4¢   widen`
 
 export const SnapshotsScreen = () => {
-  const [active, setActive] = useState<string>(pmData.snapshots[0]!.ts)
-  const cur = pmData.snapshots.find((s) => s.ts === active) ?? pmData.snapshots[0]!
+  const pmData = usePmData()
+  const [active, setActive] = useState<string>(pmData.snapshots[0]?.ts ?? '')
+  const cur = pmData.snapshots.find((s) => s.ts === active) ?? pmData.snapshots[0]
+  if (!cur) {
+    return (
+      <div style={S.root}>
+        <div style={S.header}>
+          <div>
+            <div style={S.h1}>SNAPSHOT HISTORY</div>
+            <div style={S.h1Sub}>// no snapshots in data/snapshots/ yet</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
   return (
     <div style={S.root}>
       <div style={S.header}>

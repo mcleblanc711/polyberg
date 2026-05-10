@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { fmtPct, fmtUsd } from '../../lib/format'
-import { pmData } from '../../lib/pmData'
+import { usePmData } from '../../lib/pmDataContext'
 import { colors as C, fonts as F } from '../../styles/tokens'
 
 const BigMetric = ({
@@ -34,14 +34,16 @@ const BigMetric = ({
 }
 
 export const MetricStrip = () => {
+  const pmData = usePmData()
   const dayPos = pmData.dayPnl >= 0
+  const dayPctDenom = pmData.equity || 1
   return (
     <div style={S.metricStrip}>
       <BigMetric k="EQUITY" v={fmtUsd(pmData.equity)} hint="cash + open positions" />
       <BigMetric
         k="DAY P/L"
         v={fmtUsd(pmData.dayPnl, true)}
-        sub={fmtPct((pmData.dayPnl / pmData.equity) * 100, true)}
+        sub={fmtPct((pmData.dayPnl / dayPctDenom) * 100, true)}
         positive={dayPos}
       />
       <BigMetric k="OPEN P/L" v={fmtUsd(pmData.totalPnl, true)} positive={pmData.totalPnl >= 0} hint="vs avg cost" />
@@ -52,6 +54,7 @@ export const MetricStrip = () => {
 }
 
 export const HeatStrip = () => {
+  const pmData = usePmData()
   return (
     <div style={S.heat}>
       {pmData.heat.map((h) => {

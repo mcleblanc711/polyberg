@@ -1,5 +1,6 @@
-import { useState, type CSSProperties } from 'react'
-import { pmData } from '../../lib/pmData'
+import type { CSSProperties } from 'react'
+import { usePmData } from '../../lib/pmDataContext'
+import { useLocalState } from '../../lib/useLocalState'
 import { colors as C, fonts as F } from '../../styles/tokens'
 import { PositionCard } from './PositionCard'
 import { RightRail } from './RightRail'
@@ -7,7 +8,11 @@ import { HeatStrip, MetricStrip } from './Strips'
 import { WorkflowRail } from './WorkflowRail'
 
 export const DashboardScreen = ({ onRunNextStage }: { onRunNextStage: () => void }) => {
-  const [expanded, setExpanded] = useState<string | null>('hormuz_normal_may15')
+  const pmData = usePmData()
+  const [expanded, setExpanded] = useLocalState<string | null>(
+    'polyberg:dashboard.expanded',
+    pmData.positions[0]?.marketId ?? null
+  )
   return (
     <>
       <MetricStrip />

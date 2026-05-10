@@ -1,5 +1,7 @@
 import { useState, type CSSProperties } from 'react'
-import { pmData } from './lib/pmData'
+import { isAllowedStage } from '../../shared/contract'
+import { StageRunnerModal } from './components/StageRunnerModal'
+import { usePmData, usePmDataRefresh } from './lib/pmDataContext'
 import { DashboardScreen } from './screens/dashboard/DashboardScreen'
 import { CatalystsScreen } from './screens/catalysts/CatalystsScreen'
 import { IntakeScreen } from './screens/intake/IntakeScreen'
@@ -16,9 +18,6 @@ interface Tab {
   badge?: number
 }
 
-const pendingIntakeCount = (): number =>
-  pmData.intake.filter((i) => i.status === 'suggested').length
-
 const TopBar = ({
   screen,
   setScreen,
@@ -28,9 +27,22 @@ const TopBar = ({
   setScreen: (s: ScreenId) => void
   onRunNextStage: () => void
 }) => {
+  const pmData = usePmData()
+  const refresh = usePmDataRefresh()
+  const [refreshing, setRefreshing] = useState(false)
+  const onRefresh = async (): Promise<void> => {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      await refresh()
+    } finally {
+      setRefreshing(false)
+    }
+  }
+  const pendingIntake = pmData.intake.filter((i) => i.status === 'suggested').length
   const tabs: Tab[] = [
     { id: 'dashboard', label: 'DASHBOARD' },
-    { id: 'intake', label: 'INTAKE', badge: pendingIntakeCount() },
+    { id: 'intake', label: 'INTAKE', badge: pendingIntake },
     { id: 'snapshots', label: 'SNAPSHOTS' },
     { id: 'catalysts', label: 'CATALYSTS' },
     { id: 'packet', label: 'PACKET' },
@@ -78,7 +90,9 @@ const TopBar = ({
         <span style={S.modeChipDot} />
         {pmData.liveState.mode}
       </div>
-      <button style={S.btnGhost}>$ REFRESH</button>
+      <button style={S.btnGhost} onClick={onRefresh} disabled={refreshing}>
+        {refreshing ? '$ …' : '$ REFRESH'}
+      </button>
       <button style={S.btnPrimary} onClick={onRunNextStage}>
         RUN NEXT STAGE ▸
       </button>
@@ -87,6 +101,7 @@ const TopBar = ({
 }
 
 const StatusBar = ({ screen }: { screen: ScreenId }) => {
+  const pmData = usePmData()
   const aging = pmData.freshness.filter((f) => f.state === 'aging')
   return (
     <div style={S.statusBar}>
@@ -108,14 +123,22 @@ const StatusBar = ({ screen }: { screen: ScreenId }) => {
 }
 
 export const App = () => {
+  const pmData = usePmData()
   const [screen, setScreen] = useState<ScreenId>('dashboard')
+  const [runningStage, setRunningStage] = useState<string | null>(null)
 
   const onRunNextStage = () => {
-    if (pendingIntakeCount() > 0) {
+    const pending = pmData.intake.filter((i) => i.status === 'suggested').length
+    if (pending > 0 && screen !== 'intake') {
       setScreen('intake')
-    } else {
-      alert('Advancing workflow → next CLI stage')
+      return
     }
+    const next = pmData.workflow.find((w) => w.state !== 'ok' && isAllowedStage(w.cli))
+    if (!next) {
+      alert('All workflow stages are up to date.')
+      return
+    }
+    setRunningStage(next.cli)
   }
 
   const renderScreen = (): JSX.Element => {
@@ -143,6 +166,9 @@ export const App = () => {
         <StatusBar screen={screen} />
       </div>
       <div className="scanline-overlay" />
+      {runningStage && (
+        <StageRunnerModal stage={runningStage} onClose={() => setRunningStage(null)} />
+      )}
     </>
   )
 }

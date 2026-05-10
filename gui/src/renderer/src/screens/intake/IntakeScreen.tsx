@@ -1,5 +1,6 @@
 import { useMemo, useState, type CSSProperties } from 'react'
-import { pmData } from '../../lib/pmData'
+import { usePmData } from '../../lib/pmDataContext'
+import { useLocalState } from '../../lib/useLocalState'
 import { colors as C, fonts as F } from '../../styles/tokens'
 import type { IntakeItem, IntakeKind, IntakeStatus } from '../../lib/types'
 
@@ -17,7 +18,8 @@ const statusDot = (s: IntakeStatus): string =>
   s === 'confirmed' ? C.cyan : s === 'rejected' ? C.textMute : C.amber
 
 export const IntakeScreen = () => {
-  const [items, setItems] = useState<IntakeItem[]>(pmData.intake)
+  const pmData = usePmData()
+  const [items, setItems] = useLocalState<IntakeItem[]>('polyberg:intake.queue', pmData.intake)
   const [text, setText] = useState('')
   const [author, setAuthor] = useState('')
   const [kind, setKind] = useState<IntakeKind>('tweet')
@@ -236,6 +238,7 @@ const QueueRow = ({
   onRemove: () => void
   onRetag: (mid: string) => void
 }) => {
+  const pmData = usePmData()
   const m = it.suggestedMarket ? pmData.marketById(it.suggestedMarket) : undefined
   const dot = statusDot(it.status)
   const [editingTag, setEditingTag] = useState(false)
@@ -332,6 +335,7 @@ const RebuildModal = ({
   items: IntakeItem[]
   onClose: () => void
 }) => {
+  const pmData = usePmData()
   const byMarket: Record<string, IntakeItem[]> = {}
   items.forEach((it) => {
     const k = it.suggestedMarket || '__untagged'

@@ -1,8 +1,9 @@
 import type { CSSProperties } from 'react'
-import { pmData } from '../../lib/pmData'
+import { usePmData } from '../../lib/pmDataContext'
 import { colors as C, fonts as F } from '../../styles/tokens'
 
 export const WorkflowRail = ({ onRunNextStage }: { onRunNextStage: () => void }) => {
+  const pmData = usePmData()
   return (
     <div style={S.wfRail}>
       <div style={S.railHdr}>// research workflow</div>
@@ -57,18 +58,6 @@ export const WorkflowRail = ({ onRunNextStage }: { onRunNextStage: () => void })
         })}
       </div>
 
-      <div style={{ ...S.railHdr, marginTop: 18 }}>// sentiment · grok</div>
-      <div style={S.sentBox}>
-        <div style={S.sentRow}>
-          <span style={S.sentLabel}>STATUS</span>
-          <span style={{ ...S.sentVal, color: C.amber }}>NOT CONNECTED</span>
-        </div>
-        <div style={S.sentRow}>
-          <span style={S.sentLabel}>SOURCE</span>
-          <span style={S.sentVal}>{pmData.sentiment.source}</span>
-        </div>
-        <button style={S.btnGhost}>+ CONNECT GROK</button>
-      </div>
     </div>
   )
 }
@@ -110,21 +99,6 @@ const S: Record<string, CSSProperties> = {
   wfStageTs: { fontSize: 9.5, color: C.textMute, fontFamily: F.mono, marginLeft: 'auto' },
   wfStageCli: { fontSize: 10.5, color: C.cyan, fontFamily: F.mono, marginTop: 2, letterSpacing: 0.3 },
 
-  btnGhost: {
-    background: 'transparent',
-    border: `1px solid ${C.line}`,
-    color: C.text,
-    padding: '7px 12px',
-    fontFamily: F.mono,
-    fontSize: 10.5,
-    fontWeight: 600,
-    letterSpacing: 0.6,
-    cursor: 'pointer',
-    textTransform: 'uppercase',
-    width: 'auto',
-    marginTop: 6,
-    outline: 'none'
-  },
   btnPrimary: {
     background: C.magenta,
     color: C.bg,
@@ -145,16 +119,5 @@ const S: Record<string, CSSProperties> = {
   freshList: { background: C.bgPanel, border: `1px solid ${C.line}`, padding: 6 },
   freshRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px', fontSize: 10.5 },
   freshFile: { flex: 1, color: C.text, fontFamily: F.mono, fontSize: 10.5 },
-  freshAge: { color: C.textDim, fontFamily: F.mono },
-
-  sentBox: { background: C.bgPanel, border: `1px solid ${C.line}`, padding: 8 },
-  sentRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    padding: '3px 0',
-    fontSize: 10.5,
-    fontFamily: F.mono
-  },
-  sentLabel: { color: C.textDim, letterSpacing: 0.6 },
-  sentVal: { color: C.text, letterSpacing: 0.4 }
+  freshAge: { color: C.textDim, fontFamily: F.mono }
 }

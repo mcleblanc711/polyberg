@@ -1,0 +1,184 @@
+export type Side = 'YES' | 'NO'
+export type OrderKind = 'BUY' | 'SELL'
+export type OrderStatus = 'WORKING' | 'FILLED' | 'CANCELLED'
+export type RuleRisk = 'low' | 'medium' | 'high'
+export type WorkflowState = 'ok' | 'stale' | 'pending'
+export type FreshnessState = 'fresh' | 'aging' | 'stale'
+export type IntakeKind = 'tweet' | 'article' | 'note'
+export type IntakeStatus = 'suggested' | 'confirmed' | 'rejected'
+export type Mode = 'RESEARCH' | 'TRADING' | 'PAUSED'
+
+export interface Catalyst {
+  t: string
+  src: string
+  txt: string
+}
+
+export interface Market {
+  id: string
+  name: string
+  url: string
+  category: string
+  ruleKey: string
+  oracle: string
+  preferredSide: Side
+  resolutionDate: string
+  ruleRisk: RuleRisk
+  mark: number
+  bid: number
+  ask: number
+  spread: number
+  liq: number
+  hist: number[]
+  lastUpdate: string
+  snapshotAge: number
+  ruleText: string
+  ruleRiskNotes: string[]
+  catalysts: Catalyst[]
+}
+
+export interface Position {
+  marketId: string
+  side: Side
+  shares: number
+  avg: number
+  mark: number
+  dayPnl: number
+}
+
+export interface OpenOrder {
+  id: string
+  marketId: string
+  side: Side
+  kind: OrderKind
+  px: number
+  qty: number
+  status: OrderStatus
+  placed: string
+}
+
+export interface WorkflowStage {
+  id: string
+  label: string
+  state: WorkflowState
+  ts: string
+  cli: string
+}
+
+export interface FreshnessEntry {
+  file: string
+  age: number
+  state: FreshnessState
+}
+
+export interface LiveState {
+  mode: Mode
+  cash: number
+  thesis: string
+  constraints: string[]
+  notes: string
+}
+
+export interface HeatEntry {
+  id: string
+  d: number
+}
+
+export interface IntakeItem {
+  id: string
+  kind: IntakeKind
+  addedAt: string
+  author: string
+  url: string
+  text: string
+  suggestedMarket: string | null
+  suggestionConfidence: number
+  status: IntakeStatus
+}
+
+export interface SnapshotMeta {
+  ts: string
+  file: string
+  markets: number
+  diffsCount: number
+  missingInfo: number
+  freshMin: number
+}
+
+export interface PmDataPayload {
+  markets: Market[]
+  positions: Position[]
+  openOrders: OpenOrder[]
+  workflow: WorkflowStage[]
+  freshness: FreshnessEntry[]
+  liveState: LiveState
+  equity: number
+  dayPnl: number
+  totalPnl: number
+  heat: HeatEntry[]
+  intake: IntakeItem[]
+  snapshots: SnapshotMeta[]
+}
+
+export interface RunStageResult {
+  ok: boolean
+  code: number
+  stdout: string
+  stderr: string
+}
+
+export interface DraftOrder {
+  marketId: string
+  side: Side
+  kind: OrderKind
+  price: number
+  shares: number
+  notes?: string
+}
+
+export const ALLOWED_STAGES = [
+  'build-packet',
+  'validate-response',
+  'validate-adjudicator',
+  'build-adjudicator-input',
+  'snapshot-markets',
+  'diff-snapshots',
+  'build-trade-ticket',
+  'import-public-positions',
+  'import-account-snapshot'
+] as const
+
+export type AllowedStage = (typeof ALLOWED_STAGES)[number]
+
+export const isAllowedStage = (name: string): name is AllowedStage =>
+  (ALLOWED_STAGES as readonly string[]).includes(name)
+
+export const IPC = {
+  readContext: 'pm:readContext',
+  runStage: 'pm:runStage',
+  runStageStream: 'pm:runStageStream',
+  runStageStreamChunk: 'pm:runStageStream:chunk',
+  appendCatalyst: 'pm:appendCatalyst',
+  writeDraftOrder: 'pm:writeDraftOrder',
+  watchStart: 'pm:watch:start',
+  watchStop: 'pm:watch:stop',
+  watchEvent: 'pm:watch:event'
+} as const
+
+export interface ContextChangeEvent {
+  path: string
+  kind: 'add' | 'change' | 'unlink'
+}
+
+export interface PmBridge {
+  readContext: () => Promise<PmDataPayload>
+  runStage: (name: string, args?: string[]) => Promise<RunStageResult>
+  runStageStream: (
+    name: string,
+    args: string[],
+    onChunk: (chunk: { stream: 'stdout' | 'stderr'; text: string }) => void
+  ) => Promise<RunStageResult>
+  appendCatalyst: (marketId: string, entry: Catalyst) => Promise<void>
+  writeDraftOrder: (order: DraftOrder) => Promise<void>
+  onContextChange: (cb: (ev: ContextChangeEvent) => void) => () => void
+}

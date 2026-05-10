@@ -1,6 +1,8 @@
+import type { PmBridge } from '../shared/contract'
+
 declare global {
   interface Window {
-    pm?: unknown
+    pm: PmBridge
   }
 }
 

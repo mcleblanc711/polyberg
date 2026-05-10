@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react'
+import { CatalystForm } from '../../components/CatalystForm'
 import { fmtPct, fmtUsd } from '../../lib/format'
-import { marketById, pmData } from '../../lib/pmData'
+import { usePmData } from '../../lib/pmDataContext'
 import type { Market, Position } from '../../lib/types'
 import { clipCard, colors as C, fonts as F } from '../../styles/tokens'
 import { PriceChart, Spark } from './charts'
@@ -16,10 +17,11 @@ export const PositionCard = ({
   expanded: boolean
   onToggle: () => void
 }) => {
-  const m = marketById(p.marketId)
+  const pmData = usePmData()
+  const m = pmData.marketById(p.marketId)
   if (!m) return null
   const pnl = (p.mark - p.avg) * p.shares
-  const pnlPct = ((p.mark - p.avg) / p.avg) * 100
+  const pnlPct = p.avg > 0 ? ((p.mark - p.avg) / p.avg) * 100 : 0
   const totPos = pnl >= 0
   const orders = pmData.openOrders.filter((o) => o.marketId === m.id)
   const accent = totPos ? C.cyan : C.red
@@ -88,7 +90,9 @@ export const PositionCard = ({
             <div style={S.statK}>NOTIONAL</div>
             <div style={S.statV}>{fmtUsd(p.shares * p.mark)}</div>
             <div style={S.statSub}>
-              {(((p.shares * p.mark) / pmData.equity) * 100).toFixed(0)}% equity
+              {pmData.equity > 0
+                ? `${(((p.shares * p.mark) / pmData.equity) * 100).toFixed(0)}% equity`
+                : '—'}
             </div>
           </div>
           <div style={S.statBlock}>
@@ -111,6 +115,7 @@ export const PositionCard = ({
 }
 
 const ExpandedBody = ({ m, p }: { m: Market; p: Position }) => {
+  const pmData = usePmData()
   const [tab, setTab] = useState<ExpandedTab>('rules')
   const orders = pmData.openOrders.filter((o) => o.marketId === m.id)
   const tabs: [ExpandedTab, string][] = [
@@ -191,9 +196,12 @@ const RulesPane = ({ m }: { m: Market }) => (
   </div>
 )
 
-const CatalystsPane = ({ m }: { m: Market }) => (
+const CatalystsPane = ({ m }: { m: Market }) => {
+  const [adding, setAdding] = useState(false)
+  return (
   <div>
     <div style={S.subhdr}>// recent_catalysts.md · last 72h</div>
+    {adding ? <CatalystForm marketId={m.id} onCancel={() => setAdding(false)} /> : null}
     <div style={{ position: 'relative', paddingLeft: 16, marginLeft: 4 }}>
       <div
         style={{
@@ -230,9 +238,14 @@ const CatalystsPane = ({ m }: { m: Market }) => (
         </div>
       ))}
     </div>
-    <button style={{ ...S.btnGhost, marginTop: 10 }}>+ ADD CATALYST</button>
+    {!adding && (
+      <button style={{ ...S.btnGhost, marginTop: 10 }} onClick={() => setAdding(true)}>
+        + ADD CATALYST
+      </button>
+    )}
   </div>
-)
+  )
+}
 
 const SnapshotPane = ({ m }: { m: Market }) => {
   const lastBefore = m.hist[m.hist.length - 3]!
@@ -288,6 +301,7 @@ const SnapKV = ({ k, v }: { k: string; v: string }) => (
 )
 
 const OrdersPane = ({ m }: { m: Market }) => {
+  const pmData = usePmData()
   const orders = pmData.openOrders.filter((o) => o.marketId === m.id)
   return (
     <div>
@@ -322,49 +336,235 @@ const OrdersPane = ({ m }: { m: Market }) => {
   )
 }
 
-const DraftPane = ({ m }: { m: Market; p: Position }) => (
-  <div>
-    <div style={S.subhdr}>// draft → open_orders.yaml · no execution</div>
-    <div style={S.draftGrid}>
-      <DfField k="MARKET" v={m.id} accent={C.magenta} />
-      <DfField k="SIDE" v="YES" accent={C.cyan} />
-      <DfField k="KIND" v="BUY · LIMIT" />
-      <DfField k="PRICE" v="0.74¢" />
-      <DfField k="QUANTITY" v="500" />
-      <DfField k="NOTIONAL" v={fmtUsd(0.74 * 500)} />
+type DraftSide = 'YES' | 'NO'
+type DraftKind = 'BUY' | 'SELL'
+
+interface DraftState {
+  side: DraftSide
+  kind: DraftKind
+  price: string
+  shares: string
+  notes: string
+}
+
+const draftDefaults = (m: Market): DraftState => ({
+  side: m.preferredSide,
+  kind: 'BUY',
+  price: (m.mark > 0 ? m.mark : 0.5).toFixed(2),
+  shares: '100',
+  notes: ''
+})
+
+const DraftPane = ({ m }: { m: Market; p: Position }) => {
+  const [draft, setDraft] = useState<DraftState>(draftDefaults(m))
+  const [status, setStatus] = useState<'idle' | 'writing' | 'ok' | 'err'>('idle')
+  const [errMsg, setErrMsg] = useState<string | null>(null)
+
+  const priceNum = Number(draft.price)
+  const sharesNum = Number(draft.shares)
+  const notional = Number.isFinite(priceNum) && Number.isFinite(sharesNum) ? priceNum * sharesNum : 0
+  const valid =
+    Number.isFinite(priceNum) &&
+    priceNum > 0 &&
+    priceNum < 1 &&
+    Number.isFinite(sharesNum) &&
+    sharesNum > 0
+
+  const reset = (): void => {
+    setDraft(draftDefaults(m))
+    setStatus('idle')
+    setErrMsg(null)
+  }
+
+  const write = async (): Promise<void> => {
+    if (!valid) return
+    setStatus('writing')
+    setErrMsg(null)
+    try {
+      await window.pm.writeDraftOrder({
+        marketId: m.id,
+        side: draft.side,
+        kind: draft.kind,
+        price: priceNum,
+        shares: sharesNum,
+        notes: draft.notes || undefined
+      })
+      setStatus('ok')
+    } catch (e) {
+      setStatus('err')
+      setErrMsg(String(e))
+    }
+  }
+
+  const sideAccent = draft.side === 'YES' ? C.cyan : C.red
+  const yamlPreview = `${draft.kind === 'BUY' ? 'buy_orders' : 'sell_orders'}:
+  - market_id: ${m.id}
+    side: "${draft.side}"
+    price: ${Number.isFinite(priceNum) ? priceNum : 0}
+    shares: ${Number.isFinite(sharesNum) ? sharesNum : 0}
+    order_type: limit${draft.notes ? `\n    notes: ${JSON.stringify(draft.notes)}` : ''}`
+
+  return (
+    <div>
+      <div style={S.subhdr}>// draft → open_orders.yaml · no execution</div>
+      <div style={S.draftGrid}>
+        <DfField k="MARKET" v={m.id} accent={C.magenta} />
+        <DfToggle
+          k="SIDE"
+          options={['YES', 'NO']}
+          value={draft.side}
+          onChange={(v) => setDraft({ ...draft, side: v as DraftSide })}
+          accent={sideAccent}
+        />
+        <DfToggle
+          k="KIND"
+          options={['BUY', 'SELL']}
+          value={draft.kind}
+          onChange={(v) => setDraft({ ...draft, kind: v as DraftKind })}
+        />
+        <DfInput
+          k="PRICE (0–1)"
+          value={draft.price}
+          onChange={(v) => setDraft({ ...draft, price: v })}
+          inputMode="decimal"
+        />
+        <DfInput
+          k="SHARES"
+          value={draft.shares}
+          onChange={(v) => setDraft({ ...draft, shares: v })}
+          inputMode="numeric"
+        />
+        <DfField k="NOTIONAL" v={fmtUsd(notional)} />
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <div style={S.dfK}>NOTES</div>
+        <input
+          type="text"
+          value={draft.notes}
+          onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+          placeholder="optional · why this order"
+          style={S.draftNotes}
+        />
+      </div>
+      <div style={S.subhdr}>// yaml preview</div>
+      <pre style={S.codeBlock}>{yamlPreview}</pre>
+      <div style={{ display: 'flex', gap: 10, marginTop: 12, alignItems: 'center' }}>
+        <button
+          style={{
+            ...S.btnPrimaryNarrow,
+            opacity: valid && status !== 'writing' ? 1 : 0.5,
+            cursor: valid && status !== 'writing' ? 'pointer' : 'not-allowed'
+          }}
+          onClick={write}
+          disabled={!valid || status === 'writing'}
+        >
+          {status === 'writing' ? 'WRITING…' : 'WRITE TO open_orders.yaml ▸'}
+        </button>
+        <button style={S.btnGhost} onClick={reset}>
+          DISCARD
+        </button>
+        <span style={{ flex: 1 }} />
+        {status === 'ok' && (
+          <span
+            style={{
+              fontSize: 10.5,
+              color: C.cyan,
+              fontFamily: F.mono,
+              letterSpacing: 0.5,
+              textShadow: `0 0 6px ${C.cyan}66`
+            }}
+          >
+            ● APPENDED · MANUAL EXEC STILL REQUIRED
+          </span>
+        )}
+        {status === 'err' && (
+          <span style={{ fontSize: 10.5, color: C.red, fontFamily: F.mono, letterSpacing: 0.4 }}>
+            ✕ {errMsg}
+          </span>
+        )}
+        {status === 'idle' && (
+          <span
+            style={{
+              fontSize: 10.5,
+              color: C.amber,
+              fontFamily: F.mono,
+              letterSpacing: 0.5,
+              textShadow: `0 0 6px ${C.amber}66`
+            }}
+          >
+            ● NO ORDER PLACED · MANUAL EXEC
+          </span>
+        )}
+      </div>
     </div>
-    <div style={S.subhdr}>// yaml preview</div>
-    <pre style={S.codeBlock}>{`- id: o-9201
-  market_id: ${m.id}
-  side: YES
-  kind: BUY
-  px: 0.74
-  qty: 500
-  status: DRAFT
-  human_review_required: true`}</pre>
-    <div style={{ display: 'flex', gap: 10, marginTop: 12, alignItems: 'center' }}>
-      <button style={S.btnPrimaryNarrow}>WRITE TO open_orders.yaml ▸</button>
-      <button style={S.btnGhost}>DISCARD</button>
-      <span style={{ flex: 1 }} />
-      <span
-        style={{
-          fontSize: 10.5,
-          color: C.amber,
-          fontFamily: F.mono,
-          letterSpacing: 0.5,
-          textShadow: `0 0 6px ${C.amber}66`
-        }}
-      >
-        ● NO ORDER PLACED · MANUAL EXEC
-      </span>
-    </div>
-  </div>
-)
+  )
+}
 
 const DfField = ({ k, v, accent }: { k: string; v: string; accent?: string }) => (
   <div style={S.dfField}>
     <div style={S.dfK}>{k}</div>
     <div style={{ ...S.dfV, color: accent || C.text }}>{v}</div>
+  </div>
+)
+
+const DfInput = ({
+  k,
+  value,
+  onChange,
+  inputMode
+}: {
+  k: string
+  value: string
+  onChange: (v: string) => void
+  inputMode?: 'decimal' | 'numeric'
+}) => (
+  <div style={S.dfField}>
+    <div style={S.dfK}>{k}</div>
+    <input
+      type="text"
+      inputMode={inputMode}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={S.draftInput}
+    />
+  </div>
+)
+
+const DfToggle = ({
+  k,
+  options,
+  value,
+  onChange,
+  accent
+}: {
+  k: string
+  options: [string, string]
+  value: string
+  onChange: (v: string) => void
+  accent?: string
+}) => (
+  <div style={S.dfField}>
+    <div style={S.dfK}>{k}</div>
+    <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+      {options.map((opt) => {
+        const on = opt === value
+        return (
+          <button
+            key={opt}
+            onClick={() => onChange(opt)}
+            style={{
+              ...S.draftToggle,
+              borderColor: on ? accent || C.magenta : C.line,
+              color: on ? accent || C.magenta : C.textDim,
+              background: on ? `${accent || C.magenta}22` : 'transparent',
+              fontWeight: on ? 700 : 500
+            }}
+          >
+            {opt}
+          </button>
+        )
+      })}
+    </div>
   </div>
 )
 
@@ -549,6 +749,40 @@ const S: Record<string, CSSProperties> = {
   dfField: { background: C.bgRow, border: `1px solid ${C.line2}`, padding: '8px 12px' },
   dfK: { fontSize: 9.5, color: C.textDim, letterSpacing: 1, fontFamily: F.mono, fontWeight: 600 },
   dfV: { fontSize: 14, fontFamily: F.mono, marginTop: 4, fontWeight: 700 },
+  draftInput: {
+    width: '100%',
+    background: C.bg,
+    border: `1px solid ${C.line}`,
+    color: C.text,
+    fontFamily: F.mono,
+    fontSize: 13,
+    padding: '5px 8px',
+    marginTop: 4,
+    outline: 'none',
+    fontWeight: 700
+  },
+  draftNotes: {
+    width: '100%',
+    background: C.bg,
+    border: `1px solid ${C.line}`,
+    color: C.text,
+    fontFamily: F.mono,
+    fontSize: 12,
+    padding: '6px 10px',
+    marginTop: 4,
+    outline: 'none'
+  },
+  draftToggle: {
+    flex: 1,
+    background: 'transparent',
+    border: '1px solid',
+    fontFamily: F.mono,
+    fontSize: 11,
+    letterSpacing: 0.6,
+    padding: '4px 6px',
+    cursor: 'pointer',
+    outline: 'none'
+  },
   codeBlock: {
     background: C.bg,
     border: `1px solid ${C.line2}`,

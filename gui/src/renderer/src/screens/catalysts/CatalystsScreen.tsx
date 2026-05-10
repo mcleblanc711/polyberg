@@ -1,10 +1,20 @@
 import { useState, type CSSProperties } from 'react'
-import { pmData } from '../../lib/pmData'
+import { CatalystForm } from '../../components/CatalystForm'
+import { usePmData } from '../../lib/pmDataContext'
 import { colors as C, fonts as F } from '../../styles/tokens'
 
 export const CatalystsScreen = () => {
-  const [mid, setMid] = useState<string>(pmData.markets[0]!.id)
-  const m = pmData.marketById(mid) ?? pmData.markets[0]!
+  const pmData = usePmData()
+  const [mid, setMid] = useState<string>(pmData.markets[0]?.id ?? '')
+  const [adding, setAdding] = useState(false)
+  const m = pmData.marketById(mid) ?? pmData.markets[0]
+  if (!m) {
+    return (
+      <div style={S.root}>
+        <div style={S.h1Sub}>// no markets in registry</div>
+      </div>
+    )
+  }
   return (
     <div style={S.root}>
       <div style={S.header}>
@@ -14,8 +24,13 @@ export const CatalystsScreen = () => {
             // recent_catalysts.md · per-market timeline · edit / delete / add
           </div>
         </div>
-        <button style={S.btnGhost}>+ NEW CATALYST</button>
+        <button style={S.btnGhost} onClick={() => setAdding((a) => !a)}>
+          {adding ? '✕ CANCEL' : '+ NEW CATALYST'}
+        </button>
       </div>
+      {adding && m ? (
+        <CatalystForm marketId={m.id} onCancel={() => setAdding(false)} />
+      ) : null}
       <div style={S.grid}>
         <div style={S.panel}>
           <div style={S.panelHdr}>// markets</div>

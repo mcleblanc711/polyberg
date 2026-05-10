@@ -1,10 +1,13 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
+import { StageRunnerModal } from '../../components/StageRunnerModal'
 import { fmtUsd } from '../../lib/format'
-import { marketById, pmData } from '../../lib/pmData'
+import { usePmData } from '../../lib/pmDataContext'
 import { clipCard, colors as C, fonts as F } from '../../styles/tokens'
 import { Treemap } from './charts'
 
 export const RightRail = () => {
+  const pmData = usePmData()
+  const [running, setRunning] = useState(false)
   return (
     <div style={S.rightRail}>
       <div style={S.rrCard}>
@@ -24,7 +27,12 @@ export const RightRail = () => {
       <div style={S.rrCard}>
         <div style={S.rrHdr}>// exposure</div>
         <div style={{ padding: 10 }}>
-          <Treemap positions={pmData.positions} w={240} h={108} />
+          <Treemap
+            positions={pmData.positions}
+            marketById={pmData.marketById}
+            w={240}
+            h={108}
+          />
         </div>
         <div style={{ padding: '0 12px 12px' }}>
           <ExposureBars />
@@ -39,9 +47,14 @@ export const RightRail = () => {
           <KVRow k="open orders" v={`${pmData.openOrders.length} imported`} />
           <KVRow k="last fetch" v="13:42:11 UTC" mono />
           <KVRow k="mode" v="GET only" accent={C.cyan} />
-          <button style={S.acctBtn}>$ import-account-snapshot</button>
+          <button style={S.acctBtn} onClick={() => setRunning(true)}>
+            $ import-account-snapshot
+          </button>
         </div>
       </div>
+      {running && (
+        <StageRunnerModal stage="import-account-snapshot" onClose={() => setRunning(false)} />
+      )}
     </div>
   )
 }
@@ -72,14 +85,16 @@ const KVRow = ({
 )
 
 const ExposureBars = () => {
-  const total = pmData.positions.reduce((a, p) => a + p.shares * p.mark, 0)
+  const pmData = usePmData()
+  const total = pmData.positions.reduce((a, p) => a + p.shares * p.mark, 0) || 1
   const byCat: Record<string, number> = {}
   pmData.positions.forEach((p) => {
-    const m = marketById(p.marketId)
+    const m = pmData.marketById(p.marketId)
     if (!m) return
     byCat[m.category] = (byCat[m.category] || 0) + p.shares * p.mark
   })
-  const maxPct = (Math.max(...Object.values(byCat)) / total) * 100
+  const values = Object.values(byCat)
+  const maxPct = values.length ? (Math.max(...values) / total) * 100 : 0
   return (
     <>
       {Object.entries(byCat).map(([cat, n]) => {

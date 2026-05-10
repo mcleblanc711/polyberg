@@ -1,7 +1,6 @@
 import { useId, type CSSProperties } from 'react'
 import { fmtUsd } from '../../lib/format'
-import { marketById } from '../../lib/pmData'
-import type { Position } from '../../lib/types'
+import type { Market, Position } from '../../lib/types'
 import { colors as C, fonts as F } from '../../styles/tokens'
 
 export const Spark = ({
@@ -95,18 +94,23 @@ export const PriceChart = ({ data, w, h }: { data: number[]; w: number; h: numbe
 
 export const Treemap = ({
   positions,
+  marketById,
   w,
   h
 }: {
   positions: Position[]
+  marketById: (id: string) => Market | undefined
   w: number
   h: number
 }) => {
-  const items = positions.map((p) => {
-    const m = marketById(p.marketId)!
-    return { ...p, m, notional: p.shares * p.mark, pnl: (p.mark - p.avg) * p.shares }
-  })
-  const total = items.reduce((a, i) => a + i.notional, 0)
+  const items = positions
+    .map((p) => {
+      const m = marketById(p.marketId)
+      if (!m) return null
+      return { ...p, m, notional: p.shares * p.mark, pnl: (p.mark - p.avg) * p.shares }
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+  const total = items.reduce((a, i) => a + i.notional, 0) || 1
   let x = 0
   return (
     <svg width={w} height={h} style={{ display: 'block' }}>

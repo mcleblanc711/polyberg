@@ -1,0 +1,43 @@
+appId: com.polyberg.terminal
+productName: Polyberg Terminal
+copyright: Copyright © 2026
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+  - "!**/*.{ts,tsx,map}"
+
+asar: true
+asarUnpack:
+  - "**/node_modules/chokidar/**"
+
+linux:
+  category: Office
+  target:
+    - AppImage
+    - deb
+  maintainer: polyberg
+  vendor: polyberg
+  synopsis: Local-first Polymarket research workbench
+  description: |
+    Polyberg Terminal is a read-mostly GUI on top of the polyberg CLI.
+    It renders local research context (markets, positions, catalysts,
+    snapshots) and shells out to the CLI for stage advancement.
+    Set POLYBERG_REPO to the path of your polyberg checkout.
+
+deb:
+  depends:
+    - libsecret-1-0
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libdrm2
+    - libgbm1

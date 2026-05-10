@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { pmData } from '../../lib/pmData'
+import { usePmData } from '../../lib/pmDataContext'
 import { colors as C, fonts as F } from '../../styles/tokens'
 import type { RuleRisk } from '../../lib/types'
 
@@ -10,6 +10,7 @@ const riskBorder = (risk: RuleRisk): string =>
   risk === 'high' ? C.red : risk === 'medium' ? C.amber : C.line
 
 export const MarketsScreen = () => {
+  const pmData = usePmData()
   return (
     <div style={S.root}>
       <div style={S.header}>
@@ -54,7 +55,9 @@ export const MarketsScreen = () => {
                     {m.ruleRisk}
                   </span>
                 </td>
-                <td style={{ ...S.td, color: C.cyan }}>{(m.mark * 100).toFixed(1)}¢</td>
+                <td style={{ ...S.td, color: C.cyan }}>
+                  {m.mark > 0 ? `${(m.mark * 100).toFixed(1)}¢` : '—'}
+                </td>
                 <td style={S.td}>
                   <button style={{ ...S.btnGhost, color: C.cyanText }}>EDIT</button>
                 </td>
