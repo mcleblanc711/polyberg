@@ -259,6 +259,77 @@ no need to wait days for accumulation. Tasks if we go that route:
 - Render in `PositionCard` expanded body. Tint highs cyan, lows red to match the
   existing Spark/PriceChart conventions.
 
+### Next phase — Grok revival (framing TBD)
+
+After the API correction (see Grok note above), reviving sentiment is back on the
+table for next session. The framing decision is deferred — pick during build —
+between two designs:
+
+- **Scan-and-promote to catalysts** *(my recommendation)*: per-market "scan now"
+  button anchors a Grok live-X query on a curated handle list (e.g. `@USNI
+  @LloydsList @maritimebrief` for Hormuz; `@IEA @EIAgov @OPECSecretariat` for
+  Brent), returns a few bulleted observations with raw tweet URLs for spot-checking,
+  and offers a per-bullet PROMOTE-TO-CATALYSTS write to `recent_catalysts.md` after
+  explicit user OK. Matches the existing manually-curated catalysts workflow.
+  Output is reviewable bullets, not numeric scores. No always-on widget. Stays out
+  of the packet pipeline so model trust surface doesn't widen.
+- **Always-on sentiment panel**: WorkflowRail widget showing score / lean / asOf
+  per market, refreshable on demand. Risks: refresh-mashing cost, decoration
+  without action, hallucinated paraphrase that's hard to audit, possible drift
+  toward feeding sentiment into packets which compromises the safety posture.
+
+Common scaffolding either way:
+
+- BYOK key flow: `safeStorage` (libsecret on Linux, keychain on macOS, DPAPI on
+  Windows) gated behind a settings modal. Internal `getApiKey('xai')` helper in
+  main, never exposed to renderer.
+- Direct xAI API (`api.x.ai/v1/chat/completions`) preferred over OpenRouter for
+  the live-search tool — confirm OpenRouter passes those tool params through
+  before committing.
+- Per-query handle list lives next to the registry, probably in
+  `context/market_registry.yaml` as a new optional `sentiment_handles: [...]`
+  field (≤10 entries enforced).
+- Cost guardrails: per-day spend cap configurable; per-call confirm above some
+  threshold.
+- Hallucination mitigation: require Grok to return raw tweet URLs alongside its
+  bullets. Validate the returned JSON against the existing
+  `schemas/twitter_sentiment_response.schema.json` (which exists for exactly this
+  contract).
+
+### Long-term roadmap (post-v1.0)
+
+These are explicitly *not* next-session items. Drop here so they don't get lost.
+
+- **Windows port**: code is mostly platform-agnostic already. Real fixes needed:
+  `runStage.ts` picks `.venv/bin/python` — needs `.venv/Scripts/python.exe` on
+  Windows; chrome-sandbox setuid is Linux-only and irrelevant on Windows; add
+  `nsis` / `portable` / `msi` targets to `electron-builder.yml`. Estimate: half
+  a day if the polyberg repo runs on Windows already (Python's `pathlib`, the
+  Pydantic models, and `cli.py` are Windows-safe per the existing
+  `Windows-safe path and timestamp conventions` note).
+- **Multiple themes**: current palette is hardcoded in
+  `gui/src/renderer/src/styles/tokens.ts` as `colors as C` and `fonts as F`.
+  Theming work: factor the palette out into a `<ThemeProvider>` keyed off a
+  user setting (localStorage), expose `useTheme()` returning the current
+  palette, and replace the ~50 `C.*` references across screens with the hook.
+  Tokens themselves stay; the swap is at the resolution boundary. Probably one
+  day of work plus designing a second / third palette. Candidates: amber-on-
+  black (Bloomberg), green-on-black (CRT classic), high-contrast light.
+- **Android app**: more ambitious than it sounds because Electron is desktop-
+  only. Options:
+    - **Capacitor**: wraps the existing React renderer in a webview,
+      smallest delta, but the IPC bridge would need a complete rebuild — no
+      shell-out to Python is possible on stock Android. Would require running
+      polyberg as a server (local Termux + Python, or remote) and changing
+      `window.pm` to talk HTTPS to that server. Significant.
+    - **React Native**: full rewrite of the renderer in native components.
+      Same IPC re-architecture. Months of work.
+    - **Tauri Mobile**: lighter but less mature, similar IPC re-architecture.
+  All three break the local-first assumption (no Python on the device) so the
+  Android app is really a *thin client over a server polyberg*. That server
+  layer is its own scope and probably the actual blocker. Worth designing the
+  server contract first, before picking the mobile framework.
+
 ### Other deferred work
 
 - Cosmetic stubs still no-op: search bar (⌘K), filter buttons.
