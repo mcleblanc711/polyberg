@@ -189,12 +189,12 @@ honors that env var, then walks up from `__dirname` (which won't reach a repo wh
 binary lives under `/opt/Polyberg Terminal/` from a deb install). Missing → clear error
 on launch.
 
-### Next phase — account import workflow
+### Next phase — account import workflow (priority #1 next session)
 
-The current `import-account-snapshot` CLI lands raw authenticated Polymarket US JSON
-under `reports/generated/account/` but there's no GUI flow to view that output or
-promote it into canonical context. Two paths planned for next session, both strictly
-read-only:
+This is the headline deliverable for next session. The current `import-account-snapshot`
+CLI lands raw authenticated Polymarket US JSON under `reports/generated/account/` but
+there's no GUI flow to view that output, promote it into canonical context, or use it
+as a ground-truth source for resolution rules. Three paths, all strictly read-only:
 
 1. **Live authenticated account view (read-only).** Surface raw account-import results
    in a new `ACCOUNT` tab (or panel within Dashboard's RightRail). Display:
@@ -203,7 +203,19 @@ read-only:
    "PROMOTE TO CONTEXT" affordance that requires user confirmation per file. No
    automation — manual review is the point. Already-allowlisted: the
    `import-account-snapshot` CLI runs from RightRail's button.
-2. **Manual entry via screenshot-to-LLM.** For users who don't want the authenticated
+2. **Resolution-rule sync against Polymarket's official rules.** Authenticated account
+   import (or a sibling read-only endpoint) returns the official rule text per market
+   alongside positions/balances. Pull that field, store it under
+   `reports/generated/account/rules/<market_id>.md` (or similar), and surface a
+   diff-against-registry view in the GUI: left pane is the registry's manually-entered
+   `notes` / `rule_risk` for each market, right pane is the official Polymarket text.
+   Highlight divergence so the user can spot when a manual rule entry has drifted from
+   the canonical source. PROMOTE-TO-REGISTRY writes the official text into the
+   registry's `notes` field after explicit confirmation. Critical for catching
+   wording-risk markets where manual paraphrase has lost a "consecutive hours"
+   qualifier or similar — the kind of detail that turns a clean YES into a disputed
+   resolution. Same auth path as #1, so the implementation cost is mostly UI.
+3. **Manual entry via screenshot-to-LLM.** For users who don't want the authenticated
    import path, the GUI provides:
    - A copy-to-clipboard prompt block tailored to portfolio + open-order extraction,
      formatted for paste into Claude or ChatGPT alongside a screenshot of the
@@ -220,7 +232,7 @@ keys, no automation. The workflow is "human captures state → human reviews dif
 human writes." The screenshot/LLM step is the user's existing process formalized so
 the output lands in the right schema on the first try.
 
-### Next phase — per-market high/low ranges
+### Next phase — per-market high/low ranges (priority #2)
 
 Goal: surface 1d / 1w / 1m (and probably since-position-open / all-time) high and low
 prices for each tracked market on the Dashboard Positions tab, so limit-buy and
@@ -259,7 +271,7 @@ no need to wait days for accumulation. Tasks if we go that route:
 - Render in `PositionCard` expanded body. Tint highs cyan, lows red to match the
   existing Spark/PriceChart conventions.
 
-### Next phase — Grok revival (framing TBD)
+### Next phase — Grok revival (priority #3, framing TBD)
 
 After the API correction (see Grok note above), reviving sentiment is back on the
 table for next session. The framing decision is deferred — pick during build —
