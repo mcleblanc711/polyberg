@@ -46,7 +46,7 @@ export const DashboardScreen = ({ onRunNextStage }: { onRunNextStage: () => void
 }
 
 const S: Record<string, CSSProperties> = {
-  body: { flex: 1, display: 'flex', minHeight: 0 },
+  body: { flex: 1, display: 'flex', minHeight: 0, overflowX: 'auto' },
   main: {
     flex: 1,
     padding: '14px 18px',

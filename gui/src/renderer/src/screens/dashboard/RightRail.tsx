@@ -24,7 +24,7 @@ export const RightRail = () => {
       <div style={S.rrCard}>
         <div style={S.rrHdr}>// exposure</div>
         <div style={{ padding: 10 }}>
-          <Treemap positions={pmData.positions} w={266} h={108} />
+          <Treemap positions={pmData.positions} w={240} h={108} />
         </div>
         <div style={{ padding: '0 12px 12px' }}>
           <ExposureBars />
@@ -125,7 +125,8 @@ const S: Record<string, CSSProperties> = {
     flexDirection: 'column',
     gap: 12,
     background: C.bg,
-    overflow: 'auto',
+    overflowY: 'auto',
+    overflowX: 'hidden',
     flexShrink: 0
   },
   rrCard: { background: C.bgPanel, border: `1px solid ${C.line}`, clipPath: clipCard },
