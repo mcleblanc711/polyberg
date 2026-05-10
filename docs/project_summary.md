@@ -308,6 +308,55 @@ Common scaffolding either way:
   `schemas/twitter_sentiment_response.schema.json` (which exists for exactly this
   contract).
 
+### Medium-term — History tab
+
+After the next-session priorities and before any of the post-v1.0 roadmap items, add a
+seventh top-level tab: `HISTORY`. Becomes useful only once the account-import flow has
+been running for a while (so there's a stream of snapshots to diff against), so it's
+explicitly downstream of the priority-#1 work.
+
+Sources of truth, in roughly increasing fidelity:
+
+- **Closed positions from accumulated account snapshots.** Diffing successive
+  `reports/generated/account/` imports surfaces positions that disappeared (closed)
+  with the entry side / avg / shares from the earlier snapshot and the inferred exit
+  price from the later one. Realized P&L per market falls out of that diff.
+- **Trade tickets in `reports/generated/`.** Each `build-trade-ticket` run emits a
+  markdown ticket. These are the *decisions*, even when execution didn't happen —
+  having them on the History tab is the audit trail "I considered doing X on date Y."
+- **Postmortems in `reports/postmortems/`.** Already a directory in the repo, no
+  files yet. Designed for human-written "what went wrong / what worked" notes after
+  a position closes. The History tab links each closed-position row to its
+  postmortem (or shows an empty state inviting the user to write one).
+- **Adjudicator outputs.** When present, the adjudicator JSON for a closed position
+  is the chain-of-decision: which trader prompt, which risk critic, which final
+  call. Surface as drill-down detail.
+
+UI shape:
+
+- Timeline-style table on the left: closed-position rows sorted by close date
+  (date, market, side, entry/exit, hold time, realized P&L, postmortem present?).
+- Right pane: drill-down with the linked packet / adjudicator / trade-ticket /
+  postmortem files inlined, each in its own collapsible panel.
+- Top of the screen: cumulative metrics (total realized P&L, win rate, average
+  holding period, P&L by category, biggest win, biggest loss).
+- Filters: by market, date range, realized return sign, category, postmortem
+  presence.
+
+Implementation order:
+
+1. Bridge: `readClosedPositions()` returns `ClosedPosition[]` derived from snapshot
+   diffs. Lives in `gui/src/main/ipc/history.ts`. Reads-only — no writes.
+2. New IPC method `readPostmortem(marketId, ts)` and writer
+   `writePostmortem(marketId, ts, body)` for the inline editor (gated to
+   `reports/postmortems/` only).
+3. Renderer: new `screens/history/HistoryScreen.tsx` plus a tab in `App.tsx`.
+4. Cumulative metrics computed in the bridge, not the renderer (so they stay
+   correct under file watcher refreshes).
+
+Non-goals for this tab: live position monitoring (that's the Dashboard), forward-
+looking suggestions (that's the packet flow). HISTORY is strictly retrospective.
+
 ### Long-term roadmap (post-v1.0)
 
 These are explicitly *not* next-session items. Drop here so they don't get lost.
