@@ -147,11 +147,18 @@ panel-level "create" action distinctly.
   `POLYMARKET_US_API_KEY_ID` and `POLYMARKET_US_SECRET_KEY` env vars; without them the
   modal shows the error.
 
-`+ CONNECT GROK` and the entire "sentiment · grok" box were removed in this session.
-Through OpenRouter (or any LLM API surface) Grok is just an LLM — there is no live X
-firehose; that's a feature of grok.com itself. Keeping the stub would have implied
-otherwise. The `Sentiment` / `SentimentEntry` / `Lean` types and the `sentiment` field
-on `PmDataPayload` were dropped at the same time.
+`+ CONNECT GROK` and the entire "sentiment · grok" box were removed in this session,
+along with the `Sentiment` / `SentimentEntry` / `Lean` types and the `sentiment` field
+on `PmDataPayload`.
+
+Note (corrected 2026-05-10 after initial removal): the Grok API *does* expose a live
+X search/firehose tool, contrary to what was claimed when the stub was first stripped.
+The constraint is a per-query cap of ten "allowed" accounts, so practical use needs
+either a static configured list of high-signal handles or a rotation of multiple
+calls whose results are aggregated. A future revival would design around that cap —
+likely a small set of curated handles per market category (oil-desk handles for the
+Brent market, maritime-intelligence handles for Hormuz, etc.) plus a BYOK key flow
+through xAI direct or OpenRouter.
 
 ### localStorage persistence
 
@@ -213,7 +220,47 @@ keys, no automation. The workflow is "human captures state → human reviews dif
 human writes." The screenshot/LLM step is the user's existing process formalized so
 the output lands in the right schema on the first try.
 
-Other work that's been deferred:
+### Next phase — per-market high/low ranges
+
+Goal: surface 1d / 1w / 1m (and probably since-position-open / all-time) high and low
+prices for each tracked market on the Dashboard Positions tab, so limit-buy and
+limit-sell placement is grounded in recent extremes rather than just the current mark.
+Display lives in `PositionCard`'s expanded body — either as additional cells in the
+existing `Mini` strip (next to BID / ASK / SPREAD / LIQ / SNAP) or as a small
+dedicated row above the price chart.
+
+The feature is mostly a Python-side data-source decision; the GUI render is small once
+the data exists. Pick the source first:
+
+1. **Snapshot accumulation.** Schedule `snapshot-markets` at a cron-like cadence so
+   `data/snapshots/*.json` builds up a price-series. Compute highs/lows by scanning
+   the snapshot files in `readContext()`. Honest but blocked: the current
+   `snapshot-markets` CLI emits placeholder snapshots only — `snapshots.py` doesn't
+   yet capture real prices. Would need to flesh that out first, then accumulate for
+   at least a window before the feature returns useful data. Slow ramp.
+2. **Direct historical pull from Polymarket Gamma.** The Gamma collector module is
+   currently `NotImplementedError`. Implement a read-only price-history fetch keyed by
+   market id, return a `[{ts, mark}]` series, compute highs/lows per window in the
+   bridge's `readContext()`. Fast: returns useful data immediately, no accumulation
+   wait. Keeps the no-execution boundary (read-only HTTPS, same posture as
+   `import-account-snapshot`).
+3. **Hybrid.** Cache historical pulls into `data/snapshots/` so subsequent reads are
+   local; refresh on demand. Best long-term, more upfront wiring.
+
+Option 2 is probably the right starting point given the empty snapshots directory and
+no need to wait days for accumulation. Tasks if we go that route:
+
+- Flesh out `src/polyberg/gamma_collector.py` (or wherever the placeholder lives) with
+  a `fetch_price_history(market_id, lookback)` helper using the public Gamma endpoint.
+- New CLI subcommand `fetch-price-history` (added to the bridge allowlist) so the GUI
+  can request a refresh on demand without crossing the safety boundary.
+- Extend `Market` in `shared/contract.ts` with `highs: {d1, w1, m1}` and `lows: {…}`.
+- Extend `readContext()` to read the cached series and compute the windows.
+- Render in `PositionCard` expanded body. Tint highs cyan, lows red to match the
+  existing Spark/PriceChart conventions.
+
+### Other deferred work
+
 - Cosmetic stubs still no-op: search bar (⌘K), filter buttons.
 - `recent_catalysts.md` could be restructured to per-market sections so the catalyst
   timeline on each tab has data; today the file is section-based and the GUI shows
