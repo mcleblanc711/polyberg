@@ -18,7 +18,9 @@ export type {
   HeatEntry,
   IntakeItem,
   SnapshotMeta,
-  PmDataPayload
+  PmDataPayload,
+  AccountImport,
+  AccountImportFile
 } from '../../../shared/contract'
 
 import type { PmDataPayload } from '../../../shared/contract'

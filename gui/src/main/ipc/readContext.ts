@@ -10,6 +10,8 @@ import {
 } from './repo'
 import {
   EMPTY_PRICE_WINDOWS,
+  type AccountImport,
+  type AccountImportFile,
   type FreshnessEntry,
   type FreshnessState,
   type Market,
@@ -160,6 +162,45 @@ const readPriceHistory = (): { asOf: string; windowsById: Map<string, PriceWindo
   }
   return { asOf, windowsById }
 }
+
+const ACCOUNT_DIR = resolve(REPORTS_DIR, 'account')
+
+const readAccountImportFile = (
+  filename: string,
+  canonicalFilename: string
+): AccountImportFile => {
+  const base: AccountImportFile = {
+    filename,
+    exists: false,
+    asOf: '',
+    source: '',
+    payloadJson: '',
+    canonicalText: '',
+    canonicalFilename
+  }
+  try {
+    base.canonicalText = readFileSync(resolve(CONTEXT_DIR, canonicalFilename), 'utf8')
+  } catch {
+    base.canonicalText = ''
+  }
+  try {
+    const raw = readFileSync(resolve(ACCOUNT_DIR, filename), 'utf8')
+    const parsed = JSON.parse(raw) as { as_of?: unknown; source?: unknown; payload?: unknown }
+    base.exists = true
+    base.asOf = asString(parsed?.as_of)
+    base.source = asString(parsed?.source)
+    base.payloadJson = JSON.stringify(parsed?.payload ?? null, null, 2)
+  } catch {
+    // missing or unreadable — leave exists=false
+  }
+  return base
+}
+
+const readAccountImport = (): AccountImport => ({
+  positions: readAccountImportFile('positions_raw.json', 'portfolio_current.yaml'),
+  balances: readAccountImportFile('balances_raw.json', 'live_state.yaml'),
+  openOrders: readAccountImportFile('open_orders_raw.json', 'open_orders.yaml')
+})
 
 const applyPriceHistory = (markets: Market[]): Market[] => {
   const { asOf, windowsById } = readPriceHistory()
@@ -359,6 +400,7 @@ export const readContext = (): PmDataPayload => {
     totalPnl,
     heat: [],
     intake: [],
-    snapshots
+    snapshots,
+    accountImport: readAccountImport()
   }
 }

@@ -124,6 +124,22 @@ export interface SnapshotMeta {
   freshMin: number
 }
 
+export interface AccountImportFile {
+  filename: string
+  exists: boolean
+  asOf: string
+  source: string
+  payloadJson: string
+  canonicalText: string
+  canonicalFilename: string
+}
+
+export interface AccountImport {
+  positions: AccountImportFile
+  balances: AccountImportFile
+  openOrders: AccountImportFile
+}
+
 export interface PmDataPayload {
   markets: Market[]
   positions: Position[]
@@ -137,6 +153,7 @@ export interface PmDataPayload {
   heat: HeatEntry[]
   intake: IntakeItem[]
   snapshots: SnapshotMeta[]
+  accountImport: AccountImport
 }
 
 export interface RunStageResult {

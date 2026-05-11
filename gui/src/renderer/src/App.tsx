@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { isAllowedStage } from '../../shared/contract'
 import { StageRunnerModal } from './components/StageRunnerModal'
 import { usePmData, usePmDataRefresh } from './lib/pmDataContext'
+import { AccountScreen } from './screens/account/AccountScreen'
 import { DashboardScreen } from './screens/dashboard/DashboardScreen'
 import { CatalystsScreen } from './screens/catalysts/CatalystsScreen'
 import { IntakeScreen } from './screens/intake/IntakeScreen'
@@ -10,7 +11,7 @@ import { PacketScreen } from './screens/packet/PacketScreen'
 import { SnapshotsScreen } from './screens/snapshots/SnapshotsScreen'
 import { colors as C, fonts as F } from './styles/tokens'
 
-type ScreenId = 'dashboard' | 'intake' | 'snapshots' | 'catalysts' | 'packet' | 'markets'
+type ScreenId = 'dashboard' | 'intake' | 'snapshots' | 'catalysts' | 'packet' | 'markets' | 'account'
 
 interface Tab {
   id: ScreenId
@@ -46,7 +47,8 @@ const TopBar = ({
     { id: 'snapshots', label: 'SNAPSHOTS' },
     { id: 'catalysts', label: 'CATALYSTS' },
     { id: 'packet', label: 'PACKET' },
-    { id: 'markets', label: 'MARKETS' }
+    { id: 'markets', label: 'MARKETS' },
+    { id: 'account', label: 'ACCOUNT' }
   ]
   return (
     <div style={S.topBar}>
@@ -155,6 +157,8 @@ export const App = () => {
         return <SnapshotsScreen />
       case 'intake':
         return <IntakeScreen />
+      case 'account':
+        return <AccountScreen />
     }
   }
 
