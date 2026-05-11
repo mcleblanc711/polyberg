@@ -213,13 +213,32 @@ as a ground-truth source for resolution rules. Three paths, all strictly read-on
    the importer to the main Polygon Polymarket endpoints (`data-api.polymarket.com` for
    positions-by-wallet, etc.) before sinking effort into the PM-US normalizer.
 
-   **v2 todo:**
-   - Decide target endpoint family (Polygon data-api, not api.polymarket.us).
-   - Capture a real authenticated response sample, drop it under
-     `tests/fixtures/account_import/` for normalizer development.
-   - Write `normalize_account_import()` in Python, return canonical schema.
-   - Wire PROMOTE button: render a write-diff confirmation, then write to context YAML.
-   - Tests against the captured fixture.
+   **Status (v2, shipped):** Pivoted to the unauthenticated Polygon `data-api.polymarket.com/positions`
+   endpoint, which is wallet-keyed and doesn't require keys. `live_state.yaml` now carries
+   `proxy_wallet`. The GUI's import button fires `import-public-positions --address <wallet>`
+   and writes `reports/generated/account/positions_data_api.json`. A new
+   `src/polyberg/account_normalizer.py` maps that response onto the canonical `Portfolio`
+   schema by `conditionId` ↔ registry lookup; `thesis_bucket` annotations on existing positions
+   survive promotion. New CLI `promote-positions` supports `--dry-run` (stdout YAML, stderr
+   skipped list) and a real write to `context/portfolio_current.yaml`. PROMOTE in the GUI
+   previews the dry-run output in a modal before committing. Tests live in
+   `tests/test_account_normalizer.py` (5 tests against the sanitized real-API fixture at
+   `tests/fixtures/account_import/positions_data_api.json`). Also: bumped `ReadOnlyHttpClient`
+   to send a `User-Agent` header so both data-api and CLOB stop 403-ing the Python client.
+
+   **v2 known gap:** balances and open orders aren't normalized — `data-api` doesn't expose
+   those without authentication and uses an authenticated path. The Balances /
+   Open Orders tabs in `AccountScreen` are present but their PROMOTE is permanently disabled
+   with a "needs authenticated path" note. Closing this requires either: (a) on-chain USDC
+   balance fetch via a public RPC for the proxy wallet, plus open orders from the CLOB; or
+   (b) accepting the PM-US authenticated path for users who happen to have those keys.
+
+   **v2 user-side data gap (not code):** the production `context/market_registry.yaml` has
+   empty `condition_id` values for all three example markets. Until the user fills in
+   `condition_id` per market in the registry, the normalizer will skip every imported
+   position with "conditionId not in registry" (correctly — the registry is the source of
+   truth for which markets the user cares about, and we don't want to silently promote
+   positions for markets that aren't in scope).
 2. **Resolution-rule sync against Polymarket's official rules.** Authenticated account
    import (or a sibling read-only endpoint) returns the official rule text per market
    alongside positions/balances. Pull that field, store it under
@@ -447,6 +466,14 @@ These are explicitly *not* next-session items. Drop here so they don't get lost.
 
 ### Other deferred work
 
+- **Visual verification of ACCOUNT tab (P1a v1).** The new `AccountScreen`
+  shipped with passing typecheck only — no one has actually opened the tab in
+  the Electron dev server yet. Things to eyeball on first run: tab activates,
+  empty-state shows when `reports/generated/account/` is empty, JSON pane
+  pretty-prints, canonical YAML pane renders, the disabled PROMOTE button
+  doesn't accidentally fire, side-by-side grid wraps reasonably on narrow
+  windows. After running `$ import-account-snapshot` (even against the
+  PM-US stub), confirm the file shows up live without an app restart.
 - Cosmetic stubs still no-op: search bar (⌘K), filter buttons.
 - `recent_catalysts.md` could be restructured to per-market sections so the catalyst
   timeline on each tab has data; today the file is section-based and the GUI shows
