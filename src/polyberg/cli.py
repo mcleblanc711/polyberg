@@ -4,6 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from polyberg.account_normalizer import NormalizerError, promote_data_api_positions
 from polyberg.adjudicator_builder import write_adjudicator_input
 from polyberg.collectors.polymarket_account import (
     AccountImportError,
@@ -83,15 +84,43 @@ def build_parser() -> argparse.ArgumentParser:
 
     public_positions = subparsers.add_parser(
         "import-public-positions",
-        help="Import read-only public positions by address.",
+        help="Import read-only public positions by address (data-api.polymarket.com).",
     )
     public_positions.add_argument("--address", type=str, required=True)
     public_positions.add_argument(
         "--output",
         type=Path,
-        default=repo_path("reports", "generated", "account_positions_raw.json"),
+        default=repo_path("reports", "generated", "account", "positions_data_api.json"),
     )
     public_positions.set_defaults(func=command_import_public_positions)
+
+    promote = subparsers.add_parser(
+        "promote-positions",
+        help="Normalize a data-api positions import and write portfolio_current.yaml.",
+    )
+    promote.add_argument(
+        "--raw",
+        type=Path,
+        default=repo_path("reports", "generated", "account", "positions_data_api.json"),
+        help="Raw positions JSON written by import-public-positions.",
+    )
+    promote.add_argument(
+        "--output",
+        type=Path,
+        default=repo_path("context", "portfolio_current.yaml"),
+    )
+    promote.add_argument(
+        "--cash",
+        type=float,
+        default=None,
+        help="Override cash_available. Defaults to live_state.yaml's value.",
+    )
+    promote.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the normalized YAML to stdout instead of writing.",
+    )
+    promote.set_defaults(func=command_promote_positions)
 
     account_snapshot = subparsers.add_parser(
         "import-account-snapshot",
@@ -196,6 +225,74 @@ def command_import_account_snapshot(args: argparse.Namespace) -> int:
         return 1
     for path in paths:
         print(f"Wrote authenticated account import to {path}")
+    return 0
+
+
+def command_promote_positions(args: argparse.Namespace) -> int:
+    import json as _json
+
+    from polyberg.account_normalizer import (
+        _dump_portfolio_yaml,
+        _read_existing_thesis_buckets,
+        normalize_data_api_positions,
+    )
+    from polyberg.loaders import load_live_state, load_market_registry
+
+    if not args.raw.exists():
+        print(f"Raw positions file not found: {args.raw}", file=sys.stderr)
+        return 1
+    try:
+        raw_doc = _json.loads(args.raw.read_text(encoding="utf-8"))
+    except _json.JSONDecodeError as exc:
+        print(f"Invalid JSON in {args.raw}: {exc}", file=sys.stderr)
+        return 1
+    payload = raw_doc.get("payload", raw_doc) if isinstance(raw_doc, dict) else raw_doc
+
+    cash = args.cash
+    if cash is None:
+        try:
+            live = load_live_state()
+            cash = float(live.account_snapshot.cash_available)
+        except Exception as exc:
+            print(f"Could not read cash_available from live_state.yaml: {exc}", file=sys.stderr)
+            return 1
+
+    try:
+        registry = load_market_registry()
+        portfolio, skipped = normalize_data_api_positions(
+            payload, registry, cash_available=cash
+        )
+    except NormalizerError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    thesis = _read_existing_thesis_buckets(args.output)
+    if thesis:
+        portfolio = portfolio.model_copy(
+            update={
+                "positions": [
+                    p.model_copy(update={"thesis_bucket": thesis.get(p.market_id, "")})
+                    for p in portfolio.positions
+                ]
+            }
+        )
+
+    yaml_text = _dump_portfolio_yaml(portfolio)
+    if args.dry_run:
+        sys.stdout.write(yaml_text)
+        if skipped:
+            print(f"\n# skipped: {len(skipped)}", file=sys.stderr)
+            for s in skipped:
+                print(f"#   {s}", file=sys.stderr)
+        return 0
+
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(yaml_text, encoding="utf-8")
+    print(f"Wrote canonical portfolio to {args.output}")
+    if skipped:
+        print(f"Skipped {len(skipped)} positions (not in registry):", file=sys.stderr)
+        for s in skipped:
+            print(f"  - {s}", file=sys.stderr)
     return 0
 
 

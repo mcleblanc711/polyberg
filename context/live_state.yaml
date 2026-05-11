@@ -1,5 +1,6 @@
 as_of: 2026-04-26T09:00:00-06:00
 mode: research_only
+proxy_wallet: "0x0000000000000000000000000000000000000000"
 account_snapshot:
   portfolio_value: 2400.50
   cash_available: 415.25

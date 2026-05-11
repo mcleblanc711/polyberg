@@ -22,6 +22,7 @@ from polyberg.config import get_timezone
 
 PUBLIC_DATA_API_BASE_URL = "https://data-api.polymarket.com"
 POLYMARKET_US_API_BASE_URL = "https://api.polymarket.us"
+DEFAULT_USER_AGENT = "polyberg/0.1 (+https://github.com/mcleblanc711/polyberg)"
 
 JsonOpener = Callable[..., Any]
 
@@ -54,7 +55,10 @@ class ReadOnlyHttpClient:
         if method.upper() != "GET":
             raise AccountImportError("Account import client only permits GET requests")
         url = self.build_url(path, params)
-        request = Request(url, headers=headers or {}, method="GET")
+        merged_headers: dict[str, str] = {"User-Agent": DEFAULT_USER_AGENT}
+        if headers:
+            merged_headers.update(headers)
+        request = Request(url, headers=merged_headers, method="GET")
         try:
             with self.opener(request, timeout=self.timeout) as response:
                 raw = response.read()

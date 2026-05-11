@@ -141,6 +141,7 @@ class LiveState(StrictModel):
     constraints: dict[str, Any]
     watchlist: list[str]
     notes: list[str]
+    proxy_wallet: str = ""
 
     @field_validator("as_of")
     @classmethod
