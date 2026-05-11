@@ -150,6 +150,7 @@ const ExpandedBody = ({ m, p }: { m: Market; p: Position }) => {
             <Mini k="LIQ" v={fmtUsd(m.liq)} />
             <Mini k="SNAP" v={m.snapshotAge + 'm old'} />
           </div>
+          <HighLowRow m={m} />
         </div>
 
         <div style={S.expPanel}>
@@ -181,6 +182,50 @@ const Mini = ({ k, v, accent }: { k: string; v: string; accent?: string }) => (
   <div style={S.mini}>
     <div style={S.miniK}>{k}</div>
     <div style={{ ...S.miniV, color: accent || C.text }}>{v}</div>
+  </div>
+)
+
+const HighLowRow = ({ m }: { m: Market }) => {
+  const hasData = m.windowsAsOf !== ''
+  const fmt = (n: number): string => (n > 0 ? (n * 100).toFixed(1) + '¢' : '—')
+  return (
+    <div style={S.hlRow}>
+      <div style={S.hlLabel}>
+        // hi / lo
+        {hasData ? (
+          <span style={{ color: C.textMute, marginLeft: 6 }}>
+            · as of {m.windowsAsOf.slice(0, 16).replace('T', ' ')}
+          </span>
+        ) : (
+          <span style={{ color: C.amber, marginLeft: 6 }}>· no data · run fetch-price-history</span>
+        )}
+      </div>
+      <div style={S.hlGrid}>
+        <HLCell k="1D" hi={m.windows.d1.high} lo={m.windows.d1.low} fmt={fmt} />
+        <HLCell k="1W" hi={m.windows.w1.high} lo={m.windows.w1.low} fmt={fmt} />
+        <HLCell k="1M" hi={m.windows.m1.high} lo={m.windows.m1.low} fmt={fmt} />
+      </div>
+    </div>
+  )
+}
+
+const HLCell = ({
+  k,
+  hi,
+  lo,
+  fmt
+}: {
+  k: string
+  hi: number
+  lo: number
+  fmt: (n: number) => string
+}) => (
+  <div style={S.hlCell}>
+    <div style={S.miniK}>{k}</div>
+    <div style={{ display: 'flex', gap: 8, marginTop: 3, fontFamily: F.mono, fontSize: 12.5, fontWeight: 600 }}>
+      <span style={{ color: C.cyan }}>▲ {fmt(hi)}</span>
+      <span style={{ color: C.red }}>▼ {fmt(lo)}</span>
+    </div>
   </div>
 )
 
@@ -632,6 +677,22 @@ const S: Record<string, CSSProperties> = {
   mini: { flex: 1, paddingRight: 10, borderRight: `1px solid ${C.line2}` },
   miniK: { fontSize: 9.5, color: C.textDim, letterSpacing: 1, fontFamily: F.mono, fontWeight: 600 },
   miniV: { fontSize: 13, fontFamily: F.mono, marginTop: 3, fontWeight: 600 },
+  hlRow: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTop: `1px solid ${C.line2}`
+  },
+  hlLabel: {
+    fontSize: 10,
+    color: C.magenta,
+    letterSpacing: 0.6,
+    fontWeight: 600,
+    fontFamily: F.mono,
+    textShadow: `0 0 4px ${C.magenta}66`,
+    marginBottom: 6
+  },
+  hlGrid: { display: 'flex', gap: 0 },
+  hlCell: { flex: 1, paddingRight: 10, borderRight: `1px solid ${C.line2}` },
 
   tabRow: { display: 'flex', gap: 0, marginBottom: 12, borderBottom: `1px solid ${C.line}` },
   expTab: {

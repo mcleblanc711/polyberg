@@ -14,6 +14,23 @@ export interface Catalyst {
   txt: string
 }
 
+export interface PriceWindow {
+  high: number
+  low: number
+}
+
+export interface PriceWindows {
+  d1: PriceWindow
+  w1: PriceWindow
+  m1: PriceWindow
+}
+
+export const EMPTY_PRICE_WINDOWS: PriceWindows = {
+  d1: { high: 0, low: 0 },
+  w1: { high: 0, low: 0 },
+  m1: { high: 0, low: 0 }
+}
+
 export interface Market {
   id: string
   name: string
@@ -30,6 +47,8 @@ export interface Market {
   spread: number
   liq: number
   hist: number[]
+  windows: PriceWindows
+  windowsAsOf: string
   lastUpdate: string
   snapshotAge: number
   ruleText: string
@@ -145,7 +164,8 @@ export const ALLOWED_STAGES = [
   'diff-snapshots',
   'build-trade-ticket',
   'import-public-positions',
-  'import-account-snapshot'
+  'import-account-snapshot',
+  'fetch-price-history'
 ] as const
 
 export type AllowedStage = (typeof ALLOWED_STAGES)[number]

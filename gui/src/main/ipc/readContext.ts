@@ -8,19 +8,22 @@ import {
   REPORTS_DIR,
   SNAPSHOTS_DIR
 } from './repo'
-import type {
-  FreshnessEntry,
-  FreshnessState,
-  Market,
-  Mode,
-  OpenOrder,
-  PmDataPayload,
-  Position,
-  RuleRisk,
-  Side,
-  SnapshotMeta,
-  WorkflowStage,
-  WorkflowState
+import {
+  EMPTY_PRICE_WINDOWS,
+  type FreshnessEntry,
+  type FreshnessState,
+  type Market,
+  type Mode,
+  type OpenOrder,
+  type PmDataPayload,
+  type Position,
+  type PriceWindow,
+  type PriceWindows,
+  type RuleRisk,
+  type Side,
+  type SnapshotMeta,
+  type WorkflowStage,
+  type WorkflowState
 } from '../../shared/contract'
 
 const loadYaml = <T>(path: string): T | null => {
@@ -94,6 +97,18 @@ interface LiveStateFile {
   notes?: string[] | string
 }
 
+interface PriceHistoryFile {
+  as_of?: string
+  markets?: Record<
+    string,
+    {
+      yes_token_id?: string
+      series?: Array<{ t?: number; p?: number }>
+      windows?: Record<string, { high?: number; low?: number }>
+    }
+  >
+}
+
 const readMarkets = (): Market[] => {
   const data = loadYaml<RegistryFile>(resolve(CONTEXT_DIR, 'market_registry.yaml'))
   const rows = data?.markets ?? []
@@ -115,12 +130,44 @@ const readMarkets = (): Market[] => {
       spread: 0,
       liq: 0,
       hist: [],
+      windows: EMPTY_PRICE_WINDOWS,
+      windowsAsOf: '',
       lastUpdate: '',
       snapshotAge: 0,
       ruleText: asString(r.notes),
       ruleRiskNotes: Array.isArray(r.risk_flags) ? r.risk_flags.filter((s): s is string => typeof s === 'string') : [],
       catalysts: []
     }))
+}
+
+const readPriceHistory = (): { asOf: string; windowsById: Map<string, PriceWindows> } => {
+  let raw: PriceHistoryFile | null = null
+  try {
+    raw = JSON.parse(readFileSync(resolve(CONTEXT_DIR, 'price_history.json'), 'utf8'))
+  } catch {
+    return { asOf: '', windowsById: new Map() }
+  }
+  const asOf = asString(raw?.as_of)
+  const windowsById = new Map<string, PriceWindows>()
+  const markets = raw?.markets ?? {}
+  for (const [marketId, entry] of Object.entries(markets)) {
+    const w = entry?.windows ?? {}
+    const pick = (key: string): PriceWindow => {
+      const v = w[key]
+      return { high: asNumber(v?.high), low: asNumber(v?.low) }
+    }
+    windowsById.set(marketId, { d1: pick('d1'), w1: pick('w1'), m1: pick('m1') })
+  }
+  return { asOf, windowsById }
+}
+
+const applyPriceHistory = (markets: Market[]): Market[] => {
+  const { asOf, windowsById } = readPriceHistory()
+  if (windowsById.size === 0) return markets
+  return markets.map((m) => {
+    const w = windowsById.get(m.id)
+    return w ? { ...m, windows: w, windowsAsOf: asOf } : m
+  })
 }
 
 const readPositions = (markets: Market[]): Position[] => {
@@ -287,7 +334,7 @@ const readWorkflow = (freshness: FreshnessEntry[]): WorkflowStage[] => {
 
 export const readContext = (): PmDataPayload => {
   void REPO_ROOT
-  const markets = readMarkets()
+  const markets = applyPriceHistory(readMarkets())
   const positions = readPositions(markets)
   const openOrders = readOpenOrders(markets)
   const liveState = readLiveState()

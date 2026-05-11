@@ -7,7 +7,7 @@ import { Treemap } from './charts'
 
 export const RightRail = () => {
   const pmData = usePmData()
-  const [running, setRunning] = useState(false)
+  const [runningStage, setRunningStage] = useState<string | null>(null)
   return (
     <div style={S.rightRail}>
       <div style={S.rrCard}>
@@ -47,13 +47,24 @@ export const RightRail = () => {
           <KVRow k="open orders" v={`${pmData.openOrders.length} imported`} />
           <KVRow k="last fetch" v="13:42:11 UTC" mono />
           <KVRow k="mode" v="GET only" accent={C.cyan} />
-          <button style={S.acctBtn} onClick={() => setRunning(true)}>
+          <button style={S.acctBtn} onClick={() => setRunningStage('import-account-snapshot')}>
             $ import-account-snapshot
+          </button>
+          <button
+            style={{ ...S.acctBtn, marginTop: 6 }}
+            onClick={() => setRunningStage('fetch-price-history')}
+          >
+            $ fetch-price-history
           </button>
         </div>
       </div>
-      {running && (
-        <StageRunnerModal stage="import-account-snapshot" onClose={() => setRunning(false)} />
+
+      <div style={S.rrCard}>
+        <div style={S.rrHdr}>// cash · open buys</div>
+        <CashCommitmentBar />
+      </div>
+      {runningStage && (
+        <StageRunnerModal stage={runningStage} onClose={() => setRunningStage(null)} />
       )}
     </div>
   )
@@ -83,6 +94,56 @@ const KVRow = ({
     </span>
   </div>
 )
+
+const CashCommitmentBar = () => {
+  const pmData = usePmData()
+  const cash = pmData.liveState.cash
+  const committed = pmData.openOrders
+    .filter((o) => o.kind === 'BUY')
+    .reduce((a, o) => a + o.px * o.qty, 0)
+
+  if (cash <= 0 && committed <= 0) {
+    return (
+      <div style={{ padding: '4px 12px 12px', color: C.textMute, fontSize: 11, fontFamily: F.mono }}>
+        no cash or open buys imported
+      </div>
+    )
+  }
+
+  const overspent = committed > cash
+  const overage = Math.max(0, committed - cash)
+  const free = Math.max(0, cash - committed)
+  const denom = Math.max(cash, committed, 1)
+  const committedPct = (committed / denom) * 100
+  const freePct = (free / denom) * 100
+  const committedColor = overspent ? C.red : C.amber
+
+  return (
+    <div style={{ padding: '4px 12px 12px' }}>
+      <div style={S.cashBarTrack}>
+        <div
+          style={{
+            width: committedPct + '%',
+            height: '100%',
+            background: committedColor,
+            boxShadow: `0 0 6px ${committedColor}66`
+          }}
+        />
+        <div
+          style={{
+            width: freePct + '%',
+            height: '100%',
+            background: C.cyan,
+            boxShadow: `0 0 6px ${C.cyan}66`
+          }}
+        />
+      </div>
+      <KVRow k="committed" v={fmtUsd(committed)} accent={committedColor} mono />
+      <KVRow k="cash on hand" v={fmtUsd(cash)} accent={C.cyan} mono />
+      {overspent && <KVRow k="overage" v={fmtUsd(overage)} accent={C.red} mono />}
+    </div>
+  )
+}
 
 const ExposureBars = () => {
   const pmData = usePmData()
@@ -182,6 +243,14 @@ const S: Record<string, CSSProperties> = {
     gap: 6,
     fontFamily: F.mono,
     letterSpacing: 0.5
+  },
+  cashBarTrack: {
+    display: 'flex',
+    alignItems: 'center',
+    height: 8,
+    background: C.line2,
+    marginBottom: 8,
+    border: `1px solid ${C.line}`
   },
   kvRow: { display: 'flex', padding: '3px 0', fontSize: 11 },
   kvK: { flex: 1, color: C.textDim, fontFamily: F.mono, letterSpacing: 0.4 },
