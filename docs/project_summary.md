@@ -203,6 +203,23 @@ as a ground-truth source for resolution rules. Three paths, all strictly read-on
    "PROMOTE TO CONTEXT" affordance that requires user confirmation per file. No
    automation — manual review is the point. Already-allowlisted: the
    `import-account-snapshot` CLI runs from RightRail's button.
+
+   **Status (v1, shipped):** `AccountScreen` tab renders side-by-side imported-vs-
+   canonical for all three files, with empty-state pointing at `$ import-account-snapshot`.
+   PROMOTE buttons are present but disabled — the normalizer (raw API JSON → canonical
+   schema) cannot be written without a captured real-API response sample to validate
+   field names against. Note: the current `import-account-snapshot` CLI is wired against
+   the Polymarket US endpoint, which requires API keys — v2 should pivot
+   the importer to the main Polygon Polymarket endpoints (`data-api.polymarket.com` for
+   positions-by-wallet, etc.) before sinking effort into the PM-US normalizer.
+
+   **v2 todo:**
+   - Decide target endpoint family (Polygon data-api, not api.polymarket.us).
+   - Capture a real authenticated response sample, drop it under
+     `tests/fixtures/account_import/` for normalizer development.
+   - Write `normalize_account_import()` in Python, return canonical schema.
+   - Wire PROMOTE button: render a write-diff confirmation, then write to context YAML.
+   - Tests against the captured fixture.
 2. **Resolution-rule sync against Polymarket's official rules.** Authenticated account
    import (or a sibling read-only endpoint) returns the official rule text per market
    alongside positions/balances. Pull that field, store it under
