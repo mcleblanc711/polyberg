@@ -381,6 +381,106 @@ Common scaffolding either way:
   `schemas/twitter_sentiment_response.schema.json` (which exists for exactly this
   contract).
 
+### Next phase — Perplexity sensor + domain routing (priority #5)
+
+Captured from a Claude-web brief (2026-05-11) that still names things by the
+project's old layout (`scripts/`, `live/`, `ask_both.py`, `CLAUDE.md`,
+`AGENTS.md`); polyberg has matured along a different path. **The intent
+translates; the paths in the brief do not.** Re-map onto:
+
+| Brief path / artifact | Polyberg equivalent |
+|---|---|
+| `scripts/perplexity_query.py` | `polyberg perplexity-query` CLI subcommand in `cli.py` |
+| `scripts/news_pull.py` | `polyberg news-pull` CLI subcommand |
+| `scripts/ask_panel.py` | `polyberg ask-panel` CLI subcommand |
+| `scripts/news_themes.yaml` | `context/news_themes.yaml` |
+| `live/_perplexity_cache/` | `reports/generated/perplexity_cache/` |
+| `live/catalysts.md` | `context/recent_catalysts.md` |
+| `CLAUDE.md` / `AGENTS.md` | append to `docs/project_summary.md` |
+| `context/05_rules_for_llm.md` | doesn't exist; the system prompt should be assembled from `context/live_state.yaml`'s `active_thesis` + `constraints` + `notes`, the same shape `build-packet` already consumes |
+
+**What it builds** (deliverables, in priority order):
+
+1. **`perplexity-query` subcommand.** OpenAI-compatible client against
+   `api.perplexity.ai`. Flags: `--model {sonar, sonar-pro, sonar-reasoning}`
+   (default `sonar`; don't expose `sonar-deep-research`), `--recency
+   {hour, day, week, month}`, `--domains` (comma-separated allowlist),
+   `--max-tokens` (default 1000). Output: model text plus a `Sources:` block
+   from response citations — never strip those, they're the point. Cache
+   the full response JSON under `reports/generated/perplexity_cache/`.
+2. **`news-pull` subcommand.** Loads themes from
+   `context/news_themes.yaml` (hormuz / diplomacy / enrichment / military /
+   oil_data, each with `query` + `domains`), hits Perplexity per theme with
+   a recency filter, and **appends** to `context/recent_catalysts.md` (never
+   rewrites — append-only timestamped log). `--theme <name>` runs a single
+   theme; default runs all. `--dry-run` prints without appending.
+3. **`ask-panel` subcommand.** Replaces the spec's `ask_both.py` /
+   `ask_panel.py` distinction (neither exists in polyberg). Modes:
+   - `rules` — Claude only (resolution-rule parsing)
+   - `adversarial` — Claude + ChatGPT in parallel, displayed side-by-side
+   - `news` — Perplexity only
+   - `full` — all three, sparingly
+   Each model gets the same system prompt assembled from `live_state.yaml`
+   plus the user's question. **No synthesis** — print blocks separately;
+   independent sensors are the whole point.
+4. **Domain-routing reference** in `docs/project_summary.md` (the
+   stable docs surface, since polyberg has no `CLAUDE.md` / `AGENTS.md`):
+   short table mapping question-type → which subcommand. Default to
+   `ask-panel --mode rules` (Claude only) when category is unclear.
+5. **`.env` keys.** `PERPLEXITY_API_KEY`, `OPENAI_API_KEY`,
+   `ANTHROPIC_API_KEY` documented in a new `.env.example`. Each subcommand
+   surfaces a clean error naming the missing key if its sensor isn't
+   reachable.
+6. **Dependencies.** Perplexity is OpenAI-compatible — reuse the existing
+   `openai` package; no new dependency unless the `news_themes.yaml`
+   loader needs `pyyaml` (already present per `loaders.py`).
+
+**Out of scope for this priority** (explicit non-goals from the brief, valid
+for polyberg too): no GUI surface, no daemon, no synthesis mode, no
+`sonar-deep-research`, no refactor of any existing CLI subcommand.
+
+**Relationship to Grok revival (priority #4):** these are sibling sensors,
+not duplicates. Perplexity covers the general web with citations; Grok covers
+live X with handle-curated queries. Build #4 and #5 as sibling subcommands
+(`scan-grok`, `news-pull`) writing to the same `recent_catalysts.md` log so
+they compose. Order: do #5 first — Perplexity is unauth-key-but-paid,
+clearly documented, OpenAI-compatible; the lift is half of #4's.
+
+### Next phase — anti-leak trading guardrails (priority #6, paired with #5)
+
+Same Claude-web brief carries trade-discipline rules grounded in real May 11
+attribution data (WTI/oil tail markets: -$102 net across 33 closed positions,
+24% win rate; "Other" bucket: 35 markets, net negative; one Hormuz May
+contract: 45 round-trip trades for $65 net — thesis carried, churn ate
+spread). These are leak patterns, not preferences. Wire them as enforced
+validators, not advisory notes.
+
+Concretely:
+
+1. **Scope guardrail.** Block any new draft order whose market is outside
+   the US-Iran cluster (Hormuz / peace deal / blockade / enrichment /
+   ceasefire / Iran-side political). Implementation: a `cluster` tag (or
+   reuse `category`) on each market in `market_registry.yaml`; the draft-
+   order write IPC checks the tag and refuses with a clear "off-scope"
+   error citing the May 11 attribution.
+2. **Oil-tail interdict.** Hard-decline any new draft on a WTI / oil tail
+   market unless the user passes an explicit justification override flag
+   (or types a confirmation token). Same pattern as #1 but with a
+   stronger guard.
+3. **Kill-switch flag.** Surface a `KILL-SWITCH` warning in `PositionCard`
+   when an open position is >30% below entry AND has no open sell ladder
+   for the associated market. Drives the "cut if catalyst passes without
+   meaningful repricing" rule from sleeve doctrine.
+4. **Churn flag.** Compute round-trip trade count per market (needs the
+   accumulated history from priority-#1's account snapshots once
+   stacked) and surface a `CHURN` warning above 15 round-trips for any
+   active market. Past Hormuz May 45-trade incident is the calibration
+   point.
+
+These are deliberately enforced in code, not documented as policy, because
+the brief's whole framing is "past sessions have not enforced this fast
+enough" — i.e. willpower-based rules don't work; in-code interdicts do.
+
 ### Medium-term — History tab
 
 After the next-session priorities and before any of the post-v1.0 roadmap items, add a
