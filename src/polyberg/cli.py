@@ -10,8 +10,10 @@ from polyberg.collectors.polymarket_account import (
     write_authenticated_account_snapshot,
     write_public_positions,
 )
+from polyberg.collectors.polymarket_gamma import GammaCollectorError
 from polyberg.config import repo_path
 from polyberg.packet_builder import write_packet
+from polyberg.price_history import build_price_history_artifact, default_price_history_path
 from polyberg.snapshots import build_market_snapshot, default_snapshot_path, diff_snapshots
 from polyberg.trade_ticket import build_trade_ticket
 from polyberg.validators import (
@@ -102,6 +104,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     account_snapshot.set_defaults(func=command_import_account_snapshot)
 
+    price_history = subparsers.add_parser(
+        "fetch-price-history",
+        help="Fetch per-market CLOB price-history series and high/low windows.",
+    )
+    price_history.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Output JSON path. Defaults to context/price_history.json.",
+    )
+    price_history.add_argument("--context-dir", type=Path, default=None)
+    price_history.set_defaults(func=command_fetch_price_history)
+
     return parser
 
 
@@ -181,6 +196,19 @@ def command_import_account_snapshot(args: argparse.Namespace) -> int:
         return 1
     for path in paths:
         print(f"Wrote authenticated account import to {path}")
+    return 0
+
+
+def command_fetch_price_history(args: argparse.Namespace) -> int:
+    context_dir = args.context_dir or repo_path("context")
+    output = args.output or default_price_history_path(context_dir)
+    registry_path = context_dir / "market_registry.yaml" if args.context_dir else None
+    try:
+        path = build_price_history_artifact(output, registry_path=registry_path)
+    except GammaCollectorError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"Wrote price-history artifact to {path}")
     return 0
 
 
