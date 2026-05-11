@@ -96,6 +96,7 @@ export interface LiveState {
   thesis: string
   constraints: string[]
   notes: string
+  proxyWallet: string
 }
 
 export interface HeatEntry {
@@ -182,7 +183,8 @@ export const ALLOWED_STAGES = [
   'build-trade-ticket',
   'import-public-positions',
   'import-account-snapshot',
-  'fetch-price-history'
+  'fetch-price-history',
+  'promote-positions'
 ] as const
 
 export type AllowedStage = (typeof ALLOWED_STAGES)[number]

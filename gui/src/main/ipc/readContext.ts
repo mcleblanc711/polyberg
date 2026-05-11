@@ -97,6 +97,7 @@ interface LiveStateFile {
   active_thesis?: string[] | string
   constraints?: Record<string, unknown> | string[]
   notes?: string[] | string
+  proxy_wallet?: string
 }
 
 interface PriceHistoryFile {
@@ -166,9 +167,10 @@ const readPriceHistory = (): { asOf: string; windowsById: Map<string, PriceWindo
 const ACCOUNT_DIR = resolve(REPORTS_DIR, 'account')
 
 const readAccountImportFile = (
-  filename: string,
+  candidateFilenames: string[],
   canonicalFilename: string
 ): AccountImportFile => {
+  const filename = candidateFilenames[0] ?? ''
   const base: AccountImportFile = {
     filename,
     exists: false,
@@ -183,23 +185,30 @@ const readAccountImportFile = (
   } catch {
     base.canonicalText = ''
   }
-  try {
-    const raw = readFileSync(resolve(ACCOUNT_DIR, filename), 'utf8')
-    const parsed = JSON.parse(raw) as { as_of?: unknown; source?: unknown; payload?: unknown }
-    base.exists = true
-    base.asOf = asString(parsed?.as_of)
-    base.source = asString(parsed?.source)
-    base.payloadJson = JSON.stringify(parsed?.payload ?? null, null, 2)
-  } catch {
-    // missing or unreadable — leave exists=false
+  for (const candidate of candidateFilenames) {
+    try {
+      const raw = readFileSync(resolve(ACCOUNT_DIR, candidate), 'utf8')
+      const parsed = JSON.parse(raw) as { as_of?: unknown; source?: unknown; payload?: unknown }
+      base.filename = candidate
+      base.exists = true
+      base.asOf = asString(parsed?.as_of)
+      base.source = asString(parsed?.source)
+      base.payloadJson = JSON.stringify(parsed?.payload ?? parsed ?? null, null, 2)
+      break
+    } catch {
+      // try next candidate
+    }
   }
   return base
 }
 
 const readAccountImport = (): AccountImport => ({
-  positions: readAccountImportFile('positions_raw.json', 'portfolio_current.yaml'),
-  balances: readAccountImportFile('balances_raw.json', 'live_state.yaml'),
-  openOrders: readAccountImportFile('open_orders_raw.json', 'open_orders.yaml')
+  positions: readAccountImportFile(
+    ['positions_data_api.json', 'positions_raw.json'],
+    'portfolio_current.yaml'
+  ),
+  balances: readAccountImportFile(['balances_raw.json'], 'live_state.yaml'),
+  openOrders: readAccountImportFile(['open_orders_raw.json'], 'open_orders.yaml')
 })
 
 const applyPriceHistory = (markets: Market[]): Market[] => {
@@ -278,7 +287,8 @@ const readLiveState = () => {
   }
   const notesRaw = data?.notes
   const notes = Array.isArray(notesRaw) ? notesRaw.join('\n') : asString(notesRaw)
-  return { mode, cash, thesis, constraints, notes }
+  const proxyWallet = asString(data?.proxy_wallet)
+  return { mode, cash, thesis, constraints, notes, proxyWallet }
 }
 
 const FRESH_FILES = [
