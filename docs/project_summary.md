@@ -564,6 +564,22 @@ These are explicitly *not* next-session items. Drop here so they don't get lost.
   Android app is really a *thin client over a server polyberg*. That server
   layer is its own scope and probably the actual blocker. Worth designing the
   server contract first, before picking the mobile framework.
+- **Telegram bot for notifications**: low priority, would be nice. One-way
+  outbound notifications from polyberg to a private Telegram chat — never
+  inbound commands, to preserve the no-execution safety boundary. Events to
+  surface: limit buy/sell order fills (detected by diffing successive
+  `import-public-positions` snapshots — a position's `size` jumping from N to
+  N+25 with an open buy at the matching price implies that buy filled);
+  major mark moves (5%+ in a window, leveraging the price-history pipeline
+  from priority #3); kill-switch / churn flag trips once those land in
+  priority #6. Implementation sketch: new CLI subcommand `notify-telegram`
+  that takes a message body and posts via the Bot API
+  (`api.telegram.org/bot<TOKEN>/sendMessage`). Bot token + chat id in
+  `.env`, never committed; created via BotFather. A small Python watcher
+  (cron or systemd timer locally) runs `notify-telegram` after each
+  `import-public-positions` + `fetch-price-history` pass to evaluate
+  triggers. The bot is *only* a transport — all detection logic stays in
+  polyberg core so the same triggers can drive in-app GUI badges later.
 
 ### Other deferred work
 
