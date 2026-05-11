@@ -232,7 +232,36 @@ keys, no automation. The workflow is "human captures state → human reviews dif
 human writes." The screenshot/LLM step is the user's existing process formalized so
 the output lands in the right schema on the first try.
 
-### Next phase — per-market high/low ranges (priority #2)
+### Next phase — open-orders cash exposure (priority #2)
+
+Goal: at-a-glance view of "if every open limit buy filled right now, how much cash
+would that consume, and how does that compare to the cash on hand in the portfolio?"
+Currently the GUI shows positions and orders but never sums commitment vs available
+cash, which is the number that actually governs whether new orders can be placed.
+
+Visual: match Polymarket's own `portfolio` / `cash` bar treatment (their split-bar
+showing portfolio value vs free cash) but rendered in the Polyberg palette — cyan
+for cash on hand, magenta or amber for committed-to-open-buys, red tint when
+commitments exceed cash. Numeric labels in the existing terminal font. Probably a
+small dedicated strip rather than a full panel.
+
+Placement: in the Dashboard's RightRail, directly below the account-login / account
+status block (priority #1's home), high in the visual hierarchy because it's a
+go/no-go signal for any new draft order.
+
+Implementation sketch:
+
+- `open_orders.yaml` already has `price` and `shares` per buy entry — sum
+  `price * shares` across `buy_orders` for the owing total.
+- `portfolio_current.yaml` carries `cash` — the comparison side.
+- Both are already loaded in `readContext()`. Computation can live entirely in the
+  renderer; no new IPC.
+- Add a `<CashCommitmentBar>` component under `screens/dashboard/` rendering the
+  split bar plus dollar labels. Reuse `fmtUsd` from the format helpers.
+- Edge cases: no open buys (bar fully cyan), commitment > cash (amber/red tint
+  with explicit overage label), no portfolio loaded (empty state).
+
+### Next phase — per-market high/low ranges and price history (priority #3)
 
 Goal: surface 1d / 1w / 1m (and probably since-position-open / all-time) high and low
 prices for each tracked market on the Dashboard Positions tab, so limit-buy and
@@ -240,6 +269,14 @@ limit-sell placement is grounded in recent extremes rather than just the current
 Display lives in `PositionCard`'s expanded body — either as additional cells in the
 existing `Mini` strip (next to BID / ASK / SPREAD / LIQ / SNAP) or as a small
 dedicated row above the price chart.
+
+The same data source unlocks a broader "price history" view per market — a real
+historical line chart (the current `PriceChart` is fixture-driven) plus summary
+statistics: range, mean, stdev, percentile of current mark within the window,
+maybe a small histogram of dwell time at each price level. Implementation path
+is unclear and worth deferring until the data source is picked, but call out the
+ambition here so the bridge work below is sized for the chart, not just the
+high/low scalars.
 
 The feature is mostly a Python-side data-source decision; the GUI render is small once
 the data exists. Pick the source first:
@@ -271,7 +308,7 @@ no need to wait days for accumulation. Tasks if we go that route:
 - Render in `PositionCard` expanded body. Tint highs cyan, lows red to match the
   existing Spark/PriceChart conventions.
 
-### Next phase — Grok revival (priority #3, framing TBD)
+### Next phase — Grok revival (priority #4, framing TBD)
 
 After the API correction (see Grok note above), reviving sentiment is back on the
 table for next session. The framing decision is deferred — pick during build —
@@ -400,6 +437,40 @@ These are explicitly *not* next-session items. Drop here so they don't get lost.
 - Workflow-stage detection in `readContext.ts` probes guessed filenames in
   `reports/generated/` (`packet.md`, `model_a_validation.txt`, etc.) — tighten once
   the report layout stabilizes.
+- **Intake tweet paste auto-format.** When a user pastes a tweet into the
+  IntakeScreen textarea, detect the X/Twitter copy-paste shape and auto-populate
+  the structured fields rather than leaving everything as raw body text. Concrete
+  format (from a real paste):
+
+  ```
+  BREAKING: Iran responds to the US with a "10-point" message …
+
+  1. US military presence …
+  …
+
+  2:21 PM · May 10, 2026
+  ·
+  86.6K
+   
+  Views
+  ```
+
+  Parse rules:
+    - Trailing `H:MM AM/PM · Month D, YYYY` line → ISO timestamp into the author /
+      timestamp field. Strip from the body.
+    - Trailing `Views` / `NN.NK` view-count block → strip from the body (not stored).
+    - `@handle` either at the start of the paste or in the author input → populate
+      author with the leading `@`. When the handle is *not* in the paste (X often
+      omits it from the body when copying just the tweet), prompt the user to fill
+      it; don't silently leave it blank since downstream catalyst entries lose
+      provenance without it.
+    - Body becomes the cleaned tweet text. Preserve numbered list formatting
+      (`1.`, `2.`, …) so it lands legibly in `recent_catalysts.md`.
+  - Trigger: detect on paste event, not on every keystroke. Show a small "tweet
+    detected — auto-formatted" hint with an UNDO affordance so a misdetected paste
+    can be reverted to raw text.
+  - Fallback: if the regex doesn't match the X shape, leave the textarea alone —
+    the existing free-text behavior is the correct path for non-tweet sources.
 
 ### Frame note
 
