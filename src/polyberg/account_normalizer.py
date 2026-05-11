@@ -5,9 +5,10 @@ Maps the unauthenticated ``data-api.polymarket.com/positions`` payload onto
 ``context/portfolio_current.yaml`` after user review.
 
 Balances and open orders are not normalized here — data-api does not expose
-those without authentication, and uses an authenticated path (the
-existing authenticated path). Adding wallet-on-chain balance + CLOB order
-fetch is a separate scope.
+those without authentication. The existing authenticated Polymarket US path
+covers them when the user has API keys; an unauthenticated alternative would
+need a wallet-on-chain balance fetch via a public RPC plus a CLOB orders
+fetch, both of which are out of scope for this module.
 """
 
 from __future__ import annotations

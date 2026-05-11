@@ -208,10 +208,10 @@ as a ground-truth source for resolution rules. Three paths, all strictly read-on
    canonical for all three files, with empty-state pointing at `$ import-account-snapshot`.
    PROMOTE buttons are present but disabled — the normalizer (raw API JSON → canonical
    schema) cannot be written without a captured real-API response sample to validate
-   field names against. Note: the current `import-account-snapshot` CLI is wired against
-   the Polymarket US endpoint, which requires API keys — v2 should pivot
-   the importer to the main Polygon Polymarket endpoints (`data-api.polymarket.com` for
-   positions-by-wallet, etc.) before sinking effort into the PM-US normalizer.
+   field names against. Note: the existing `import-account-snapshot` CLI is wired against
+   the authenticated Polymarket US endpoint, which requires API keys most users won't
+   have — v2 pivoted the default importer to the main Polygon Polymarket endpoints
+   (`data-api.polymarket.com` for positions-by-wallet, etc.), which are unauthenticated.
 
    **Status (v2, shipped):** Pivoted to the unauthenticated Polygon `data-api.polymarket.com/positions`
    endpoint, which is wallet-keyed and doesn't require keys. `live_state.yaml` now carries
@@ -227,18 +227,19 @@ as a ground-truth source for resolution rules. Three paths, all strictly read-on
    to send a `User-Agent` header so both data-api and CLOB stop 403-ing the Python client.
 
    **v2 known gap:** balances and open orders aren't normalized — `data-api` doesn't expose
-   those without authentication and uses an authenticated path. The Balances /
-   Open Orders tabs in `AccountScreen` are present but their PROMOTE is permanently disabled
-   with a "needs authenticated path" note. Closing this requires either: (a) on-chain USDC
-   balance fetch via a public RPC for the proxy wallet, plus open orders from the CLOB; or
-   (b) accepting the PM-US authenticated path for users who happen to have those keys.
+   those without authentication, and the default importer path stays unauthenticated. The
+   Balances / Open Orders tabs in `AccountScreen` are present but their PROMOTE is
+   permanently disabled with a "needs authenticated path" note. Closing this requires
+   either (a) on-chain USDC balance fetch via a public RPC for the proxy wallet, plus
+   open orders from the CLOB; or (b) the existing authenticated Polymarket US path for
+   users who have those keys.
 
-   **v2 user-side data gap (not code):** the production `context/market_registry.yaml` has
-   empty `condition_id` values for all three example markets. Until the user fills in
-   `condition_id` per market in the registry, the normalizer will skip every imported
-   position with "conditionId not in registry" (correctly — the registry is the source of
-   truth for which markets the user cares about, and we don't want to silently promote
-   positions for markets that aren't in scope).
+   **v2 data-population gap (not code):** the example `context/market_registry.yaml`
+   ships with empty `condition_id` values for all three demo markets. Until those are
+   populated per market, the normalizer correctly skips every imported position with
+   "conditionId not in registry" — the registry is the source of truth for which markets
+   are in scope, and silently promoting positions for off-registry markets would defeat
+   the manual-review point.
 2. **Resolution-rule sync against Polymarket's official rules.** Authenticated account
    import (or a sibling read-only endpoint) returns the official rule text per market
    alongside positions/balances. Pull that field, store it under
