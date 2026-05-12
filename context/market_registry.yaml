@@ -79,3 +79,191 @@ markets:
       dispute_risk: low
     resolution_date: 2026-06-30
     notes: Resolves on whether the specified CL contract reaches or exceeds $120 by deadline.
+  - market_id: hormuz_normal_end_june
+    name: Hormuz normal by end of June 2026
+    polymarket_url: https://polymarket.com/event/strait-of-hormuz-traffic-returns-to-normal-by-end-of-june
+    category: core_hormuz
+    rule_key: hormuz_portwatch_7dma
+    oracle_type: IMF Portwatch data
+    preferred_side: "NO"
+    risk_flags:
+      - pure data oracle
+      - low media ambiguity
+    event_slug: strait-of-hormuz-traffic-returns-to-normal-by-end-of-june
+    condition_id: "0x348cd9adf4f6855f58bd9c6dbf9ff251c4142ef77233a5dc95c65b4b61cd2187"
+    yes_token_id: "46130022848920611732202507184264902690726361824951579816156441452797397798181"
+    no_token_id: "77669758102929718590160851391714019116736856202333459817343190730743895177270"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: pure_data
+      ambiguity: low
+      media_fallback: false
+      official_statement_required: false
+      dispute_risk: low
+    resolution_date: 2026-06-30
+    notes: Resolves on IMF Portwatch 7-day moving average of Hormuz transit calls.
+  - market_id: hormuz_normal_jul31
+    name: Hormuz normal by July 31 2026
+    polymarket_url: https://polymarket.com/event/strait-of-hormuz-traffic-returns-to-normal-by-july-31
+    category: core_hormuz
+    rule_key: hormuz_portwatch_7dma
+    oracle_type: IMF Portwatch data
+    preferred_side: "NO"
+    risk_flags:
+      - pure data oracle
+      - low media ambiguity
+    event_slug: strait-of-hormuz-traffic-returns-to-normal-by-july-31
+    condition_id: "0xb8e6d129a06d0ccb21d7b32eb529ea455eddba3cf29bfa097112202cbdf5bf21"
+    yes_token_id: "106929013576622300718402895513457875547556389240247806666273814836599548721421"
+    no_token_id: "35600405023007026690792769618276046675588493623969149550929635257490271313011"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: pure_data
+      ambiguity: low
+      media_fallback: false
+      official_statement_required: false
+      dispute_risk: low
+    resolution_date: 2026-07-31
+    notes: Resolves on IMF Portwatch 7-day moving average of Hormuz transit calls.
+  - market_id: hormuz_normal_dec31
+    name: Hormuz normal by December 31 2026
+    polymarket_url: https://polymarket.com/event/strait-of-hormuz-traffic-returns-to-normal-by-december-31
+    category: core_hormuz
+    rule_key: hormuz_portwatch_7dma
+    oracle_type: IMF Portwatch data
+    preferred_side: "NO"
+    risk_flags:
+      - pure data oracle
+      - low media ambiguity
+      - long-dated decay
+    event_slug: strait-of-hormuz-traffic-returns-to-normal-by-december-31
+    condition_id: "0x5c79dfde05559b79a9cb9f7c4187e4d49632dd042572ae676952f812732591cc"
+    yes_token_id: "83783489454659420807679723574840032660002326710045123865554753994450797728825"
+    no_token_id: "48727431314333088243693016929623363710488980152833544156961659445129455301311"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: pure_data
+      ambiguity: low
+      media_fallback: false
+      official_statement_required: false
+      dispute_risk: low
+    resolution_date: 2026-12-31
+    notes: Resolves on IMF Portwatch 7-day moving average of Hormuz transit calls.
+  - market_id: iran_us_peace_jun30
+    name: US x Iran permanent peace deal by June 30 2026
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    rule_key: iran_us_peace_treaty_announcement
+    oracle_type: Official US/Iran joint statement or formal treaty announcement
+    preferred_side: "NO"
+    risk_flags:
+      - definition ambiguity (what counts as permanent peace)
+      - media fallback may matter
+      - announcement-driven
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: "0x6114a8a3f9ac214f48a7e20d169f1c7a5c84082cb6f7058ed9fe1137b11fd0e7"
+    yes_token_id: "31867385211987925701696042012772036156561382644688734856312468506547392739862"
+    no_token_id: "34730098823282204056880725250863591694415190633560416900548276632326632294207"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: high
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: high
+    resolution_date: 2026-06-30
+    notes: Resolves on whether a permanent US-Iran peace agreement is announced by the deadline; definition of permanent is dispute-prone.
+  - market_id: iran_us_peace_dec31
+    name: US x Iran permanent peace deal by December 31 2026
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    rule_key: iran_us_peace_treaty_announcement
+    oracle_type: Official US/Iran joint statement or formal treaty announcement
+    preferred_side: "NO"
+    risk_flags:
+      - definition ambiguity (what counts as permanent peace)
+      - media fallback may matter
+      - announcement-driven
+      - long-dated decay
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: "0x9769f78cbc95a5ed11895e6064bac471d8fd8f930b260cf581b68d3f58630d27"
+    yes_token_id: "104718292808309433767402444061650910790437726449955521731268760928480423099204"
+    no_token_id: "109077864409172129917789250820055245630238807727951185347513063342440711098153"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: high
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: high
+    resolution_date: 2026-12-31
+    notes: Resolves on whether a permanent US-Iran peace agreement is announced by the deadline; definition of permanent is dispute-prone.
+  - market_id: trump_blockade_lifted_may31
+    name: Trump announces US Hormuz blockade lifted by May 31 2026
+    polymarket_url: https://polymarket.com/event/will-donald-trump-announce-that-the-united-states-blockade-of-the-strait-of-hormuz-has-been-lifted-by-may-31-2026
+    category: announcement_risk
+    rule_key: official_blockade_lifted_announcement
+    oracle_type: Official Trump or US government announcement
+    preferred_side: "NO"
+    risk_flags:
+      - Trump social post can qualify
+      - media fallback may matter
+      - deadline gamma
+    event_slug: trump-announces-us-blockade-of-hormuz-lifted-by
+    condition_id: "0x8b369e10358094a99ffe7f85a81a8e8ca68c611eee0fe63a2efa790ad045bcd6"
+    yes_token_id: "926377706175971731068420551849041218012736398250875962020506643091812084572"
+    no_token_id: "94315794193549059581335413697128981885401517477409406376098346536800437431936"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+    resolution_date: 2026-05-31
+    notes: Requires explicit official announcement that the US Hormuz blockade has been lifted by deadline.
+  - market_id: trump_blockade_lifted_jun30
+    name: Trump announces US Hormuz blockade lifted by June 30 2026
+    polymarket_url: https://polymarket.com/event/will-donald-trump-announce-that-the-united-states-blockade-of-the-strait-of-hormuz-has-been-lifted-by-june-30-2026
+    category: announcement_risk
+    rule_key: official_blockade_lifted_announcement
+    oracle_type: Official Trump or US government announcement
+    preferred_side: "NO"
+    risk_flags:
+      - Trump social post can qualify
+      - media fallback may matter
+      - deadline gamma
+    event_slug: trump-announces-us-blockade-of-hormuz-lifted-by
+    condition_id: "0x4d0c4865bdecc5f7971dbab47bb6c069d93909dec75bdff52fb766ae6094a6d6"
+    yes_token_id: "3083404519678343650655471605176293351429031165021004407551950188691137583301"
+    no_token_id: "91327963816071149848778866069116092720624787010415966850482851584645804352773"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+    resolution_date: 2026-06-30
+    notes: Requires explicit official announcement that the US Hormuz blockade has been lifted by deadline.

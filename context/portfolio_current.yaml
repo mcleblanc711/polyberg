@@ -1,31 +1,69 @@
-as_of: 2026-04-26T09:00:00-06:00
-portfolio_value: 2400.50
-cash_available: 415.25
+as_of: '2026-05-12T08:31:59.897828-06:00'
+portfolio_value: 184.71620000000001
+cash_available: 0.0
 positions:
-  - market_id: hormuz_normal_may15
-    market_name: Hormuz normal by May 15
-    side: "NO"
-    avg_price: 0.64
-    mark_price: 0.71
-    shares: 300
-    current_value: 213.00
-    pnl: 21.00
-    thesis_bucket: core_hormuz
-  - market_id: trump_blockade_lifted_apr30
-    market_name: Trump blockade lifted by Apr 30
-    side: "NO"
-    avg_price: 0.86
-    mark_price: 0.915
-    shares: 80
-    current_value: 73.20
-    pnl: 4.40
-    thesis_bucket: announcement_risk
-  - market_id: cl_high_120_end_june
-    market_name: CL HIGH $120 by end June
-    side: "NO"
-    avg_price: 0.78
-    mark_price: 0.74
-    shares: 50
-    current_value: 37.00
-    pnl: -2.00
-    thesis_bucket: oil
+- market_id: hormuz_normal_end_june
+  market_name: Strait of Hormuz traffic returns to normal by end of June?
+  side: 'NO'
+  avg_price: 0.509
+  mark_price: 0.665
+  shares: 89.3409
+  current_value: 59.4117
+  pnl: 13.9283
+  thesis_bucket: ''
+- market_id: iran_us_peace_jun30
+  market_name: US x Iran permanent peace deal by June 30, 2026?
+  side: 'NO'
+  avg_price: 0.5816
+  mark_price: 0.655
+  shares: 87.0
+  current_value: 56.985
+  pnl: 6.3851
+  thesis_bucket: ''
+- market_id: hormuz_normal_jul31
+  market_name: Strait of Hormuz traffic returns to normal by July 31?
+  side: 'NO'
+  avg_price: 0.48
+  mark_price: 0.535
+  shares: 50.0
+  current_value: 26.75
+  pnl: 2.75
+  thesis_bucket: ''
+- market_id: hormuz_normal_dec31
+  market_name: Strait of Hormuz traffic returns to normal by December 31?
+  side: 'NO'
+  avg_price: 0.1857
+  mark_price: 0.18
+  shares: 35.0
+  current_value: 6.3
+  pnl: -0.1999
+  thesis_bucket: ''
+- market_id: trump_blockade_lifted_jun30
+  market_name: Will Donald Trump announce that the United States blockade of the Strait
+    of Hormuz has been lifted by June 30, 2026?
+  side: 'NO'
+  avg_price: 0.4112
+  mark_price: 0.455
+  shares: 33.0
+  current_value: 15.015
+  pnl: 1.445
+  thesis_bucket: ''
+- market_id: iran_us_peace_dec31
+  market_name: US x Iran permanent peace deal by December 31, 2026?
+  side: 'NO'
+  avg_price: 0.31
+  mark_price: 0.305
+  shares: 19.9985
+  current_value: 6.0995
+  pnl: -0.1
+  thesis_bucket: ''
+- market_id: trump_blockade_lifted_may31
+  market_name: Will Donald Trump announce that the United States blockade of the Strait
+    of Hormuz has been lifted by May 31, 2026?
+  side: 'NO'
+  avg_price: 0.6
+  mark_price: 0.745
+  shares: 19.0
+  current_value: 14.155
+  pnl: 2.7549
+  thesis_bucket: ''
