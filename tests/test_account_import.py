@@ -114,4 +114,7 @@ def test_authenticated_snapshot_writes_three_raw_files(tmp_path, monkeypatch) ->
         json.loads(path.read_text(encoding="utf-8"))["payload"] == {"ok": True}
         for path in paths
     )
-    assert all(headers["X-pm-access-key"] == "key" for headers in opener.headers)
+    # ReadOnlyHttpClient now preserves the exact header case the caller passed
+    # in (the old behavior went through urllib's add_header() which lowercased
+    # everything after the first letter).
+    assert all(headers["X-PM-Access-Key"] == "key" for headers in opener.headers)

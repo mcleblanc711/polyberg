@@ -1,12 +1,17 @@
-import { readFileSync, writeFileSync } from 'fs'
-import { resolve } from 'path'
+import { mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { dirname, resolve } from 'path'
 import yaml from 'js-yaml'
-import { assertWritable, CONTEXT_DIR } from './repo'
-import type { Catalyst, DraftOrder } from '../../shared/contract'
+import { assertWritable, CONTEXT_DIR, REPORTS_DIR } from './repo'
+import type { Catalyst, DraftOrder, PasteKind } from '../../shared/contract'
 
 const CATALYSTS_PATH = resolve(CONTEXT_DIR, 'recent_catalysts.md')
 const ORDERS_PATH = resolve(CONTEXT_DIR, 'open_orders.yaml')
 const REGISTRY_PATH = resolve(CONTEXT_DIR, 'market_registry.yaml')
+
+const PASTE_PATHS: Record<PasteKind, string> = {
+  portfolio: resolve(REPORTS_DIR, 'account', 'paste_portfolio.json'),
+  orders: resolve(REPORTS_DIR, 'account', 'paste_orders.json')
+}
 
 const knownMarketIds = (): Set<string> => {
   try {
@@ -93,4 +98,15 @@ export const writeDraftOrder = (order: DraftOrder): void => {
   parsed[list] = [...existing, entry]
   parsed.as_of = new Date().toISOString()
   writeFileSync(path, yaml.dump(parsed, { lineWidth: 120, quotingType: '"' }), 'utf8')
+}
+
+export const writePasteInput = (kind: PasteKind, text: string): string => {
+  const target = PASTE_PATHS[kind]
+  if (!target) {
+    throw new Error(`Unknown paste kind: ${String(kind)}`)
+  }
+  const path = assertWritable(target)
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, text, 'utf8')
+  return path
 }

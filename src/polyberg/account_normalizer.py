@@ -15,13 +15,14 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import yaml
 
 from polyberg.config import get_timezone
 from polyberg.loaders import load_market_registry, load_portfolio
-from polyberg.models import MarketRegistry, Portfolio, Position
+from polyberg.models import MarketRegistry, OpenOrders, Order, Portfolio, Position
 
 
 class NormalizerError(RuntimeError):
@@ -160,6 +161,141 @@ def _read_existing_thesis_buckets(path: Path | None) -> dict[str, str]:
     return {p.market_id: p.thesis_bucket for p in existing.positions if p.thesis_bucket}
 
 
+def normalize_clob_open_orders(
+    payload: list[dict],
+    registry: MarketRegistry,
+    now: datetime | None = None,
+) -> tuple[OpenOrders, list[dict[str, str]]]:
+    """Map a raw CLOB ``/data/orders`` payload onto a canonical OpenOrders.
+
+    CLOB orders carry:
+        side       — BUY / SELL (trade direction → buy_orders vs sell_orders)
+        outcome    — YES / NO (contract side → canonical Order.side)
+        price      — limit price 0..1 as a string
+        original_size, size_matched — total and partially-filled portions;
+                     remaining = original_size - size_matched is what
+                     still sits on the book
+        market     — conditionId → registry lookup for market_id
+
+    Returns ``(open_orders, skipped)``. Orders whose ``market`` isn't in the
+    registry (by ``condition_id``) are skipped with a reason so the caller
+    can surface them on the GUI promote preview.
+    """
+    if not isinstance(payload, list):
+        raise NormalizerError(
+            f"Expected a list payload from /data/orders, got {type(payload).__name__}"
+        )
+    by_condition: dict[str, str] = {}
+    for market in registry.markets:
+        if market.condition_id:
+            by_condition[market.condition_id.lower()] = market.market_id
+
+    buys: list[Order] = []
+    sells: list[Order] = []
+    skipped: list[dict[str, str]] = []
+    for raw in payload:
+        if not isinstance(raw, dict):
+            skipped.append({"reason": "non-object order entry", "id": ""})
+            continue
+        order_id = str(raw.get("id") or "")
+        market_condition = str(raw.get("market") or "").lower()
+        if not market_condition:
+            skipped.append({"reason": "missing market conditionId", "id": order_id})
+            continue
+        market_id = by_condition.get(market_condition)
+        if market_id is None:
+            skipped.append(
+                {
+                    "reason": "conditionId not in registry",
+                    "id": order_id,
+                    "condition_id": market_condition,
+                }
+            )
+            continue
+        original = _as_float(raw.get("original_size"))
+        matched = _as_float(raw.get("size_matched"))
+        remaining = max(0.0, original - matched)
+        if remaining <= 0:
+            skipped.append({"reason": "fully filled (remaining=0)", "id": order_id})
+            continue
+        try:
+            order = Order(
+                market_id=market_id,
+                side=_outcome_to_side(raw.get("outcome")),
+                price=_clamp_unit(_as_float(raw.get("price"))),
+                shares=remaining,
+                order_type="limit",
+                notes="",
+            )
+        except ValueError as exc:
+            skipped.append({"reason": f"validation error: {exc}", "id": order_id})
+            continue
+        direction = str(raw.get("side") or "").strip().upper()
+        if direction == "BUY":
+            buys.append(order)
+        elif direction == "SELL":
+            sells.append(order)
+        else:
+            skipped.append(
+                {"reason": f"unknown trade direction {direction!r}", "id": order_id}
+            )
+
+    if now is None:
+        now = datetime.now(get_timezone())
+    elif now.tzinfo is None or now.utcoffset() is None:
+        now = now.replace(tzinfo=get_timezone())
+
+    return OpenOrders(as_of=now, buy_orders=buys, sell_orders=sells), skipped
+
+
+def promote_clob_open_orders(
+    raw_path: Path,
+    output_path: Path,
+    registry_path: Path | None = None,
+    now: datetime | None = None,
+) -> tuple[Path, list[dict[str, str]]]:
+    """Read a raw CLOB orders JSON file, normalize, write canonical YAML."""
+    raw_text = raw_path.read_text(encoding="utf-8")
+    raw_doc = json.loads(raw_text)
+    payload = raw_doc.get("payload", raw_doc) if isinstance(raw_doc, dict) else raw_doc
+
+    registry = load_market_registry(registry_path)
+    open_orders, skipped = normalize_clob_open_orders(payload, registry, now=now)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(_dump_open_orders_yaml(open_orders), encoding="utf-8")
+    return output_path, skipped
+
+
+def _dump_open_orders_yaml(open_orders: OpenOrders) -> str:
+    data = open_orders.model_dump(mode="json")
+    return yaml.safe_dump(data, sort_keys=False, default_flow_style=False, allow_unicode=True)
+
+
+def read_usdc_balance(path: Path) -> float | None:
+    """Read ``balance_usdc`` from a polygon_rpc balance artifact.
+
+    Returns ``None`` if the file is missing, malformed, or carries a
+    non-numeric ``balance_usdc`` field. Callers can then fall back to other
+    sources (an explicit override, ``live_state.yaml``, etc.).
+    """
+    if not path.exists():
+        return None
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(doc, dict):
+        return None
+    raw = doc.get("balance_usdc")
+    if raw is None:
+        return None
+    try:
+        return float(Decimal(str(raw)))
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def _dump_portfolio_yaml(portfolio: Portfolio) -> str:
     data = portfolio.model_dump(mode="json")
     return yaml.safe_dump(data, sort_keys=False, default_flow_style=False, allow_unicode=True)
@@ -178,8 +314,16 @@ def _outcome_to_side(raw: object) -> str:
 
 
 def _as_float(value: object) -> float:
+    if isinstance(value, bool):
+        # bool is a subclass of int — guard before the numeric branch.
+        return 0.0
     if isinstance(value, (int, float)):
         return float(value)
+    if isinstance(value, str):
+        try:
+            return float(Decimal(value.strip()))
+        except (InvalidOperation, ValueError):
+            return 0.0
     return 0.0
 
 

@@ -4,6 +4,7 @@ import {
   type Catalyst,
   type ContextChangeEvent,
   type DraftOrder,
+  type PasteKind,
   type PmBridge,
   type RunStageResult
 } from '../shared/contract'
@@ -33,6 +34,9 @@ const pm: PmBridge = {
     ipcRenderer.invoke(IPC.appendCatalyst, marketId, entry),
 
   writeDraftOrder: (order: DraftOrder) => ipcRenderer.invoke(IPC.writeDraftOrder, order),
+
+  writePasteInput: (kind: PasteKind, text: string) =>
+    ipcRenderer.invoke(IPC.writePasteInput, kind, text),
 
   onContextChange: (cb) => {
     const handler = (_evt: IpcRendererEvent, payload: ContextChangeEvent): void => cb(payload)

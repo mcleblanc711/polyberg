@@ -173,6 +173,8 @@ export interface DraftOrder {
   notes?: string
 }
 
+export type PasteKind = 'portfolio' | 'orders'
+
 export const ALLOWED_STAGES = [
   'build-packet',
   'validate-response',
@@ -183,8 +185,11 @@ export const ALLOWED_STAGES = [
   'build-trade-ticket',
   'import-public-positions',
   'import-account-snapshot',
+  'import-clob-orders',
   'fetch-price-history',
-  'promote-positions'
+  'promote-positions',
+  'promote-orders',
+  'paste-import'
 ] as const
 
 export type AllowedStage = (typeof ALLOWED_STAGES)[number]
@@ -199,6 +204,7 @@ export const IPC = {
   runStageStreamChunk: 'pm:runStageStream:chunk',
   appendCatalyst: 'pm:appendCatalyst',
   writeDraftOrder: 'pm:writeDraftOrder',
+  writePasteInput: 'pm:writePasteInput',
   watchStart: 'pm:watch:start',
   watchStop: 'pm:watch:stop',
   watchEvent: 'pm:watch:event'
@@ -219,5 +225,6 @@ export interface PmBridge {
   ) => Promise<RunStageResult>
   appendCatalyst: (marketId: string, entry: Catalyst) => Promise<void>
   writeDraftOrder: (order: DraftOrder) => Promise<void>
+  writePasteInput: (kind: PasteKind, text: string) => Promise<string>
   onContextChange: (cb: (ev: ContextChangeEvent) => void) => () => void
 }

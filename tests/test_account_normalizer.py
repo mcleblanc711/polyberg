@@ -8,9 +8,13 @@ import pytest
 
 from polyberg.account_normalizer import (
     NormalizerError,
+    normalize_clob_open_orders,
     normalize_data_api_positions,
+    promote_clob_open_orders,
     promote_data_api_positions,
+    read_usdc_balance,
 )
+from polyberg.loaders import load_open_orders
 from polyberg.loaders import load_market_registry, load_portfolio
 from polyberg.models import MarketRegistry
 
@@ -204,6 +208,213 @@ def test_promote_writes_canonical_yaml_and_preserves_thesis_bucket(tmp_path: Pat
     assert fix_0.thesis_bucket == "core_hormuz"
     # The newly-imported market_name should overwrite the stale one
     assert fix_0.market_name != "stale-name"
+
+
+def test_read_usdc_balance_returns_float_from_well_formed_artifact(tmp_path: Path) -> None:
+    path = tmp_path / "usdc_balance.json"
+    path.write_text(
+        json.dumps({"balance_usdc": "123.456789", "source": "polygon_rpc_usdc_balance"}),
+        encoding="utf-8",
+    )
+    assert read_usdc_balance(path) == pytest.approx(123.456789)
+
+
+def test_read_usdc_balance_returns_none_for_missing_file(tmp_path: Path) -> None:
+    assert read_usdc_balance(tmp_path / "absent.json") is None
+
+
+def test_read_usdc_balance_returns_none_for_invalid_json(tmp_path: Path) -> None:
+    path = tmp_path / "usdc_balance.json"
+    path.write_text("{not json", encoding="utf-8")
+    assert read_usdc_balance(path) is None
+
+
+def test_read_usdc_balance_returns_none_for_missing_field(tmp_path: Path) -> None:
+    path = tmp_path / "usdc_balance.json"
+    path.write_text(json.dumps({"source": "polygon_rpc_usdc_balance"}), encoding="utf-8")
+    assert read_usdc_balance(path) is None
+
+
+def test_read_usdc_balance_returns_none_for_non_numeric_field(tmp_path: Path) -> None:
+    path = tmp_path / "usdc_balance.json"
+    path.write_text(json.dumps({"balance_usdc": "abc"}), encoding="utf-8")
+    assert read_usdc_balance(path) is None
+
+
+def _clob_order(
+    *,
+    order_id: str,
+    market: str,
+    side: str,
+    outcome: str,
+    price: str,
+    original_size: str,
+    size_matched: str = "0",
+) -> dict:
+    return {
+        "id": order_id,
+        "status": "LIVE",
+        "market": market,
+        "asset_id": "0xtoken",
+        "side": side,
+        "outcome": outcome,
+        "price": price,
+        "original_size": original_size,
+        "size_matched": size_matched,
+        "order_type": "GTC",
+        "maker_address": "0xmaker",
+        "owner": "0xowner",
+        "expiration": "0",
+        "associate_trades": [],
+        "created_at": "2026-05-11T00:00:00Z",
+    }
+
+
+def test_normalize_clob_orders_splits_buys_and_sells(tmp_path: Path) -> None:
+    registry = MarketRegistry.model_validate(
+        {
+            "markets": [
+                _stub_market("m_a", "0xaaa"),
+                _stub_market("m_b", "0xbbb"),
+            ]
+        }
+    )
+    payload = [
+        _clob_order(
+            order_id="ord-1",
+            market="0xaaa",
+            side="BUY",
+            outcome="Yes",
+            price="0.45",
+            original_size="100",
+        ),
+        _clob_order(
+            order_id="ord-2",
+            market="0xbbb",
+            side="SELL",
+            outcome="No",
+            price="0.72",
+            original_size="50",
+            size_matched="10",
+        ),
+    ]
+    open_orders, skipped = normalize_clob_open_orders(
+        payload, registry, now=datetime(2026, 5, 11, tzinfo=timezone.utc)
+    )
+
+    assert skipped == []
+    assert len(open_orders.buy_orders) == 1
+    assert open_orders.buy_orders[0].market_id == "m_a"
+    assert open_orders.buy_orders[0].side == "YES"
+    assert open_orders.buy_orders[0].price == pytest.approx(0.45)
+    assert open_orders.buy_orders[0].shares == pytest.approx(100.0)
+
+    assert len(open_orders.sell_orders) == 1
+    sell = open_orders.sell_orders[0]
+    assert sell.market_id == "m_b"
+    assert sell.side == "NO"
+    assert sell.shares == pytest.approx(40.0)  # 50 - 10 matched
+
+
+def test_normalize_clob_orders_skips_unknown_market_and_filled(tmp_path: Path) -> None:
+    registry = MarketRegistry.model_validate(
+        {"markets": [_stub_market("m_a", "0xaaa")]}
+    )
+    payload = [
+        _clob_order(
+            order_id="ord-unknown",
+            market="0xnotinregistry",
+            side="BUY",
+            outcome="Yes",
+            price="0.1",
+            original_size="10",
+        ),
+        _clob_order(
+            order_id="ord-filled",
+            market="0xaaa",
+            side="BUY",
+            outcome="Yes",
+            price="0.5",
+            original_size="5",
+            size_matched="5",
+        ),
+        _clob_order(
+            order_id="ord-bad-direction",
+            market="0xaaa",
+            side="WEIRD",
+            outcome="Yes",
+            price="0.5",
+            original_size="1",
+        ),
+    ]
+    open_orders, skipped = normalize_clob_open_orders(payload, registry)
+
+    assert open_orders.buy_orders == []
+    assert open_orders.sell_orders == []
+    reasons = {s["reason"] for s in skipped}
+    assert "conditionId not in registry" in reasons
+    assert "fully filled (remaining=0)" in reasons
+    assert any("unknown trade direction" in r for r in reasons)
+
+
+def test_promote_clob_open_orders_writes_canonical_yaml(tmp_path: Path) -> None:
+    registry_path = tmp_path / "registry.yaml"
+    registry_path.write_text(
+        "\n".join(
+            [
+                "markets:",
+                "  - market_id: m_a",
+                "    name: Market A",
+                "    polymarket_url: https://example.invalid",
+                "    category: test",
+                "    rule_key: test",
+                "    oracle_type: pure_data",
+                '    preferred_side: "YES"',
+                "    risk_flags: []",
+                "    resolution_date: 2027-01-01",
+                '    notes: ""',
+                '    condition_id: "0xaaa"',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    raw_file = tmp_path / "open_orders_clob.json"
+    raw_file.write_text(
+        json.dumps(
+            {
+                "as_of": "2026-05-11T00:00:00+00:00",
+                "source": "polymarket_clob_open_orders",
+                "wallet_address": "0x1111111111111111111111111111111111111111",
+                "payload": [
+                    _clob_order(
+                        order_id="ord-1",
+                        market="0xaaa",
+                        side="BUY",
+                        outcome="Yes",
+                        price="0.3",
+                        original_size="20",
+                    )
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "open_orders.yaml"
+
+    written, skipped = promote_clob_open_orders(
+        raw_path=raw_file,
+        output_path=output,
+        registry_path=registry_path,
+        now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+    )
+
+    assert written == output
+    assert skipped == []
+    loaded = load_open_orders(output)
+    assert len(loaded.buy_orders) == 1
+    assert loaded.buy_orders[0].market_id == "m_a"
+    assert loaded.buy_orders[0].price == pytest.approx(0.3)
 
 
 def _stub_market(market_id: str, condition_id: str) -> dict:

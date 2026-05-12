@@ -6,12 +6,16 @@ from pathlib import Path
 
 from polyberg.account_normalizer import NormalizerError, promote_data_api_positions
 from polyberg.adjudicator_builder import write_adjudicator_input
+from polyberg.collectors.polygon_rpc import PolygonRpcError, write_usdc_balance
 from polyberg.collectors.polymarket_account import (
     AccountImportError,
     write_authenticated_account_snapshot,
     write_public_positions,
 )
+from polyberg.collectors.polymarket_clob_auth import load_clob_credentials_from_env
+from polyberg.collectors.polymarket_clob_orders import write_clob_open_orders
 from polyberg.collectors.polymarket_gamma import GammaCollectorError
+from polyberg.paste_import import PasteImportError, import_paste
 from polyberg.config import repo_path
 from polyberg.packet_builder import write_packet
 from polyberg.price_history import build_price_history_artifact, default_price_history_path
@@ -92,6 +96,17 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=repo_path("reports", "generated", "account", "positions_data_api.json"),
     )
+    public_positions.add_argument(
+        "--balance-output",
+        type=Path,
+        default=repo_path("reports", "generated", "account", "usdc_balance.json"),
+        help="Sibling JSON for the wallet's on-chain USDC.e balance.",
+    )
+    public_positions.add_argument(
+        "--skip-balance",
+        action="store_true",
+        help="Skip the Polygon RPC USDC balance fetch (positions only).",
+    )
     public_positions.set_defaults(func=command_import_public_positions)
 
     promote = subparsers.add_parser(
@@ -113,7 +128,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--cash",
         type=float,
         default=None,
-        help="Override cash_available. Defaults to live_state.yaml's value.",
+        help=(
+            "Override cash_available. Defaults to the polygon_rpc usdc_balance.json "
+            "artifact if present, then live_state.yaml's value."
+        ),
+    )
+    promote.add_argument(
+        "--balance",
+        type=Path,
+        default=repo_path("reports", "generated", "account", "usdc_balance.json"),
+        help="Path to the polygon_rpc usdc_balance.json artifact (read for cash fallback).",
     )
     promote.add_argument(
         "--dry-run",
@@ -132,6 +156,79 @@ def build_parser() -> argparse.ArgumentParser:
         default=repo_path("reports", "generated", "account"),
     )
     account_snapshot.set_defaults(func=command_import_account_snapshot)
+
+    promote_orders = subparsers.add_parser(
+        "promote-orders",
+        help="Normalize a CLOB open-orders import and write open_orders.yaml.",
+    )
+    promote_orders.add_argument(
+        "--raw",
+        type=Path,
+        default=repo_path("reports", "generated", "account", "open_orders_clob.json"),
+        help="Raw orders JSON written by import-clob-orders.",
+    )
+    promote_orders.add_argument(
+        "--output",
+        type=Path,
+        default=repo_path("context", "open_orders.yaml"),
+    )
+    promote_orders.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the normalized YAML to stdout instead of writing.",
+    )
+    promote_orders.set_defaults(func=command_promote_orders)
+
+    paste = subparsers.add_parser(
+        "paste-import",
+        help=(
+            "Validate canonical-shape JSON and write the matching context file. "
+            "For users without CLOB auth: paste pre-formatted JSON (e.g. extracted "
+            "by an LLM from a screenshot) and promote after schema validation."
+        ),
+    )
+    paste.add_argument(
+        "--kind",
+        choices=["portfolio", "orders"],
+        required=True,
+        help="Which canonical file to write to.",
+    )
+    paste.add_argument(
+        "--input",
+        type=Path,
+        required=True,
+        help="Path to a JSON file matching the canonical Pydantic schema.",
+    )
+    paste.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help=(
+            "Output path. Defaults to context/portfolio_current.yaml or "
+            "context/open_orders.yaml depending on --kind."
+        ),
+    )
+    paste.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the validated YAML to stdout instead of writing.",
+    )
+    paste.set_defaults(func=command_paste_import)
+
+    clob_orders = subparsers.add_parser(
+        "import-clob-orders",
+        help=(
+            "Import the wallet's open orders from the Polymarket CLOB via L2 HMAC "
+            "auth. Requires POLYMARKET_PROXY_WALLET + POLYMARKET_CLOB_API_KEY + "
+            "POLYMARKET_CLOB_SECRET + POLYMARKET_CLOB_PASSPHRASE in the environment."
+        ),
+    )
+    clob_orders.add_argument(
+        "--output",
+        type=Path,
+        default=repo_path("reports", "generated", "account", "open_orders_clob.json"),
+    )
+    clob_orders.set_defaults(func=command_import_clob_orders)
 
     price_history = subparsers.add_parser(
         "fetch-price-history",
@@ -214,6 +311,14 @@ def command_import_public_positions(args: argparse.Namespace) -> int:
         print(str(exc), file=sys.stderr)
         return 1
     print(f"Wrote public positions import to {path}")
+    if not args.skip_balance:
+        try:
+            balance_path = write_usdc_balance(args.address, args.balance_output)
+            print(f"Wrote USDC balance to {balance_path}")
+        except (PolygonRpcError, AccountImportError) as exc:
+            # Non-fatal: positions import succeeded; balance fetch can transiently
+            # fail without blocking the overall run.
+            print(f"USDC balance fetch failed (non-fatal): {exc}", file=sys.stderr)
     return 0
 
 
@@ -235,6 +340,7 @@ def command_promote_positions(args: argparse.Namespace) -> int:
         _dump_portfolio_yaml,
         _read_existing_thesis_buckets,
         normalize_data_api_positions,
+        read_usdc_balance,
     )
     from polyberg.loaders import load_live_state, load_market_registry
 
@@ -249,13 +355,21 @@ def command_promote_positions(args: argparse.Namespace) -> int:
     payload = raw_doc.get("payload", raw_doc) if isinstance(raw_doc, dict) else raw_doc
 
     cash = args.cash
+    cash_source = "--cash override"
+    if cash is None:
+        balance = read_usdc_balance(args.balance)
+        if balance is not None:
+            cash = balance
+            cash_source = f"on-chain ({args.balance.name})"
     if cash is None:
         try:
             live = load_live_state()
             cash = float(live.account_snapshot.cash_available)
+            cash_source = "live_state.yaml"
         except Exception as exc:
             print(f"Could not read cash_available from live_state.yaml: {exc}", file=sys.stderr)
             return 1
+    print(f"cash_available source: {cash_source} (${cash:.2f})", file=sys.stderr)
 
     try:
         registry = load_market_registry()
@@ -293,6 +407,95 @@ def command_promote_positions(args: argparse.Namespace) -> int:
         print(f"Skipped {len(skipped)} positions (not in registry):", file=sys.stderr)
         for s in skipped:
             print(f"  - {s}", file=sys.stderr)
+    return 0
+
+
+def command_promote_orders(args: argparse.Namespace) -> int:
+    import json as _json
+
+    from polyberg.account_normalizer import (
+        _dump_open_orders_yaml,
+        normalize_clob_open_orders,
+    )
+    from polyberg.loaders import load_market_registry
+
+    if not args.raw.exists():
+        print(f"Raw orders file not found: {args.raw}", file=sys.stderr)
+        return 1
+    try:
+        raw_doc = _json.loads(args.raw.read_text(encoding="utf-8"))
+    except _json.JSONDecodeError as exc:
+        print(f"Invalid JSON in {args.raw}: {exc}", file=sys.stderr)
+        return 1
+    payload = raw_doc.get("payload", raw_doc) if isinstance(raw_doc, dict) else raw_doc
+
+    try:
+        registry = load_market_registry()
+        open_orders, skipped = normalize_clob_open_orders(payload, registry)
+    except NormalizerError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    yaml_text = _dump_open_orders_yaml(open_orders)
+    if args.dry_run:
+        sys.stdout.write(yaml_text)
+        if skipped:
+            print(f"\n# skipped: {len(skipped)}", file=sys.stderr)
+            for s in skipped:
+                print(f"#   {s}", file=sys.stderr)
+        return 0
+
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(yaml_text, encoding="utf-8")
+    print(f"Wrote canonical open orders to {args.output}")
+    if skipped:
+        print(f"Skipped {len(skipped)} orders (not in registry):", file=sys.stderr)
+        for s in skipped:
+            print(f"  - {s}", file=sys.stderr)
+    return 0
+
+
+def command_paste_import(args: argparse.Namespace) -> int:
+    if not args.input.exists():
+        print(f"Input file not found: {args.input}", file=sys.stderr)
+        return 1
+    raw_text = args.input.read_text(encoding="utf-8")
+
+    default_output = {
+        "portfolio": repo_path("context", "portfolio_current.yaml"),
+        "orders": repo_path("context", "open_orders.yaml"),
+    }
+    output = args.output or default_output[args.kind]
+
+    try:
+        yaml_text = import_paste(
+            kind=args.kind,
+            raw_text=raw_text,
+            output_path=output,
+            dry_run=args.dry_run,
+            portfolio_path_for_thesis=default_output["portfolio"]
+            if args.kind == "portfolio"
+            else None,
+        )
+    except PasteImportError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if args.dry_run:
+        sys.stdout.write(yaml_text)
+        return 0
+    print(f"Wrote {args.kind} to {output}")
+    return 0
+
+
+def command_import_clob_orders(args: argparse.Namespace) -> int:
+    try:
+        creds = load_clob_credentials_from_env()
+        path = write_clob_open_orders(creds, args.output)
+    except AccountImportError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"Wrote CLOB open orders to {path}")
     return 0
 
 

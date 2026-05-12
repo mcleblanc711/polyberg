@@ -39,7 +39,9 @@ export const SNAPSHOTS_DIR = resolve(REPO_ROOT, 'data', 'snapshots')
 const READ_ROOTS = [CONTEXT_DIR, REPORTS_DIR, SNAPSHOTS_DIR]
 const WRITE_PATHS = new Set<string>([
   resolve(CONTEXT_DIR, 'recent_catalysts.md'),
-  resolve(CONTEXT_DIR, 'open_orders.yaml')
+  resolve(CONTEXT_DIR, 'open_orders.yaml'),
+  resolve(REPORTS_DIR, 'account', 'paste_portfolio.json'),
+  resolve(REPORTS_DIR, 'account', 'paste_orders.json')
 ])
 
 const isInside = (root: string, p: string): boolean => {

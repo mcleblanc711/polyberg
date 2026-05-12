@@ -3,6 +3,7 @@ import { StageRunnerModal } from '../../components/StageRunnerModal'
 import { usePmData, usePmDataRefresh } from '../../lib/pmDataContext'
 import type { AccountImport, AccountImportFile } from '../../lib/types'
 import { clipCard, colors as C, fonts as F } from '../../styles/tokens'
+import { PasteImportModal } from './PasteImportModal'
 
 type SectionId = keyof AccountImport
 
@@ -16,14 +17,15 @@ const SECTIONS: Array<{ id: SectionId; label: string; subtitle: string; promotab
   {
     id: 'balances',
     label: 'BALANCES',
-    subtitle: 'balances_raw.json  vs  live_state.yaml  (PM-US only · not wired)',
+    subtitle:
+      'usdc_balance.json  vs  portfolio_current.yaml  (cash promoted alongside positions)',
     promotable: false
   },
   {
     id: 'openOrders',
     label: 'OPEN ORDERS',
-    subtitle: 'open_orders_raw.json  vs  open_orders.yaml  (PM-US only · not wired)',
-    promotable: false
+    subtitle: 'open_orders_clob.json  vs  open_orders.yaml  (CLOB L2 auth)',
+    promotable: true
   }
 ]
 
@@ -32,6 +34,7 @@ export const AccountScreen = () => {
   const [active, setActive] = useState<SectionId>('positions')
   const [runningStage, setRunningStage] = useState<string | null>(null)
   const [runningArgs, setRunningArgs] = useState<string[]>([])
+  const [pasteOpen, setPasteOpen] = useState(false)
   const file = pmData.accountImport[active]
   const anyImported = SECTIONS.some((s) => pmData.accountImport[s.id].exists)
   const wallet = pmData.liveState.proxyWallet
@@ -44,6 +47,11 @@ export const AccountScreen = () => {
     }
     setRunningArgs(['--address', wallet])
     setRunningStage('import-public-positions')
+  }
+
+  const runClobImport = (): void => {
+    setRunningArgs([])
+    setRunningStage('import-clob-orders')
   }
 
   return (
@@ -66,9 +74,17 @@ export const AccountScreen = () => {
             </div>
           )}
         </div>
-        <button style={S.refreshBtn} onClick={runImport} disabled={!wallet}>
-          $ import-public-positions
-        </button>
+        <div style={S.headerBtns}>
+          <button style={S.refreshBtn} onClick={runImport} disabled={!wallet}>
+            $ import-public-positions
+          </button>
+          <button style={S.refreshBtn} onClick={runClobImport}>
+            $ import-clob-orders
+          </button>
+          <button style={S.refreshBtn} onClick={() => setPasteOpen(true)}>
+            $ paste-import
+          </button>
+        </div>
       </div>
 
       <div style={S.tabRow}>
@@ -99,7 +115,7 @@ export const AccountScreen = () => {
       {!anyImported ? (
         <EmptyState />
       ) : (
-        <DiffPanel file={file} promotable={section.promotable} />
+        <DiffPanel file={file} promotable={section.promotable} active={active} />
       )}
 
       {runningStage && (
@@ -112,6 +128,8 @@ export const AccountScreen = () => {
           }}
         />
       )}
+
+      {pasteOpen && <PasteImportModal onClose={() => setPasteOpen(false)} />}
     </div>
   )
 }
@@ -130,7 +148,15 @@ const EmptyState = () => (
   </div>
 )
 
-const DiffPanel = ({ file, promotable }: { file: AccountImportFile; promotable: boolean }) => (
+const DiffPanel = ({
+  file,
+  promotable,
+  active
+}: {
+  file: AccountImportFile
+  promotable: boolean
+  active: SectionId
+}) => (
   <div style={S.diffGrid}>
     <DiffPane
       side="imported"
@@ -148,7 +174,11 @@ const DiffPanel = ({ file, promotable }: { file: AccountImportFile; promotable: 
       meta={file.canonicalText === '' ? '' : 'context/'}
       language="yaml"
     />
-    {promotable ? <PromoteRow file={file} /> : <PromoteDisabledRow />}
+    {promotable ? (
+      <PromoteRow file={file} active={active} />
+    ) : (
+      <PromoteDisabledRow active={active} />
+    )}
   </div>
 )
 
@@ -195,13 +225,14 @@ type PromoteState =
   | { kind: 'ok' }
   | { kind: 'error'; message: string }
 
-const PromoteRow = ({ file }: { file: AccountImportFile }) => {
+const PromoteRow = ({ file, active }: { file: AccountImportFile; active: SectionId }) => {
   const refresh = usePmDataRefresh()
   const [state, setState] = useState<PromoteState>({ kind: 'idle' })
+  const stage = active === 'openOrders' ? 'promote-orders' : 'promote-positions'
 
   const startPreview = async (): Promise<void> => {
     setState({ kind: 'previewing' })
-    const result = await window.pm.runStage('promote-positions', ['--dry-run'])
+    const result = await window.pm.runStage(stage, ['--dry-run'])
     if (!result.ok) {
       setState({ kind: 'error', message: result.stderr || result.stdout || `exit ${result.code}` })
       return
@@ -212,7 +243,7 @@ const PromoteRow = ({ file }: { file: AccountImportFile }) => {
 
   const commit = async (): Promise<void> => {
     setState({ kind: 'writing' })
-    const result = await window.pm.runStage('promote-positions', [])
+    const result = await window.pm.runStage(stage, [])
     if (!result.ok) {
       setState({ kind: 'error', message: result.stderr || result.stdout || `exit ${result.code}` })
       return
@@ -273,17 +304,20 @@ const PromoteRow = ({ file }: { file: AccountImportFile }) => {
   )
 }
 
-const PromoteDisabledRow = () => (
-  <div style={S.promoteRow}>
-    <button style={S.promoteBtn} disabled>
-      PROMOTE TO CONTEXT ▸
-    </button>
-    <span style={S.promoteNote}>
-      gated · only the positions tab has a normalizer wired (data-api). Balances/orders need an
-      authenticated path.
-    </span>
-  </div>
-)
+const PromoteDisabledRow = ({ active }: { active: SectionId }) => {
+  const note =
+    active === 'balances'
+      ? 'gated · the on-chain USDC balance is promoted automatically when you run PROMOTE on the Positions tab (cash_available in portfolio_current.yaml).'
+      : 'gated · no promote path wired for this tab yet.'
+  return (
+    <div style={S.promoteRow}>
+      <button style={S.promoteBtn} disabled>
+        PROMOTE TO CONTEXT ▸
+      </button>
+      <span style={S.promoteNote}>{note}</span>
+    </div>
+  )
+}
 
 const PromotePreviewModal = ({
   yaml,
@@ -370,8 +404,8 @@ const S: Record<string, CSSProperties> = {
     letterSpacing: 0.4,
     marginTop: 8
   },
+  headerBtns: { marginLeft: 'auto', display: 'flex', flexDirection: 'column', gap: 8 },
   refreshBtn: {
-    marginLeft: 'auto',
     background: 'transparent',
     border: `1px solid ${C.cyan}`,
     color: C.cyan,

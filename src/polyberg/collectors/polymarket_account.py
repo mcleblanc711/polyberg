@@ -58,7 +58,14 @@ class ReadOnlyHttpClient:
         merged_headers: dict[str, str] = {"User-Agent": DEFAULT_USER_AGENT}
         if headers:
             merged_headers.update(headers)
-        request = Request(url, headers=merged_headers, method="GET")
+        # urllib's Request(headers=...) routes through add_header(), which
+        # capitalizes every name (POLY_ADDRESS -> Poly_address). Servers that
+        # check header names case-sensitively (notably Polymarket's CLOB)
+        # reject those. Set headers directly on the underlying dict so the
+        # caller's exact case is preserved on the wire.
+        request = Request(url, method="GET")
+        for header_name, header_value in merged_headers.items():
+            request.headers[header_name] = header_value
         try:
             with self.opener(request, timeout=self.timeout) as response:
                 raw = response.read()

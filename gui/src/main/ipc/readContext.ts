@@ -207,8 +207,14 @@ const readAccountImport = (): AccountImport => ({
     ['positions_data_api.json', 'positions_raw.json'],
     'portfolio_current.yaml'
   ),
-  balances: readAccountImportFile(['balances_raw.json'], 'live_state.yaml'),
-  openOrders: readAccountImportFile(['open_orders_raw.json'], 'open_orders.yaml')
+  balances: readAccountImportFile(
+    ['usdc_balance.json', 'balances_raw.json'],
+    'portfolio_current.yaml'
+  ),
+  openOrders: readAccountImportFile(
+    ['open_orders_clob.json', 'open_orders_raw.json'],
+    'open_orders.yaml'
+  )
 })
 
 const applyPriceHistory = (markets: Market[]): Market[] => {
