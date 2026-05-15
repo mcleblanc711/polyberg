@@ -213,7 +213,7 @@ def test_promote_writes_canonical_yaml_and_preserves_thesis_bucket(tmp_path: Pat
 def test_read_usdc_balance_returns_float_from_well_formed_artifact(tmp_path: Path) -> None:
     path = tmp_path / "usdc_balance.json"
     path.write_text(
-        json.dumps({"balance_usdc": "123.456789", "source": "polygon_rpc_usdc_balance"}),
+        json.dumps({"balance_usdc": "123.456789", "source": "polymarket_clob_balance_allowance"}),
         encoding="utf-8",
     )
     assert read_usdc_balance(path) == pytest.approx(123.456789)
@@ -231,7 +231,7 @@ def test_read_usdc_balance_returns_none_for_invalid_json(tmp_path: Path) -> None
 
 def test_read_usdc_balance_returns_none_for_missing_field(tmp_path: Path) -> None:
     path = tmp_path / "usdc_balance.json"
-    path.write_text(json.dumps({"source": "polygon_rpc_usdc_balance"}), encoding="utf-8")
+    path.write_text(json.dumps({"source": "polymarket_clob_balance_allowance"}), encoding="utf-8")
     assert read_usdc_balance(path) is None
 
 

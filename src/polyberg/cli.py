@@ -6,13 +6,13 @@ from pathlib import Path
 
 from polyberg.account_normalizer import NormalizerError, promote_data_api_positions
 from polyberg.adjudicator_builder import write_adjudicator_input
-from polyberg.collectors.polygon_rpc import PolygonRpcError, write_usdc_balance
 from polyberg.collectors.polymarket_account import (
     AccountImportError,
     write_authenticated_account_snapshot,
     write_public_positions,
 )
 from polyberg.collectors.polymarket_clob_auth import load_clob_credentials_from_env
+from polyberg.collectors.polymarket_clob_balance import write_clob_balance
 from polyberg.collectors.polymarket_clob_orders import write_clob_open_orders
 from polyberg.collectors.polymarket_gamma import GammaCollectorError
 from polyberg.paste_import import PasteImportError, import_paste
@@ -100,12 +100,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--balance-output",
         type=Path,
         default=repo_path("reports", "generated", "account", "usdc_balance.json"),
-        help="Sibling JSON for the wallet's on-chain USDC.e balance.",
+        help="Sibling JSON for the wallet's CLOB collateral (USDC) balance.",
     )
     public_positions.add_argument(
         "--skip-balance",
         action="store_true",
-        help="Skip the Polygon RPC USDC balance fetch (positions only).",
+        help=(
+            "Skip the CLOB collateral-balance fetch (positions only). The "
+            "balance fetch needs POLYMARKET_CLOB_* credentials; if they are "
+            "absent it skips automatically with a non-fatal warning."
+        ),
     )
     public_positions.set_defaults(func=command_import_public_positions)
 
@@ -129,7 +133,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         help=(
-            "Override cash_available. Defaults to the polygon_rpc usdc_balance.json "
+            "Override cash_available. Defaults to the CLOB usdc_balance.json "
             "artifact if present, then live_state.yaml's value."
         ),
     )
@@ -137,7 +141,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--balance",
         type=Path,
         default=repo_path("reports", "generated", "account", "usdc_balance.json"),
-        help="Path to the polygon_rpc usdc_balance.json artifact (read for cash fallback).",
+        help="Path to the CLOB usdc_balance.json artifact (read for cash fallback).",
     )
     promote.add_argument(
         "--dry-run",
@@ -230,6 +234,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     clob_orders.set_defaults(func=command_import_clob_orders)
 
+    clob_balance = subparsers.add_parser(
+        "import-clob-balance",
+        help=(
+            "Import the wallet's COLLATERAL (USDC) balance from the Polymarket "
+            "CLOB via L2 HMAC auth. Same credential requirements as "
+            "import-clob-orders. Override the proxy type with "
+            "POLYMARKET_CLOB_SIGNATURE_TYPE (default 1 = POLY_PROXY)."
+        ),
+    )
+    clob_balance.add_argument(
+        "--output",
+        type=Path,
+        default=repo_path("reports", "generated", "account", "usdc_balance.json"),
+    )
+    clob_balance.set_defaults(func=command_import_clob_balance)
+
     price_history = subparsers.add_parser(
         "fetch-price-history",
         help="Fetch per-market CLOB price-history series and high/low windows.",
@@ -313,12 +333,31 @@ def command_import_public_positions(args: argparse.Namespace) -> int:
     print(f"Wrote public positions import to {path}")
     if not args.skip_balance:
         try:
-            balance_path = write_usdc_balance(args.address, args.balance_output)
-            print(f"Wrote USDC balance to {balance_path}")
-        except (PolygonRpcError, AccountImportError) as exc:
-            # Non-fatal: positions import succeeded; balance fetch can transiently
-            # fail without blocking the overall run.
-            print(f"USDC balance fetch failed (non-fatal): {exc}", file=sys.stderr)
+            creds = load_clob_credentials_from_env()
+        except AccountImportError as exc:
+            # Cash needs CLOB auth; on-chain balance at the proxy is structurally
+            # always zero. Skip rather than write a misleading $0 artifact.
+            print(
+                f"USDC balance fetch skipped (no CLOB credentials): {exc}",
+                file=sys.stderr,
+            )
+        else:
+            try:
+                balance_path = write_clob_balance(creds, args.balance_output)
+                print(f"Wrote CLOB collateral balance to {balance_path}")
+            except AccountImportError as exc:
+                print(f"USDC balance fetch failed (non-fatal): {exc}", file=sys.stderr)
+    return 0
+
+
+def command_import_clob_balance(args: argparse.Namespace) -> int:
+    try:
+        creds = load_clob_credentials_from_env()
+        path = write_clob_balance(creds, args.output)
+    except AccountImportError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"Wrote CLOB collateral balance to {path}")
     return 0
 
 
@@ -360,7 +399,7 @@ def command_promote_positions(args: argparse.Namespace) -> int:
         balance = read_usdc_balance(args.balance)
         if balance is not None:
             cash = balance
-            cash_source = f"on-chain ({args.balance.name})"
+            cash_source = f"CLOB collateral ({args.balance.name})"
     if cash is None:
         try:
             live = load_live_state()

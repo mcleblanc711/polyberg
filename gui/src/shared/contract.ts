@@ -186,6 +186,7 @@ export const ALLOWED_STAGES = [
   'import-public-positions',
   'import-account-snapshot',
   'import-clob-orders',
+  'import-clob-balance',
   'fetch-price-history',
   'promote-positions',
   'promote-orders',

@@ -540,15 +540,17 @@ translates; the paths in the brief do not.** Re-map onto:
 
 **Deliverables, in order:**
 
-1. **Close the cash gap first** (priority-#1 v2 hangover, blocking everything else).
-   The brief specifies USDC.e (`0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`) for
-   the proxy-wallet cash read. The existing hypothesis in
-   [[cash-available-priority]] is the opposite — that Polymarket migrated to
-   native USDC (`0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`) and the collector
-   needs to switch. **These conflict.** Resolve empirically: inspect the polygon_rpc
-   collector source, query both contract addresses against the live proxy
-   `0xded8C47EC78F714d0bE7314E0D72Eb24F537D5EB`, pick whichever returns non-zero.
-   Don't trust either claim until verified — both are LLM assertions.
+1. **Close the cash gap first** — **shipped 2026-05-14.** Resolved empirically:
+   both USDC.e (`0x2791Bca1...`) and native USDC (`0x3c499c54...`) return zero
+   at the proxy. The proxy is an EIP-1167 minimal-proxy smart contract that
+   structurally never holds cash — Polymarket's collateral pool does. New
+   collector `polymarket_clob_balance.py` reads `/balance-allowance` via L2
+   HMAC auth with `signature_type=1` (POLY_PROXY). New CLI subcommand
+   `import-clob-balance` writes `reports/generated/account/usdc_balance.json`
+   (same `balance_usdc` field name so the normalizer reads it transparently).
+   `polygon_rpc.py` deleted — no correct use case. GUI prefers
+   `portfolio_current.yaml.cash_available` over `live_state.yaml`. See
+   [[polymarket-cash-source]] for the full empirical write-up.
 
 2. **State-diff module (`src/polyberg/state_diff.py`).** Pure helpers, no CLI of
    its own:
@@ -596,7 +598,7 @@ inside bootstrap yet — priority #5 is its home; bootstrap calls it once
 registry maturity). No headline reaction logger.
 
 **Relationship to other priorities:**
-- **#1 cash gap** is a hard prerequisite — bootstrap's summary leads with cash, which currently reads $0.
+- **#1 cash gap** — resolved 2026-05-14. Bootstrap's summary can now lead with real cash via `import-clob-balance` → `promote-positions`.
 - **#5 Perplexity** composes naturally with bootstrap; insert as step 4.5 once `news-pull` ships.
 - **#2 cash-exposure bar** in the GUI consumes the same numbers bootstrap prints to stdout — build data once, render twice.
 - **#7 anti-leak guardrails** consume the state-diff output (the `CHURN` flag needs round-trip counts from accumulated state-diff history).

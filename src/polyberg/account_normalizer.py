@@ -273,7 +273,7 @@ def _dump_open_orders_yaml(open_orders: OpenOrders) -> str:
 
 
 def read_usdc_balance(path: Path) -> float | None:
-    """Read ``balance_usdc`` from a polygon_rpc balance artifact.
+    """Read ``balance_usdc`` from a CLOB collateral-balance artifact.
 
     Returns ``None`` if the file is missing, malformed, or carries a
     non-numeric ``balance_usdc`` field. Callers can then fall back to other

@@ -1,15 +1,15 @@
-as_of: '2026-05-12T08:31:59.897828-06:00'
-portfolio_value: 184.71620000000001
-cash_available: 0.0
+as_of: '2026-05-14T20:23:26.922324-06:00'
+portfolio_value: 213.886014
+cash_available: 25.986514
 positions:
 - market_id: hormuz_normal_end_june
   market_name: Strait of Hormuz traffic returns to normal by end of June?
   side: 'NO'
   avg_price: 0.509
-  mark_price: 0.665
+  mark_price: 0.675
   shares: 89.3409
-  current_value: 59.4117
-  pnl: 13.9283
+  current_value: 60.3051
+  pnl: 14.8217
   thesis_bucket: ''
 - market_id: iran_us_peace_jun30
   market_name: US x Iran permanent peace deal by June 30, 2026?
@@ -33,37 +33,37 @@ positions:
   market_name: Strait of Hormuz traffic returns to normal by December 31?
   side: 'NO'
   avg_price: 0.1857
-  mark_price: 0.18
+  mark_price: 0.225
   shares: 35.0
-  current_value: 6.3
-  pnl: -0.1999
+  current_value: 7.875
+  pnl: 1.375
   thesis_bucket: ''
 - market_id: trump_blockade_lifted_jun30
   market_name: Will Donald Trump announce that the United States blockade of the Strait
     of Hormuz has been lifted by June 30, 2026?
   side: 'NO'
   avg_price: 0.4112
-  mark_price: 0.455
+  mark_price: 0.475
   shares: 33.0
-  current_value: 15.015
-  pnl: 1.445
-  thesis_bucket: ''
-- market_id: iran_us_peace_dec31
-  market_name: US x Iran permanent peace deal by December 31, 2026?
-  side: 'NO'
-  avg_price: 0.31
-  mark_price: 0.305
-  shares: 19.9985
-  current_value: 6.0995
-  pnl: -0.1
+  current_value: 15.675
+  pnl: 2.105
   thesis_bucket: ''
 - market_id: trump_blockade_lifted_may31
   market_name: Will Donald Trump announce that the United States blockade of the Strait
     of Hormuz has been lifted by May 31, 2026?
   side: 'NO'
   avg_price: 0.6
-  mark_price: 0.745
+  mark_price: 0.765
   shares: 19.0
-  current_value: 14.155
-  pnl: 2.7549
+  current_value: 14.535
+  pnl: 3.1349
+  thesis_bucket: ''
+- market_id: iran_us_peace_dec31
+  market_name: US x Iran permanent peace deal by December 31, 2026?
+  side: 'NO'
+  avg_price: 0.31
+  mark_price: 0.385
+  shares: 14.9985
+  current_value: 5.7744
+  pnl: 1.1248
   thesis_bucket: ''

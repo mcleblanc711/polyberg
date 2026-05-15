@@ -241,6 +241,12 @@ const readPositions = (markets: Market[]): Position[] => {
     }))
 }
 
+const readPortfolioCash = (): number | null => {
+  const data = loadYaml<PortfolioFile>(resolve(CONTEXT_DIR, 'portfolio_current.yaml'))
+  if (data && typeof data.cash_available === 'number') return data.cash_available
+  return null
+}
+
 const readOpenOrders = (markets: Market[]): OpenOrder[] => {
   const data = loadYaml<OpenOrdersFile>(resolve(CONTEXT_DIR, 'open_orders.yaml'))
   if (!data) return []
@@ -280,7 +286,14 @@ const readLiveState = () => {
   const data = loadYaml<LiveStateFile>(resolve(CONTEXT_DIR, 'live_state.yaml'))
   const modeKey = asString(data?.mode, 'research_only').toLowerCase()
   const mode: Mode = MODE_MAP[modeKey] ?? 'RESEARCH'
-  const cash = asNumber(data?.cash_available ?? data?.account_snapshot?.cash_available)
+  // Prefer portfolio_current.yaml's cash_available — that's the freshly-promoted
+  // value from import-clob-balance + promote-positions. live_state.yaml's cash
+  // is a manual snapshot, kept only as fallback for users without CLOB auth.
+  const portfolioCash = readPortfolioCash()
+  const cash =
+    portfolioCash !== null
+      ? portfolioCash
+      : asNumber(data?.cash_available ?? data?.account_snapshot?.cash_available)
   const thesisRaw = data?.active_thesis
   const thesis = Array.isArray(thesisRaw) ? thesisRaw.join(' ') : asString(thesisRaw)
   let constraints: string[] = []
