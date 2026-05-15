@@ -298,52 +298,123 @@ Implementation sketch:
 - Edge cases: no open buys (bar fully cyan), commitment > cash (amber/red tint
   with explicit overage label), no portfolio loaded (empty state).
 
-### Next phase — per-market high/low ranges and price history (priority #3)
+### Next phase — market telemetry layer (priority #3)
 
-Goal: surface 1d / 1w / 1m (and probably since-position-open / all-time) high and low
-prices for each tracked market on the Dashboard Positions tab, so limit-buy and
-limit-sell placement is grounded in recent extremes rather than just the current mark.
-Display lives in `PositionCard`'s expanded body — either as additional cells in the
-existing `Mini` strip (next to BID / ASK / SPREAD / LIQ / SNAP) or as a small
-dedicated row above the price chart.
+Captured from a ChatGPT brief (2026-05-14) that supersedes the earlier "per-market
+high/low ranges and price history" framing. Goal: record Polymarket price history for
+every tracked market and derive a compact, **deterministic, rule-based** feature set
+that helps trade review answer four questions: has the market already repriced, was
+the move gradual or sudden, is this likely emotional liquidity, and should ladders
+tighten / widen / stay passive. This is **market telemetry for decision context, not
+technical analysis** — no LLM inference of labels, no signal/strategy framing.
 
-The same data source unlocks a broader "price history" view per market — a real
-historical line chart (the current `PriceChart` is fixture-driven) plus summary
-statistics: range, mean, stdev, percentile of current mark within the window,
-maybe a small histogram of dwell time at each price level. Implementation path
-is unclear and worth deferring until the data source is picked, but call out the
-ambition here so the bridge work below is sized for the chart, not just the
-high/low scalars.
+**Path translation** (the brief uses old-style `scripts/` + `live/` paths; polyberg
+has matured along a different layout):
 
-The feature is mostly a Python-side data-source decision; the GUI render is small once
-the data exists. Pick the source first:
+| Brief path / artifact | Polyberg equivalent |
+|---|---|
+| `scripts/snapshot_prices.py` | new module `src/polyberg/price_snapshots.py` + CLI `polyberg snapshot-prices` |
+| `scripts/price_features.py` | new module `src/polyberg/price_features.py` + CLI `polyberg price-features` |
+| `scripts/render_market_telemetry.py` | new module `src/polyberg/market_telemetry.py` + CLI `polyberg render-market-telemetry` |
+| `live/prices/raw_price_events.jsonl` | `reports/generated/prices/raw_price_events.jsonl` |
+| `live/prices/history/<asset_id>.json` | `reports/generated/prices/history/<asset_id>.json` |
+| `live/prices/features.json` | `reports/generated/prices/features.json` |
+| `live/prices/market_notes.md` | `reports/generated/prices/market_notes.md` |
+| `GET /api/price_history/{asset_id}` | `window.pm.readPriceHistory(assetId)` IPC |
+| `GET /api/price_features` | `window.pm.readPriceFeatures()` IPC |
+| `GET /api/market_telemetry` | `window.pm.readMarketTelemetry()` IPC |
+| `session_bootstrap.py` integration | step in `polyberg session-bootstrap` (priority #6) |
 
-1. **Snapshot accumulation.** Schedule `snapshot-markets` at a cron-like cadence so
-   `data/snapshots/*.json` builds up a price-series. Compute highs/lows by scanning
-   the snapshot files in `readContext()`. Honest but blocked: the current
-   `snapshot-markets` CLI emits placeholder snapshots only — `snapshots.py` doesn't
-   yet capture real prices. Would need to flesh that out first, then accumulate for
-   at least a window before the feature returns useful data. Slow ramp.
-2. **Direct historical pull from Polymarket Gamma.** The Gamma collector module is
-   currently `NotImplementedError`. Implement a read-only price-history fetch keyed by
-   market id, return a `[{ts, mark}]` series, compute highs/lows per window in the
-   bridge's `readContext()`. Fast: returns useful data immediately, no accumulation
-   wait. Keeps the no-execution boundary (read-only HTTPS, same posture as
-   `import-account-snapshot`).
-3. **Hybrid.** Cache historical pulls into `data/snapshots/` so subsequent reads are
-   local; refresh on demand. Best long-term, more upfront wiring.
+**Data source decision is settled by the brief:** use the public CLOB
+`POST https://clob.polymarket.com/batch-prices-history` endpoint in chunks of 20
+asset_ids, pulling 1h interval for the last 72h and 1d interval for the last 30d.
+This deprecates the earlier "Gamma vs snapshot accumulation vs hybrid" choice — CLOB
+batch-prices-history is unauthenticated, returns full series in one request, and
+keeps the read-only / no-execution posture intact. The earlier idea of fleshing out
+`gamma_collector.fetch_price_history` is dropped.
 
-Option 2 is probably the right starting point given the empty snapshots directory and
-no need to wait days for accumulation. Tasks if we go that route:
+**Deliverables, in order:**
 
-- Flesh out `src/polyberg/gamma_collector.py` (or wherever the placeholder lives) with
-  a `fetch_price_history(market_id, lookback)` helper using the public Gamma endpoint.
-- New CLI subcommand `fetch-price-history` (added to the bridge allowlist) so the GUI
-  can request a refresh on demand without crossing the safety boundary.
-- Extend `Market` in `shared/contract.ts` with `highs: {d1, w1, m1}` and `lows: {…}`.
-- Extend `readContext()` to read the cached series and compute the windows.
-- Render in `PositionCard` expanded body. Tint highs cyan, lows red to match the
-  existing Spark/PriceChart conventions.
+1. **`snapshot-prices` CLI + module.**
+   - Read tracked asset_ids from the union of `context/market_registry.yaml`,
+     `context/portfolio_current.yaml`, and `context/open_orders.yaml`. Deduplicate.
+   - POST to `clob.polymarket.com/batch-prices-history` in chunks of 20.
+   - Pull 1h interval for the last 72h **and** 1d interval for the last 30d
+     (two passes per chunk; keep both granularities downstream).
+   - Append the **raw API response JSON** (one line per chunk request) to
+     `reports/generated/prices/raw_price_events.jsonl` with `{as_of, asset_ids,
+     interval, lookback, response}`. Raw-first storage is a cross-cutting
+     requirement (see priority #8).
+   - Write per-asset normalized history to
+     `reports/generated/prices/history/<asset_id>.json` with `schema_version`,
+     `as_of`, the merged 1h+1d series, and a `raw_ref` pointing back at the raw
+     jsonl line. Preserve any extra Polymarket fields under a `raw_ref` block
+     rather than dropping them.
+   - Expose `run() -> dict` (count fetched, count skipped, error list) so
+     `session-bootstrap` can drive it.
+
+2. **`price-features` CLI + module.**
+   - Read normalized histories.
+   - Emit `reports/generated/prices/features.json` with `schema_version` and a per-
+     `asset_id` block containing: `current_price`, `price_{1h,6h,24h,72h,7d}_ago`,
+     `change_{1h,6h,24h,72h,7d}`, `daily_changes_last_3`, `daily_changes_last_7`,
+     `high_7d`, `low_7d`, `distance_from_7d_high`, `distance_from_7d_low`,
+     `realized_vol_72h`, `max_drawdown_72h`, plus three **deterministic, rule-based**
+     labels: `trend_label` (e.g. `steady_uptrend` / `range_bound` / `adverse_drift`),
+     `spike_label` (e.g. `headline_spike` / `none`), `execution_implication`
+     (e.g. `tighten_ladder` / `widen_ladder` / `stay_passive` / `consider_fade`).
+   - Labels are **not LLM-generated.** The thresholds live in code so behavior is
+     reproducible across runs and reviewable in a diff.
+
+3. **`render-market-telemetry` CLI + module.**
+   - Write `reports/generated/prices/market_notes.md`, grouped by `cluster_key`
+     (sourced from `market_registry.yaml`). Each cluster block lists per-asset
+     compact summaries — small enough to embed inside an LLM prompt packet without
+     blowing the context budget. Avoid pretty charts; this is text the model reads.
+
+4. **`session-bootstrap` integration** (extends priority #6).
+   - Insert `snapshot-prices.run()` → `price-features.run()` →
+     `render-market-telemetry.run()` between cross-venue-check and the state diff.
+   - Wrap each step so a CLOB outage doesn't kill the bootstrap chain (same
+     pattern as the Portwatch collector).
+
+5. **Electron IPC** (no FastAPI — see "API surface" decision in this session):
+   - `window.pm.readPriceHistory(assetId)` → returns the normalized history file.
+   - `window.pm.readPriceFeatures()` → returns the full `features.json` payload.
+   - `window.pm.readMarketTelemetry()` → returns the rendered markdown notes.
+   - All three read-only; gated to `reports/generated/prices/` like the other
+     bridge readers.
+   - **`window.pm.readReviewPacket()`** also includes the price-features block in
+     its payload (see priority #8).
+
+6. **GUI surface.** With features wired to IPC, surface them in two places:
+   - `PositionCard` expanded body: a small telemetry strip (1h / 24h / 7d change,
+     distance-from-7d-high/low, current `execution_implication` chip). Tint moves
+     amber/cyan/red per existing palette conventions.
+   - A dedicated `MARKET TELEMETRY` panel inside the existing `MARKETS` tab (or a
+     new sub-tab) showing the rendered `market_notes.md`, grouped by cluster, for
+     fast scan before a session.
+
+7. **Tests.** `tests/test_price_features.py` against four synthetic series:
+   `steady_uptrend`, `headline_spike`, `range_bound`, `adverse_drift`. Assert both
+   the numeric `change_*` values and the categorical labels match expected output.
+   Deterministic-label-rules being tested matters more than the absolute thresholds —
+   refactoring thresholds is allowed; silently flipping labels is a regression.
+
+**Hard non-goals** (preserved from the brief):
+
+- No order execution. No live websocket. Snapshot on demand only.
+- No "technical analysis" framing in the GUI or the markdown output. The labels
+  exist to inform decision context, not to generate trade signals. If we catch
+  ourselves writing a "BUY" / "SELL" recommendation off the label, that's a bug.
+
+**Relationship to other priorities:**
+- **#2 cash-exposure bar** — the ladder cash model in priority #8 consumes
+  `current_price` from `features.json` to bucket open buys by distance-from-mark.
+- **#6 session-bootstrap** — telemetry steps are inserted as a sub-chain.
+- **#7 anti-leak guardrails** — the `CHURN` flag combined with a `headline_spike`
+  label can sharpen the kill-switch logic ("position is down 30% AND market just
+  spiked AND no sell ladder" is a stronger signal than the position drop alone).
 
 ### Next phase — Grok revival (priority #4, framing TBD)
 
@@ -447,7 +518,90 @@ live X with handle-curated queries. Build #4 and #5 as sibling subcommands
 they compose. Order: do #5 first — Perplexity is unauth-key-but-paid,
 clearly documented, OpenAI-compatible; the lift is half of #4's.
 
-### Next phase — anti-leak trading guardrails (priority #6, paired with #5)
+### Next phase — session bootstrap pipeline (priority #6, paired with #1 cash gap and #5)
+
+Captured from a ChatGPT brief (2026-05-13) that names things by the project's old
+layout (`scripts/`, `live/`, `state/`, `CLAUDE.md`, `AGENTS.md`, `ask_both.py`,
+`cross_venue_check.py`); polyberg has matured along a different path. **The intent
+translates; the paths in the brief do not.** Re-map onto:
+
+| Brief path / artifact | Polyberg equivalent |
+|---|---|
+| `scripts/snapshot_portfolio.py` | **shipped** — `polyberg import-public-positions` + `account_normalizer.py` + `promote-positions` (positions side) |
+| `scripts/snapshot_orders.py` | **shipped** — CLOB open-orders import landed in P1 v2; rotate creds at session start per [[rotate-clob-creds]] |
+| `scripts/state.py` (diff prev/curr) | new — `src/polyberg/state_diff.py`; prev snapshots under `reports/generated/state/` |
+| `scripts/render_live.py` (md tables) | mostly **n/a** — the GUI is the render layer; only the stdout summary is worth porting |
+| `scripts/session_bootstrap.py` | new CLI `polyberg session-bootstrap` (alias `morning-briefing`) |
+| `cross_venue_check.py` | new CLI `polyberg cross-venue-check` (Kalshi Hormuz vs Polymarket) |
+| Portwatch IMF feed | new collector `src/polyberg/portwatch_collector.py` (Strait of Hormuz daily transit count, 7-day MA) |
+| `live/.cache/markets/` | `reports/generated/.cache/markets/` (Gamma response cache keyed by `condition_id`) |
+| `live/`, `state/` directories | `reports/generated/`; canonical state stays in `context/` |
+| `CLAUDE.md` / `AGENTS.md` | `docs/project_summary.md` |
+
+**Deliverables, in order:**
+
+1. **Close the cash gap first** (priority-#1 v2 hangover, blocking everything else).
+   The brief specifies USDC.e (`0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`) for
+   the proxy-wallet cash read. The existing hypothesis in
+   [[cash-available-priority]] is the opposite — that Polymarket migrated to
+   native USDC (`0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`) and the collector
+   needs to switch. **These conflict.** Resolve empirically: inspect the polygon_rpc
+   collector source, query both contract addresses against the live proxy
+   `0xded8C47EC78F714d0bE7314E0D72Eb24F537D5EB`, pick whichever returns non-zero.
+   Don't trust either claim until verified — both are LLM assertions.
+
+2. **State-diff module (`src/polyberg/state_diff.py`).** Pure helpers, no CLI of
+   its own:
+   - `load_current()` reads current positions + orders JSON under `reports/generated/account/`.
+   - `load_previous()` reads `reports/generated/state/portfolio.prev.json` and `orders.prev.json`.
+   - `diff_positions(curr, prev)` → list of `{market_id, outcome, share_delta, avg_price_delta, action: "opened"|"closed"|"increased"|"decreased"}`.
+   - `diff_orders(curr, prev)` — same shape for buy/sell ladders. **Order-close attribution discipline (from the 2026-05-14 brief):** never infer that a disappeared order was filled purely from disappearance. Each closed order carries `closed_reason ∈ {filled, canceled, expired, unknown}` — `filled` requires corroboration from a fills/activity stream; `canceled` and `expired` require explicit signal; otherwise `unknown`. The `unknown` count surfaces in the bootstrap summary and in the review packet so it isn't silently swept under "filled" P&L.
+   - `promote(curr)` rotates current → prev. Called at the end of every successful bootstrap so tomorrow's diff is correct.
+
+3. **Cross-venue collector (`polyberg cross-venue-check`).** Kalshi Hormuz markets
+   vs Polymarket equivalents. Emit `reports/generated/cross_venue.json` with
+   per-market mid/bid/ask on both venues and a divergence column. Supports
+   `--discover-kalshi hormuz` on first run of the day to refresh the Kalshi
+   market list.
+
+4. **Portwatch collector (`src/polyberg/portwatch_collector.py`).** Pull Strait of
+   Hormuz daily transit count CSV from IMF Portwatch (`portwatch.imf.org/...`),
+   compute current 7-day MA, emit `reports/generated/portwatch.json`. Wrap network
+   failures — Portwatch goes down regularly and must not kill the bootstrap chain.
+
+5. **`session-bootstrap` CLI.** One command for the start of every trading session:
+   1. `import-public-positions` (shipped)
+   2. CLOB open-orders refresh (shipped)
+   3. `cross-venue-check` (new, #3 above)
+   4. `portwatch-pull` (new, #4 above)
+   5. State diff vs yesterday (new, #2 above)
+   6. One-screen stdout summary: equity, cash, top 5 positions by value,
+      position deltas vs yesterday, orders filled since last run, current
+      Portwatch 7-day MA, cross-venue divergences > 3¢.
+
+   Each step is wrapped — a single source failing (Portwatch outage, Kalshi
+   rate-limit) logs and continues. GUI integration: new `$ session-bootstrap`
+   button in RightRail that streams stdout through the existing
+   `runStageStream` modal.
+
+**Hard requirements preserved from the brief** (already consistent with polyberg's posture):
+- Read-only everywhere. No execution endpoints.
+- All scripts importable as modules; CLI behind `if __name__ == "__main__"`.
+- No SQLite, no MCP, no async unless rate limits force it.
+- Test each step against the live wallet before chaining.
+
+**Out of scope here** (per brief, valid for polyberg): no Perplexity wiring
+inside bootstrap yet — priority #5 is its home; bootstrap calls it once
+`news-pull` lands. No concentration roll-up / sleeve bucketing (waits on
+registry maturity). No headline reaction logger.
+
+**Relationship to other priorities:**
+- **#1 cash gap** is a hard prerequisite — bootstrap's summary leads with cash, which currently reads $0.
+- **#5 Perplexity** composes naturally with bootstrap; insert as step 4.5 once `news-pull` ships.
+- **#2 cash-exposure bar** in the GUI consumes the same numbers bootstrap prints to stdout — build data once, render twice.
+- **#7 anti-leak guardrails** consume the state-diff output (the `CHURN` flag needs round-trip counts from accumulated state-diff history).
+
+### Next phase — anti-leak trading guardrails (priority #7, paired with #5)
 
 Same Claude-web brief carries trade-discipline rules grounded in real May 11
 attribution data (WTI/oil tail markets: -$102 net across 33 closed positions,
@@ -481,6 +635,135 @@ Concretely:
 These are deliberately enforced in code, not documented as policy, because
 the brief's whole framing is "past sessions have not enforced this fast
 enough" — i.e. willpower-based rules don't work; in-code interdicts do.
+
+### Next phase — decision-quality hardening (priority #8, paired with #5 and #6)
+
+Captured from a ChatGPT brief (2026-05-14). The brief frames itself as a three-
+session split (data pipeline / workflow intelligence / FastAPI+UI+publication) and
+proposes migrating `context/` into `examples/iran-2026/`. **Both framings are
+declined for polyberg:** the data-pipeline session is mostly already shipped
+(`import-public-positions` + CLOB orders + `account_normalizer`), the
+workflow-intelligence session overlaps priorities #5–#7, and the FastAPI+Vite+SPA
+session conflicts with the Electron architecture (decision this session: stay on
+Electron IPC, no FastAPI). The migration is also declined — `context/` stays as
+canonical user-owned state with the never-overwrite-without-approval rule preserved.
+
+What survives is a bundle of cross-cutting **discipline upgrades** to the existing
+packet → model → adjudicator → ticket flow. None of these are new pipelines; they
+all sharpen surfaces the project already has.
+
+**Deliverables, in roughly increasing scope:**
+
+1. **Schema versioning + raw-payload preservation (cross-cutting requirement).**
+   - Every JSON artifact polyberg emits — packets, snapshots, account imports,
+     state diffs, price features, disagreement reports, review-packet payloads —
+     carries `schema_version: <int>`. Bumped on breaking field changes.
+   - Every generated review (model output, adjudicator output, trade ticket)
+     carries `source_state_hash`, `as_of`, and `stale_flags[]`. The hash is over
+     the concatenated canonical context inputs at generation time, so a reviewer
+     can verify the model saw exactly what's claimed.
+   - Every collector (account import, CLOB orders, batch-prices-history,
+     Portwatch, Kalshi, Perplexity) appends its **raw API response** to a
+     `raw_events.jsonl`-style log under `reports/generated/<collector>/raw_*.jsonl`
+     before normalization. Normalized records carry either the raw fields inline
+     or a `raw_ref: {file, offset}` pointer so the audit trail is recoverable.
+   - Where this most needs retrofit today: `account_normalizer.py` (preserve raw
+     positions fields under a `raw_ref` block), `snapshots.py` (currently writes
+     placeholder snapshots — once real prices land, raw response goes to the
+     jsonl log first), and the upcoming price/portwatch/kalshi/perplexity
+     collectors (build raw-first from day one).
+
+2. **Review-packet preview (`window.pm.readReviewPacket()`).**
+   - New IPC method that renders the **exact packet sent to models** without
+     re-running the adjudicator. Mirrors what `build-packet` already produces but
+     also bundles: positions, open orders, recent fills/activity, `live_state`
+     thesis memory, market registry slice, rules-text refs, current `stale_flags`,
+     unresolved reconciliation warnings (e.g. registry has a market that the
+     wallet position references but no rules text), the ladder cash model
+     (deliverable #4 below), the price features block (priority #3), and a
+     decision-history summary (last N decisions per cluster_key with stance and
+     outcome).
+   - GUI: a `REVIEW PACKET` panel in the existing `PACKET` tab showing the
+     rendered packet pre-paste, so the user sees what the model will see.
+
+3. **Rule-coverage gating on `ask-panel`** (extends priority #5).
+   - Every position/market is tagged `rule_coverage ∈ {full, partial, missing}`
+     based on presence of `rules_text_ref` and `oracle_type` in the registry.
+     `missing` = neither present; `partial` = one present; `full` = both.
+   - `ask-panel` (the Perplexity/Claude/ChatGPT subcommand from priority #5)
+     **refuses to emit precise trade recommendations** — entry price, sizing,
+     ladder placement — for any market with `rule_coverage="missing"` unless the
+     user passes an explicit `--degraded-mode` flag. With the flag, the
+     recommendation is allowed but stamped `degraded_mode: true` in its output
+     JSON and surfaced amber in the GUI.
+   - Every model suggestion carries a `strict_vs_fallback` block: what the
+     recommendation is under strict-rule reading, what it would be under the
+     fallback / disputed-resolution reading, and which one the model prefers and
+     why. Forces the model to acknowledge wording risk explicitly rather than
+     papering over it.
+
+4. **Ladder cash model** (refines priority #2 cash-exposure bar).
+   - Replace the naive "sum of all open buy `price × shares`" total with three
+     buckets keyed off distance from the current mark (sourced from priority #3
+     `features.json`):
+     - `near_fill_exposure` — buys within ~3¢ of the mark. Realistically compete
+       for cash; counted at full notional.
+     - `mid_fill_exposure` — buys 3–10¢ away. Possible competition; counted at
+       partial weight.
+     - `deep_dislocation_exposure` — buys >10¢ away. Speculative ladder rungs;
+       reported separately and **not** counted against available cash.
+   - Per-rung `likely_cancel_or_unfunded: bool` flag is set only on near/mid
+     orders that, summed, exceed cash on hand — a signal that something will
+     have to give. Deep-dislocation rungs never carry this flag (the assumption
+     that they fill is what dislocation means).
+   - GUI: `<CashCommitmentBar>` renders three stacked segments (cyan / amber /
+     dim) instead of a single bar, with the overage label only counting near+mid.
+
+5. **Model disagreement log.**
+   - When `ask-panel --mode adversarial` (Claude + ChatGPT in parallel) or `full`
+     (all three sensors) runs, also emit a normalized
+     `reports/generated/disagreement/<as_of>.json` keyed by `cluster_key`. Per
+     cluster: `stance_disagreement` (do the models recommend different sides?),
+     `reasoning_tag_disagreement` (do they cite different drivers?),
+     `confidence_gap` (numeric delta), `missing_data_deltas` (what one model
+     flagged as missing that the other didn't).
+   - Decision-history summary in the review packet (deliverable #2) reads from
+     this log so the model can see "you and the other sensor disagreed last time;
+     here's why" before producing the next recommendation.
+   - GUI: a small `DISAGREEMENT` chip on each cluster row in the `MARKETS` tab
+     when the latest log entry shows non-trivial disagreement; click drills into
+     the per-cluster JSON.
+
+6. **Decision logging.**
+   - Each `build-trade-ticket` run appends a row to
+     `reports/generated/decisions/log.jsonl`: `{as_of, cluster_key, market_id,
+     side, price, shares, source_state_hash, stale_flags, rule_coverage,
+     degraded_mode, model_outputs_refs, adjudicator_ref}`. Append-only; the
+     decision-history summary in the review packet reads from this log.
+   - Distinct from priority #7's "anti-leak guardrails" — those *block* bad
+     trades; this just *records* every decision so future review can ask "are
+     we improving?" without re-deriving from scratch.
+
+**Hard non-goals** (the brief proposed these; declining all):
+- No three-session sequencing as written. Polyberg's roadmap is interleaved by
+  priority, not gated by session phases. Each deliverable here is independently
+  shippable.
+- No `examples/iran-2026/` migration. `context/` stays canonical and user-owned.
+- No FastAPI / Vite / SPA-from-FastAPI. All endpoints land as Electron IPC.
+- No EOA private key handling whatsoever. The `derive_clob_creds.py` reference
+  in the brief is moot — polyberg's CLOB credentials come from
+  `POLYMARKET_*` env vars set by the user out-of-band; the project never sees
+  the private key. This boundary stays absolute.
+
+**Relationship to other priorities:**
+- Schema versioning + raw-payload preservation is a **prerequisite** for #3
+  (price collectors must be raw-first from day one), #5 (Perplexity cache),
+  and #6 (state diff needs reproducible inputs).
+- Review-packet preview consumes price features (#3) + ladder cash model (#4
+  here) + decision history (#6 here) + disagreement log (#5 here). Build the
+  inputs first, the preview last.
+- Rule-coverage gating ties directly to the `rule_risk` field already in the
+  registry; treat `rule_coverage` as a stricter machine-readable companion.
 
 ### Medium-term — History tab
 
@@ -572,7 +855,7 @@ These are explicitly *not* next-session items. Drop here so they don't get lost.
   N+25 with an open buy at the matching price implies that buy filled);
   major mark moves (5%+ in a window, leveraging the price-history pipeline
   from priority #3); kill-switch / churn flag trips once those land in
-  priority #6. Implementation sketch: new CLI subcommand `notify-telegram`
+  priority #7. Implementation sketch: new CLI subcommand `notify-telegram`
   that takes a message body and posts via the Bot API
   (`api.telegram.org/bot<TOKEN>/sendMessage`). Bot token + chat id in
   `.env`, never committed; created via BotFather. A small Python watcher
