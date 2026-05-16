@@ -301,6 +301,51 @@ def _dump_portfolio_yaml(portfolio: Portfolio) -> str:
     return yaml.safe_dump(data, sort_keys=False, default_flow_style=False, allow_unicode=True)
 
 
+def promote_balance(
+    raw_path: Path,
+    output_path: Path,
+    now: datetime | None = None,
+) -> tuple[Portfolio, float]:
+    """Refresh only ``cash_available`` (and the derived ``portfolio_value``)
+    in an existing canonical portfolio file from a CLOB ``usdc_balance.json``.
+
+    Positions, thesis buckets, etc. are preserved untouched. Returns the
+    updated ``Portfolio`` (not yet written) along with the previous
+    ``cash_available`` so callers can show a before/after.
+
+    Raises ``NormalizerError`` if the balance artifact is missing/malformed
+    or the canonical portfolio file does not yet exist.
+    """
+    cash = read_usdc_balance(raw_path)
+    if cash is None:
+        raise NormalizerError(
+            f"Could not read balance_usdc from {raw_path}. "
+            "Run 'import-clob-balance' first."
+        )
+    if not output_path.exists():
+        raise NormalizerError(
+            f"Canonical portfolio not found at {output_path}. "
+            "Run Positions PROMOTE first to establish the file."
+        )
+    existing = load_portfolio(output_path)
+    previous_cash = existing.cash_available
+
+    if now is None:
+        now = datetime.now(get_timezone())
+    elif now.tzinfo is None or now.utcoffset() is None:
+        now = now.replace(tzinfo=get_timezone())
+
+    positions_value = sum(p.current_value for p in existing.positions)
+    updated = existing.model_copy(
+        update={
+            "as_of": now,
+            "cash_available": max(0.0, cash),
+            "portfolio_value": positions_value + max(0.0, cash),
+        }
+    )
+    return updated, previous_cash
+
+
 def _outcome_to_side(raw: object) -> str:
     text = str(raw or "").strip().lower()
     if text in ("yes", "up"):

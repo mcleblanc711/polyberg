@@ -7,25 +7,21 @@ import { PasteImportModal } from './PasteImportModal'
 
 type SectionId = keyof AccountImport
 
-const SECTIONS: Array<{ id: SectionId; label: string; subtitle: string; promotable: boolean }> = [
+const SECTIONS: Array<{ id: SectionId; label: string; subtitle: string }> = [
   {
     id: 'positions',
     label: 'POSITIONS',
-    subtitle: 'positions_data_api.json  vs  portfolio_current.yaml',
-    promotable: true
+    subtitle: 'positions_data_api.json  vs  portfolio_current.yaml'
   },
   {
     id: 'balances',
     label: 'BALANCES',
-    subtitle:
-      'usdc_balance.json  vs  portfolio_current.yaml  (cash promoted alongside positions)',
-    promotable: false
+    subtitle: 'usdc_balance.json  vs  portfolio_current.yaml  (cash_available only)'
   },
   {
     id: 'openOrders',
     label: 'OPEN ORDERS',
-    subtitle: 'open_orders_clob.json  vs  open_orders.yaml  (CLOB L2 auth)',
-    promotable: true
+    subtitle: 'open_orders_clob.json  vs  open_orders.yaml  (CLOB L2 auth)'
   }
 ]
 
@@ -67,8 +63,8 @@ export const AccountScreen = () => {
           <div style={S.sub}>
             Imported account JSON (left) side-by-side with canonical context (right). Positions
             uses Polymarket data-api (unauthenticated, wallet-keyed); Open Orders and Balances use
-            the authenticated CLOB path. Positions and Open Orders support PROMOTE TO CONTEXT;
-            Balances cash is promoted alongside Positions today (standalone PROMOTE pending).
+            the authenticated CLOB path. All three tabs support PROMOTE TO CONTEXT; Balances
+            refreshes only cash_available in portfolio_current.yaml.
           </div>
           {wallet ? (
             <div style={S.walletLine}>
@@ -124,7 +120,7 @@ export const AccountScreen = () => {
       {!anyImported ? (
         <EmptyState />
       ) : (
-        <DiffPanel file={file} promotable={section.promotable} active={active} />
+        <DiffPanel file={file} active={active} />
       )}
 
       {runningStage && (
@@ -159,11 +155,9 @@ const EmptyState = () => (
 
 const DiffPanel = ({
   file,
-  promotable,
   active
 }: {
   file: AccountImportFile
-  promotable: boolean
   active: SectionId
 }) => (
   <div style={S.diffGrid}>
@@ -183,11 +177,7 @@ const DiffPanel = ({
       meta={file.canonicalText === '' ? '' : 'context/'}
       language="yaml"
     />
-    {promotable ? (
-      <PromoteRow file={file} active={active} />
-    ) : (
-      <PromoteDisabledRow active={active} />
-    )}
+    <PromoteRow file={file} active={active} />
   </div>
 )
 
@@ -237,7 +227,12 @@ type PromoteState =
 const PromoteRow = ({ file, active }: { file: AccountImportFile; active: SectionId }) => {
   const refresh = usePmDataRefresh()
   const [state, setState] = useState<PromoteState>({ kind: 'idle' })
-  const stage = active === 'openOrders' ? 'promote-orders' : 'promote-positions'
+  const stage =
+    active === 'openOrders'
+      ? 'promote-orders'
+      : active === 'balances'
+        ? 'promote-balance'
+        : 'promote-positions'
 
   const startPreview = async (): Promise<void> => {
     setState({ kind: 'previewing' })
@@ -310,21 +305,6 @@ const PromoteRow = ({ file, active }: { file: AccountImportFile; active: Section
         />
       )}
     </>
-  )
-}
-
-const PromoteDisabledRow = ({ active }: { active: SectionId }) => {
-  const note =
-    active === 'balances'
-      ? 'gated · the on-chain USDC balance is promoted automatically when you run PROMOTE on the Positions tab (cash_available in portfolio_current.yaml).'
-      : 'gated · no promote path wired for this tab yet.'
-  return (
-    <div style={S.promoteRow}>
-      <button style={S.promoteBtn} disabled>
-        PROMOTE TO CONTEXT ▸
-      </button>
-      <span style={S.promoteNote}>{note}</span>
-    </div>
   )
 }
 

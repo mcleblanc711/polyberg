@@ -870,19 +870,16 @@ These are explicitly *not* next-session items. Drop here so they don't get lost.
 
 ### Other deferred work
 
-- **Wire Balances tab PROMOTE.** The Balances pane in `AccountScreen` ships
-  with PROMOTE permanently disabled and a "needs authenticated path" note.
-  CLOB `/balance-allowance` is now that path. Read `usdc_balance.json`,
-  surface a side-by-side imported-vs-canonical view, enable PROMOTE to
-  write `cash_available` into `live_state.yaml.account_snapshot`.
-- **Visual verification of ACCOUNT tab (P1a v1).** The new `AccountScreen`
-  shipped with passing typecheck only — no one has actually opened the tab in
-  the Electron dev server yet. Things to eyeball on first run: tab activates,
-  empty-state shows when `reports/generated/account/` is empty, JSON pane
-  pretty-prints, canonical YAML pane renders, the disabled PROMOTE button
-  doesn't accidentally fire, side-by-side grid wraps reasonably on narrow
-  windows. After running `$ import-account-snapshot` (even against the
-  PM-US stub), confirm the file shows up live without an app restart.
+- **Visual verification of ACCOUNT tab.** The screen has shipped piece by
+  piece (P1a v1, the four import buttons, all three PROMOTE flows) with
+  passing typecheck but no one has actually opened it in the Electron dev
+  server yet. Things to eyeball on first run: each tab activates;
+  empty-state shows when `reports/generated/account/` is empty; JSON pane
+  pretty-prints; canonical YAML pane renders; each `$ import-*` button
+  fires its stage modal; each PROMOTE preview modal shows the dry-run YAML
+  before write; balance PROMOTE updates only `cash_available` (positions
+  list survives); side-by-side grid wraps reasonably on narrow windows.
+  After any import, confirm the file shows up live without an app restart.
 - Cosmetic stubs still no-op: search bar (⌘K), filter buttons.
 - `recent_catalysts.md` could be restructured to per-market sections so the catalyst
   timeline on each tab has data; today the file is section-based and the GUI shows

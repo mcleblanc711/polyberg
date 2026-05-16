@@ -250,6 +250,31 @@ def build_parser() -> argparse.ArgumentParser:
     )
     clob_balance.set_defaults(func=command_import_clob_balance)
 
+    promote_balance = subparsers.add_parser(
+        "promote-balance",
+        help=(
+            "Refresh only cash_available in portfolio_current.yaml from the "
+            "CLOB usdc_balance.json artifact. Positions are preserved."
+        ),
+    )
+    promote_balance.add_argument(
+        "--balance",
+        type=Path,
+        default=repo_path("reports", "generated", "account", "usdc_balance.json"),
+        help="Path to the CLOB usdc_balance.json artifact.",
+    )
+    promote_balance.add_argument(
+        "--output",
+        type=Path,
+        default=repo_path("context", "portfolio_current.yaml"),
+    )
+    promote_balance.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the would-be YAML to stdout instead of writing.",
+    )
+    promote_balance.set_defaults(func=command_promote_balance)
+
     price_history = subparsers.add_parser(
         "fetch-price-history",
         help="Fetch per-market CLOB price-history series and high/low windows.",
@@ -446,6 +471,31 @@ def command_promote_positions(args: argparse.Namespace) -> int:
         print(f"Skipped {len(skipped)} positions (not in registry):", file=sys.stderr)
         for s in skipped:
             print(f"  - {s}", file=sys.stderr)
+    return 0
+
+
+def command_promote_balance(args: argparse.Namespace) -> int:
+    from polyberg.account_normalizer import _dump_portfolio_yaml, promote_balance
+
+    try:
+        updated, previous_cash = promote_balance(args.balance, args.output)
+    except NormalizerError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    yaml_text = _dump_portfolio_yaml(updated)
+    print(
+        f"cash_available: ${previous_cash:.2f} → ${updated.cash_available:.2f} "
+        f"(source: {args.balance.name})",
+        file=sys.stderr,
+    )
+    if args.dry_run:
+        sys.stdout.write(yaml_text)
+        return 0
+
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(yaml_text, encoding="utf-8")
+    print(f"Wrote refreshed cash to {args.output}")
     return 0
 
 

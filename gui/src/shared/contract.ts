@@ -190,6 +190,7 @@ export const ALLOWED_STAGES = [
   'fetch-price-history',
   'promote-positions',
   'promote-orders',
+  'promote-balance',
   'paste-import'
 ] as const
 

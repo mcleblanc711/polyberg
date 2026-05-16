@@ -10,6 +10,7 @@ from polyberg.account_normalizer import (
     NormalizerError,
     normalize_clob_open_orders,
     normalize_data_api_positions,
+    promote_balance,
     promote_clob_open_orders,
     promote_data_api_positions,
     read_usdc_balance,
@@ -239,6 +240,67 @@ def test_read_usdc_balance_returns_none_for_non_numeric_field(tmp_path: Path) ->
     path = tmp_path / "usdc_balance.json"
     path.write_text(json.dumps({"balance_usdc": "abc"}), encoding="utf-8")
     assert read_usdc_balance(path) is None
+
+
+def _write_existing_portfolio(path: Path, cash: float) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "as_of: 2026-04-01T00:00:00+00:00",
+                "portfolio_value: 100.0",
+                f"cash_available: {cash}",
+                "positions:",
+                "  - market_id: hormuz_normal_may15",
+                "    market_name: Hormuz normal",
+                '    side: "NO"',
+                "    avg_price: 0.5",
+                "    mark_price: 0.5",
+                "    shares: 2.0",
+                "    current_value: 1.0",
+                "    pnl: 0",
+                "    thesis_bucket: core_hormuz",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_promote_balance_updates_cash_and_preserves_positions(tmp_path: Path) -> None:
+    balance = tmp_path / "usdc_balance.json"
+    balance.write_text(json.dumps({"balance_usdc": "42.5"}), encoding="utf-8")
+    portfolio_path = tmp_path / "portfolio_current.yaml"
+    _write_existing_portfolio(portfolio_path, cash=10.0)
+
+    updated, previous_cash = promote_balance(
+        balance, portfolio_path, now=datetime(2026, 5, 15, tzinfo=timezone.utc)
+    )
+
+    assert previous_cash == pytest.approx(10.0)
+    assert updated.cash_available == pytest.approx(42.5)
+    # portfolio_value = positions current_value (1.0) + new cash (42.5)
+    assert updated.portfolio_value == pytest.approx(43.5)
+    # Positions and thesis_bucket survive untouched.
+    assert len(updated.positions) == 1
+    assert updated.positions[0].market_id == "hormuz_normal_may15"
+    assert updated.positions[0].thesis_bucket == "core_hormuz"
+
+
+def test_promote_balance_raises_when_canonical_missing(tmp_path: Path) -> None:
+    balance = tmp_path / "usdc_balance.json"
+    balance.write_text(json.dumps({"balance_usdc": "10"}), encoding="utf-8")
+    missing = tmp_path / "portfolio_current.yaml"  # not created
+
+    with pytest.raises(NormalizerError, match="Run Positions PROMOTE first"):
+        promote_balance(balance, missing)
+
+
+def test_promote_balance_raises_when_balance_artifact_missing(tmp_path: Path) -> None:
+    portfolio_path = tmp_path / "portfolio_current.yaml"
+    _write_existing_portfolio(portfolio_path, cash=10.0)
+
+    with pytest.raises(NormalizerError, match="import-clob-balance"):
+        promote_balance(tmp_path / "absent.json", portfolio_path)
 
 
 def _clob_order(
