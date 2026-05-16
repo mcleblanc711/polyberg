@@ -46,6 +46,41 @@ def get_max_context_age_hours() -> float:
     return value
 
 
+def load_repo_dotenv(path: Path | None = None) -> int:
+    """Populate ``os.environ`` from the repo-root ``.env`` file.
+
+    Hand-rolled to avoid a python-dotenv dependency. Only sets keys that are
+    not already present, so a real shell env still wins. Lines starting with
+    ``#`` and blank lines are ignored; values may be wrapped in matching
+    single or double quotes which are stripped. Returns the number of keys
+    populated. Missing or unreadable ``.env`` is a no-op (returns 0) — this
+    keeps the CLI usable without any .env on systems that pass creds via
+    other means (CI, systemd, etc.).
+    """
+    env_path = path or repo_path(".env")
+    try:
+        text = env_path.read_text(encoding="utf-8")
+    except OSError:
+        return 0
+    written = 0
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        os.environ[key] = value
+        written += 1
+    return written
+
+
 def windows_safe_timestamp(
     dt: datetime | None = None,
     timezone_name: str = DEFAULT_TIMEZONE,

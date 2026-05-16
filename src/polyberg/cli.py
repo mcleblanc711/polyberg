@@ -16,7 +16,7 @@ from polyberg.collectors.polymarket_clob_balance import write_clob_balance
 from polyberg.collectors.polymarket_clob_orders import write_clob_open_orders
 from polyberg.collectors.polymarket_gamma import GammaCollectorError
 from polyberg.paste_import import PasteImportError, import_paste
-from polyberg.config import repo_path
+from polyberg.config import load_repo_dotenv, repo_path
 from polyberg.packet_builder import write_packet
 from polyberg.price_history import build_price_history_artifact, default_price_history_path
 from polyberg.snapshots import build_market_snapshot, default_snapshot_path, diff_snapshots
@@ -602,6 +602,7 @@ def command_fetch_price_history(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_repo_dotenv()
     parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)
