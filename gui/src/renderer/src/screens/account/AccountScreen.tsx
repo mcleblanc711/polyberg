@@ -42,7 +42,7 @@ export const AccountScreen = () => {
 
   const runImport = (): void => {
     if (!wallet) {
-      alert('No proxy_wallet set in context/live_state.yaml')
+      alert('No proxy_wallet set in context/live_state.yaml (or live_state.local.yaml overlay)')
       return
     }
     setRunningArgs(['--address', wallet])
@@ -54,15 +54,21 @@ export const AccountScreen = () => {
     setRunningStage('import-clob-orders')
   }
 
+  const runClobBalanceImport = (): void => {
+    setRunningArgs([])
+    setRunningStage('import-clob-balance')
+  }
+
   return (
     <div style={S.root}>
       <div style={S.header}>
         <div>
           <div style={S.h1}>// account import · read-only review</div>
           <div style={S.sub}>
-            Imported account JSON (left) side-by-side with canonical context (right). The Positions
-            tab uses Polymarket data-api (unauthenticated, wallet-keyed) and supports PROMOTE TO
-            CONTEXT. Balances and Open Orders require an authenticated path that's not wired here.
+            Imported account JSON (left) side-by-side with canonical context (right). Positions
+            uses Polymarket data-api (unauthenticated, wallet-keyed); Open Orders and Balances use
+            the authenticated CLOB path. Positions and Open Orders support PROMOTE TO CONTEXT;
+            Balances cash is promoted alongside Positions today (standalone PROMOTE pending).
           </div>
           {wallet ? (
             <div style={S.walletLine}>
@@ -70,7 +76,7 @@ export const AccountScreen = () => {
             </div>
           ) : (
             <div style={{ ...S.walletLine, color: C.amber }}>
-              proxy_wallet missing from live_state.yaml — import will fail
+              proxy_wallet missing — set in live_state.yaml or live_state.local.yaml overlay
             </div>
           )}
         </div>
@@ -80,6 +86,9 @@ export const AccountScreen = () => {
           </button>
           <button style={S.refreshBtn} onClick={runClobImport}>
             $ import-clob-orders
+          </button>
+          <button style={S.refreshBtn} onClick={runClobBalanceImport}>
+            $ import-clob-balance
           </button>
           <button style={S.refreshBtn} onClick={() => setPasteOpen(true)}>
             $ paste-import

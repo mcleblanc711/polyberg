@@ -306,7 +306,10 @@ const readLiveState = () => {
   }
   const notesRaw = data?.notes
   const notes = Array.isArray(notesRaw) ? notesRaw.join('\n') : asString(notesRaw)
-  const proxyWallet = asString(data?.proxy_wallet)
+  // Optional gitignored overlay (context/live_state.local.yaml). Keeps the real
+  // proxy_wallet off-repo while still letting the GUI pick it up.
+  const localData = loadYaml<LiveStateFile>(resolve(CONTEXT_DIR, 'live_state.local.yaml'))
+  const proxyWallet = asString(localData?.proxy_wallet ?? data?.proxy_wallet)
   return { mode, cash, thesis, constraints, notes, proxyWallet }
 }
 

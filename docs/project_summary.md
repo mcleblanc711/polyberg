@@ -214,8 +214,10 @@ as a ground-truth source for resolution rules. Three paths, all strictly read-on
    (`data-api.polymarket.com` for positions-by-wallet, etc.), which are unauthenticated.
 
    **Status (v2, shipped):** Pivoted to the unauthenticated Polygon `data-api.polymarket.com/positions`
-   endpoint, which is wallet-keyed and doesn't require keys. `live_state.yaml` now carries
-   `proxy_wallet`. The GUI's import button fires `import-public-positions --address <wallet>`
+   endpoint, which is wallet-keyed and doesn't require keys. `live_state.yaml` carries
+   `proxy_wallet` (left blank in-repo; real value goes in the gitignored
+   `context/live_state.local.yaml` overlay that `readContext.ts` reads on top).
+   The GUI's import button fires `import-public-positions --address <wallet>`
    and writes `reports/generated/account/positions_data_api.json`. A new
    `src/polyberg/account_normalizer.py` maps that response onto the canonical `Portfolio`
    schema by `conditionId` ↔ registry lookup; `thesis_bucket` annotations on existing positions
@@ -868,11 +870,6 @@ These are explicitly *not* next-session items. Drop here so they don't get lost.
 
 ### Other deferred work
 
-- **AccountScreen `$ import-clob-balance` button.** Cash now flows via
-  `import-clob-balance` (commit `1eaf15b`, 2026-05-14), but the button is
-  CLI-only — `AccountScreen.tsx` only surfaces `import-public-positions`,
-  `import-clob-orders`, and `paste-import`. Add a fourth button mirroring
-  the orders one (no `--address` arg needed; CLOB creds carry the signer).
 - **Wire Balances tab PROMOTE.** The Balances pane in `AccountScreen` ships
   with PROMOTE permanently disabled and a "needs authenticated path" note.
   CLOB `/balance-allowance` is now that path. Read `usdc_balance.json`,

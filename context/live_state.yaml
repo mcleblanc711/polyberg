@@ -1,7 +1,8 @@
 as_of: 2026-04-26T09:00:00-06:00
 mode: research_only
-# Polymarket proxy wallet for data-api position imports. Leave blank if not
-# using the unauthenticated import path; the GUI will surface an amber notice.
+# Polymarket proxy wallet for data-api position imports. Leave blank here and
+# put the real address in a gitignored `context/live_state.local.yaml` overlay
+# to keep it off-repo. If both are blank, the GUI surfaces an amber notice.
 proxy_wallet: ""
 account_snapshot:
   portfolio_value: 2400.50
