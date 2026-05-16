@@ -69,7 +69,7 @@ export const usePmDataRefresh = (): (() => Promise<void>) => useContext(PmDataRe
 const splashStyle = {
   width: '100vw',
   height: '100vh',
-  background: '#050007',
+  background: '#030004',
   color: '#7a4f86',
   display: 'flex',
   alignItems: 'center',
