@@ -875,12 +875,6 @@ These are explicitly *not* next-session items. Drop here so they don't get lost.
   CLOB `/balance-allowance` is now that path. Read `usdc_balance.json`,
   surface a side-by-side imported-vs-canonical view, enable PROMOTE to
   write `cash_available` into `live_state.yaml.account_snapshot`.
-- **Fix stale `test_load_yaml_context_files`.** Asserts the registry has 3
-  demo markets but the real registry now has 10 (per commit `05debfd`).
-  Either (a) update the assertion to `>= 3`, (b) point the test at a
-  fixture-only registry under `tests/fixtures/`, or (c) drop the count
-  assertion and assert the three demo IDs by name. Long-standing pre-
-  existing failure, blocks a clean test-suite green.
 - **Visual verification of ACCOUNT tab (P1a v1).** The new `AccountScreen`
   shipped with passing typecheck only — no one has actually opened the tab in
   the Electron dev server yet. Things to eyeball on first run: tab activates,

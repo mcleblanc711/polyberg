@@ -18,7 +18,8 @@ def test_load_yaml_context_files() -> None:
     open_orders = load_open_orders(registry=registry)
     live_state = load_live_state(registry=registry)
 
-    assert len(registry.markets) == 3
+    market_ids = {m.market_id for m in registry.markets}
+    assert {"hormuz_normal_may15", "trump_blockade_lifted_apr30", "cl_high_120_end_june"} <= market_ids
     assert portfolio.cash_available >= 0
     assert open_orders.sell_orders[0].side == "NO"
     assert "hormuz_normal_may15" in live_state.watchlist
