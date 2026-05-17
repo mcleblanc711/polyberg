@@ -14,6 +14,10 @@ let streamSeq = 0
 const pm: PmBridge = {
   readContext: () => ipcRenderer.invoke(IPC.readContext),
 
+  readArtifact: (name) => ipcRenderer.invoke(IPC.readArtifact, name),
+
+  writeClipboard: (text) => ipcRenderer.invoke(IPC.writeClipboard, text),
+
   runStage: (name, args) => ipcRenderer.invoke(IPC.runStage, name, args),
 
   runStageStream: (name, args, onChunk) => {

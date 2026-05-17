@@ -1,5 +1,6 @@
-import { ipcMain, type IpcMainInvokeEvent } from 'electron'
-import { IPC, type Catalyst, type DraftOrder, type PasteKind } from '../../shared/contract'
+import { clipboard, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { IPC, type ArtifactName, type Catalyst, type DraftOrder, type PasteKind } from '../../shared/contract'
+import { readArtifact } from './readArtifact'
 import { readContext } from './readContext'
 import { runStage, runStageStream } from './runStage'
 import { appendCatalyst, writeDraftOrder, writePasteInput } from './writers'
@@ -12,6 +13,15 @@ export const registerIpc = (): void => {
   registered = true
 
   ipcMain.handle(IPC.readContext, () => readContext())
+
+  ipcMain.handle(IPC.readArtifact, (_evt, name: ArtifactName) => readArtifact(name))
+
+  ipcMain.handle(IPC.writeClipboard, (_evt, text: string) => {
+    if (typeof text !== 'string') {
+      throw new Error('writeClipboard expects a string')
+    }
+    clipboard.writeText(text)
+  })
 
   ipcMain.handle(IPC.runStage, (_evt, name: string, args?: string[]) => runStage(name, args))
 

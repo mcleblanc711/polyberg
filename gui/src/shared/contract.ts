@@ -201,6 +201,8 @@ export const isAllowedStage = (name: string): name is AllowedStage =>
 
 export const IPC = {
   readContext: 'pm:readContext',
+  readArtifact: 'pm:readArtifact',
+  writeClipboard: 'pm:writeClipboard',
   runStage: 'pm:runStage',
   runStageStream: 'pm:runStageStream',
   runStageStreamChunk: 'pm:runStageStream:chunk',
@@ -212,6 +214,18 @@ export const IPC = {
   watchEvent: 'pm:watch:event'
 } as const
 
+export type ArtifactName = 'packet' | 'adjudicator-input'
+
+export interface ArtifactRead {
+  name: ArtifactName
+  filename: string
+  exists: boolean
+  content: string
+  bytes: number
+  mtimeIso: string
+  ageMin: number | null
+}
+
 export interface ContextChangeEvent {
   path: string
   kind: 'add' | 'change' | 'unlink'
@@ -219,6 +233,8 @@ export interface ContextChangeEvent {
 
 export interface PmBridge {
   readContext: () => Promise<PmDataPayload>
+  readArtifact: (name: ArtifactName) => Promise<ArtifactRead>
+  writeClipboard: (text: string) => Promise<void>
   runStage: (name: string, args?: string[]) => Promise<RunStageResult>
   runStageStream: (
     name: string,

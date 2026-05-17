@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react'
-import { usePmData } from '../../lib/pmDataContext'
+import { usePmData, usePmDataRefresh } from '../../lib/pmDataContext'
 import { useLocalState } from '../../lib/useLocalState'
 import { colors as C, fonts as F } from '../../styles/tokens'
 import type { IntakeItem, IntakeKind, IntakeStatus } from '../../lib/types'
@@ -204,7 +204,15 @@ export const IntakeScreen = () => {
       </div>
 
       {showRebuild ? (
-        <RebuildModal items={confirmed} onClose={() => setShowRebuild(false)} />
+        <RebuildModal
+          items={confirmed}
+          onClose={() => setShowRebuild(false)}
+          onWritten={(writtenIds) => {
+            if (writtenIds.length > 0) {
+              setItems(items.filter((i) => !writtenIds.includes(i.id)))
+            }
+          }}
+        />
       ) : null}
     </div>
   )
@@ -328,19 +336,56 @@ const QueueRow = ({
   )
 }
 
+type WriteState =
+  | { kind: 'idle' }
+  | { kind: 'writing' }
+  | { kind: 'done'; wrote: number; failed: Array<{ id: string; reason: string }> }
+
 const RebuildModal = ({
   items,
-  onClose
+  onClose,
+  onWritten
 }: {
   items: IntakeItem[]
   onClose: () => void
+  onWritten: (writtenIds: string[]) => void
 }) => {
   const pmData = usePmData()
+  const refresh = usePmDataRefresh()
+  const [state, setState] = useState<WriteState>({ kind: 'idle' })
+
   const byMarket: Record<string, IntakeItem[]> = {}
   items.forEach((it) => {
     const k = it.suggestedMarket || '__untagged'
     ;(byMarket[k] = byMarket[k] || []).push(it)
   })
+
+  const taggedItems = items.filter((it) => Boolean(it.suggestedMarket))
+  const untaggedCount = items.length - taggedItems.length
+
+  const onWrite = async (): Promise<void> => {
+    if (state.kind === 'writing' || taggedItems.length === 0) return
+    setState({ kind: 'writing' })
+    const written: string[] = []
+    const failed: Array<{ id: string; reason: string }> = []
+    for (const it of taggedItems) {
+      const marketId = it.suggestedMarket!
+      try {
+        await window.pm.appendCatalyst(marketId, {
+          t: it.addedAt,
+          src: `${it.author} (${it.kind})`,
+          txt: it.text
+        })
+        written.push(it.id)
+      } catch (err) {
+        failed.push({ id: it.id, reason: err instanceof Error ? err.message : String(err) })
+      }
+    }
+    onWritten(written)
+    await refresh()
+    setState({ kind: 'done', wrote: written.length, failed })
+  }
+
   return (
     <div style={S.modalOverlay} onClick={onClose}>
       <div style={S.modal} onClick={(e) => e.stopPropagation()}>
@@ -350,7 +395,7 @@ const RebuildModal = ({
             <div style={S.h1Sub}>// no files written until you approve</div>
           </div>
           <button style={S.btnGhost} onClick={onClose}>
-            ✕ CANCEL
+            ✕ CLOSE
           </button>
         </div>
 
@@ -358,24 +403,25 @@ const RebuildModal = ({
           <div style={S.diffSubhdr}>// recent_catalysts.md · proposed appends</div>
           {Object.entries(byMarket).map(([mid, list]) => {
             const m = mid === '__untagged' ? undefined : pmData.marketById(mid)
+            const headingColor = mid === '__untagged' ? C.amber : C.magenta
             return (
               <div key={mid} style={S.diffMarket}>
                 <div style={S.diffMarketHdr}>
-                  <span style={{ color: C.magenta, textShadow: `0 0 4px ${C.magenta}` }}>
-                    ## {mid}
+                  <span style={{ color: headingColor, textShadow: `0 0 4px ${headingColor}` }}>
+                    {mid === '__untagged' ? '## (UNTAGGED — skipped)' : `## ${mid}`}
                   </span>
                   <span style={{ color: C.textDim, marginLeft: 8 }}>
-                    {m ? m.name : 'untagged'}
+                    {m ? m.name : 'tag a market_id before rebuilding to include these'}
                   </span>
                   <span
                     style={{
                       marginLeft: 'auto',
-                      color: C.cyan,
+                      color: mid === '__untagged' ? C.amber : C.cyan,
                       fontFamily: F.mono,
                       fontSize: 10.5
                     }}
                   >
-                    +{list.length} ENTRIES
+                    {mid === '__untagged' ? `${list.length} SKIPPED` : `+${list.length} ENTRIES`}
                   </span>
                 </div>
                 <pre style={S.diffPre}>
@@ -392,31 +438,67 @@ const RebuildModal = ({
             )
           })}
 
-          <div style={{ ...S.diffSubhdr, marginTop: 18 }}>
-            // live_state.yaml thesis · no changes proposed
-          </div>
-          <div style={S.diffNoChange}>= thesis unchanged · constraints unchanged</div>
-
-          <div style={{ ...S.diffSubhdr, marginTop: 14 }}>
-            // project instructions · no changes proposed
-          </div>
-          <div style={S.diffNoChange}>= context/instructions.md unchanged</div>
+          {state.kind === 'done' && (
+            <div style={{ marginTop: 14 }}>
+              <div style={S.diffSubhdr}>// write result</div>
+              <div
+                style={{
+                  ...S.diffNoChange,
+                  color: state.failed.length === 0 ? C.cyan : C.amber,
+                  borderColor: state.failed.length === 0 ? C.cyan : C.amber
+                }}
+              >
+                wrote {state.wrote} {state.wrote === 1 ? 'entry' : 'entries'} to
+                recent_catalysts.md
+                {state.failed.length > 0 ? ` · ${state.failed.length} failed (see below)` : ''}
+              </div>
+              {state.failed.length > 0 && (
+                <pre
+                  style={{
+                    ...S.diffPre,
+                    color: C.red,
+                    background: C.bgRow,
+                    border: `1px solid ${C.red}`,
+                    marginTop: 8
+                  }}
+                >
+                  {state.failed.map((f) => `! ${f.id}: ${f.reason}`).join('\n')}
+                </pre>
+              )}
+            </div>
+          )}
         </div>
 
         <div style={S.modalFoot}>
           <span style={{ ...S.warnLine, flex: 1 }}>
             <span style={{ color: C.amber }}>⚠</span>
             <span>
-              writing {items.length} entries to{' '}
-              <span style={{ color: C.magenta }}>recent_catalysts.md</span> · proceeds to next
-              workflow stage on success
+              writing {taggedItems.length} of {items.length} entries to{' '}
+              <span style={{ color: C.magenta }}>recent_catalysts.md</span>
+              {untaggedCount > 0
+                ? ` · ${untaggedCount} untagged item${untaggedCount === 1 ? '' : 's'} will be skipped`
+                : ''}
+              {' · run '}
+              <span style={{ color: C.cyan }}>build-packet</span> afterwards to include them
             </span>
           </span>
           <button style={S.btnGhost} onClick={onClose}>
-            CANCEL
+            {state.kind === 'done' ? 'CLOSE' : 'CANCEL'}
           </button>
-          <button style={{ ...S.btnPrimary, padding: '8px 18px' }} onClick={onClose}>
-            WRITE & ADVANCE ▸
+          <button
+            style={{
+              ...S.btnPrimary,
+              padding: '8px 18px',
+              opacity: state.kind === 'writing' || taggedItems.length === 0 ? 0.4 : 1
+            }}
+            disabled={state.kind === 'writing' || taggedItems.length === 0}
+            onClick={onWrite}
+          >
+            {state.kind === 'writing'
+              ? 'WRITING…'
+              : state.kind === 'done'
+                ? 'WRITE AGAIN ▸'
+                : 'WRITE & ADVANCE ▸'}
           </button>
         </div>
       </div>
