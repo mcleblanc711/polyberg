@@ -42,10 +42,17 @@ export const RightRail = () => {
       <div style={S.rrCard}>
         <div style={S.rrHdr}>// account · read-only</div>
         <div style={{ padding: '4px 12px 12px' }}>
-          <KVRow k="proxy wallet" v="0xA3…f2D1" mono />
-          <KVRow k="positions" v="3 imported · 0 diffs" />
+          <KVRow
+            k="proxy wallet"
+            v={
+              pmData.liveState.proxyWallet
+                ? `${pmData.liveState.proxyWallet.slice(0, 6)}…${pmData.liveState.proxyWallet.slice(-4)}`
+                : 'not configured'
+            }
+            mono
+          />
+          <KVRow k="positions" v={`${pmData.positions.length} imported`} />
           <KVRow k="open orders" v={`${pmData.openOrders.length} imported`} />
-          <KVRow k="last fetch" v="13:42:11 UTC" mono />
           <KVRow k="mode" v="GET only" accent={C.cyan} />
           <button style={S.acctBtn} onClick={() => setRunningStage('import-account-snapshot')}>
             $ import-account-snapshot

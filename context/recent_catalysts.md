@@ -2,8 +2,13 @@
 
 Manually curated short-horizon news, rumours, and missing-info notes that the
 packet builder embeds into the LLM-facing context block. This file ships with
-**sample entries** in the public repo. Your real research log should live in
-`context/recent_catalysts.local.md` (gitignored).
+**sample entries** in the public repo.
+
+The packet builder reads this tracked file directly — there is no
+`recent_catalysts.local.md` overlay on the CLI side. If you want to keep a
+private reference copy off-repo, save it as `recent_catalysts.local.md`
+(gitignored) and either swap it in locally when building a packet or feed
+entries through the GUI's Intake tab, which writes back to this tracked file.
 
 Each entry should be tagged to a `market_id` from `context/market_registry.yaml`
 so the packet builder can route it correctly.
@@ -38,8 +43,7 @@ so the packet builder can route it correctly.
 
 ## Notes
 
-- All entries here are illustrative. Replace with your own curated log in the
-  gitignored `recent_catalysts.local.md` sibling, or import via the GUI's
-  Intake tab.
+- All entries here are illustrative. Replace with your own curated entries in
+  this file, or import via the GUI's Intake tab.
 - Treat Twitter/X items as noisy and non-authoritative; they are catalyst
   signals only, never resolution evidence.

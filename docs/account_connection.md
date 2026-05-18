@@ -24,17 +24,13 @@ Use the public Polymarket Data API for current positions when a proxy-wallet add
 
 This path does not provide open orders or account balances, but it avoids API credentials.
 
-### USDC balance via Polygon RPC
+### USDC balance via CLOB `/balance-allowance`
 
-The proxy wallet's idle USDC.e balance is fetched by direct on-chain `eth_call` to the
-USDC.e ERC-20 contract on Polygon. Default RPC is `https://polygon.drpc.org`; override with
-the `POLYGON_RPC_URL` env var.
-
-- Contract: `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` (USDC.e, 6 decimals)
-- Method: `balanceOf(address)` via JSON-RPC `eth_call`
-
-This is unauthenticated, GET-only at the HTTP layer (a POST is required by JSON-RPC but the
-intent is read-only). No private key, no signing.
+Polyberg used to fetch the proxy wallet's idle USDC.e balance via a direct on-chain
+`eth_call` against Polygon. That path has been replaced: the CLOB exposes a
+`/balance-allowance` endpoint (authenticated via the same L2 HMAC scheme as open
+orders) that returns the wallet's collateral with `signature_type=1` for proxy-wallet
+accounts. See `collectors/polymarket_clob_balance.py`.
 
 ### Open orders via CLOB L2 auth
 
@@ -89,11 +85,14 @@ should be read from environment variables at runtime and never written into repo
 Implemented commands:
 
 ```bash
-# Positions + on-chain USDC balance (unauth)
+# Positions via public Data API (unauth)
 python -m polyberg.cli import-public-positions --address 0x...
 
 # Open orders via CLOB L2 auth
 python -m polyberg.cli import-clob-orders
+
+# USDC collateral balance via CLOB L2 auth
+python -m polyberg.cli import-clob-balance
 
 # Authenticated PM-US snapshot (positions, balances, open orders)
 python -m polyberg.cli import-account-snapshot

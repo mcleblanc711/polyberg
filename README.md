@@ -27,8 +27,9 @@ markets; diff before any file is written.
 
 ![Intake](design/screenshots/02-intake.png)
 
-**Snapshots** — read-only Gamma/CLOB market snapshots with diff against prior
-captures.
+**Snapshots** — structured market-snapshot scaffold with diff against prior
+captures. The live Gamma/CLOB collector wiring is a known gap; the current
+`snapshot-markets` command emits the schema with placeholder prices.
 
 ![Snapshots](design/screenshots/03-snapshots.png)
 
@@ -36,7 +37,7 @@ captures.
 
 ![Catalysts](design/screenshots/04-catalysts.png)
 
-**Packet review** — generated `packet.yaml` next to adjudicator status and next
+**Packet review** — generated `packet.md` next to adjudicator status and next
 stage.
 
 ![Packet](design/screenshots/05-packet.png)
@@ -78,10 +79,12 @@ not verify live markets, news, order books, or oracle data.
 | Browser automation        | ❌ never             |
 | Scrape websites           | ❌ never             |
 
-Authenticated CLOB access uses a pre-minted `(api_key, secret, passphrase)`
-triple plus the signer EOA address. The repo never touches your wallet's
-private key. See [`docs/account_connection.md`](docs/account_connection.md) for
-the full credential model.
+Authenticated reads use a pre-minted `(api_key, secret, passphrase)` triple
+plus the signer EOA address for the Polymarket CLOB. An optional Polymarket
+US API key/secret pair is also supported for tenants that use that API
+surface; both paths are GET-only. The repo never touches your wallet's
+private key. See [`docs/account_connection.md`](docs/account_connection.md)
+for the full credential model.
 
 ---
 
@@ -134,11 +137,14 @@ your real data into gitignored sibling files:
 | `context/portfolio_current.yaml` | `context/portfolio_current.local.yaml` |
 | `context/open_orders.yaml`    | `context/open_orders.local.yaml`    |
 
-`live_state.local.yaml` is read as an overlay automatically. For
-`portfolio_current` and `open_orders`, populate the `.local.yaml` siblings as
-your reference copy, then either restore the real content into the tracked
-files locally and use `git update-index --skip-worktree` to keep git quiet, or
-import via the GUI / CLI which writes the tracked files directly.
+The GUI reads `live_state.local.yaml` as an overlay on top of
+`live_state.yaml` (so the real proxy wallet stays out of the tracked file).
+The Python CLI does **not** apply overlays today — it reads only the tracked
+context files. For `portfolio_current`, `open_orders`, and
+`recent_catalysts.md`, treat the `.local.*` siblings as your private reference
+copy and either restore the real content into the tracked files locally and
+use `git update-index --skip-worktree` to keep git quiet, or import via the
+GUI / CLI which writes the tracked files directly.
 
 ---
 
