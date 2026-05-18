@@ -18,8 +18,10 @@ reports/generated/**
 # Local Claude Code workspace settings
 .claude/
 
-# Local-only context overrides (e.g., proxy_wallet kept off-repo)
+# Local-only context overrides (e.g., proxy_wallet, real portfolio, real
+# catalyst log kept off-repo)
 context/*.local.yaml
+context/*.local.md
 
 # Electron GUI build artifacts
 gui/node_modules/

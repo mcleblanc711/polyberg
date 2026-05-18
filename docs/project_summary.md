@@ -1110,6 +1110,6 @@ Result:
 
 - `python` is not available on this machine path; use `.venv/bin/python` or `python3`.
 - System `python3` does not have pytest installed; the repo virtualenv does.
-- The repository checked for this summary is `/home/cleblanc/projects/autoAchaemenes/polyberg`.
-- The parent directory `/home/cleblanc/projects/autoAchaemenes` is not itself a git repository; the
-  project directory is the meaningful working directory.
+- The repository checked for this summary is the local clone of `polyberg`.
+- The project directory is the meaningful working directory; nothing outside
+  it needs to be a git repository.
