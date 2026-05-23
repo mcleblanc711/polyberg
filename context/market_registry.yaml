@@ -1,88 +1,9 @@
 markets:
-  - market_id: hormuz_normal_may15
-    name: Hormuz normal by May 15
-    polymarket_url: https://polymarket.com/event/example-hormuz-normal
-    category: core_hormuz
-    rule_key: hormuz_portwatch_60_7dma
-    oracle_type: IMF Portwatch data
-    preferred_side: "NO"
-    risk_flags:
-      - pure data oracle
-      - low media ambiguity
-    event_slug: example-hormuz-normal
-    condition_id: ""
-    yes_token_id: ""
-    no_token_id: ""
-    data_collection:
-      fetch_gamma: true
-      fetch_clob: true
-      fetch_orderbook: true
-    rule_risk:
-      oracle_type: pure_data
-      ambiguity: low
-      media_fallback: false
-      official_statement_required: false
-      dispute_risk: low
-    resolution_date: 2026-05-15
-    notes: Resolves on IMF Portwatch 7-day moving average of transit calls.
-  - market_id: trump_blockade_lifted_apr30
-    name: Trump blockade lifted by Apr 30
-    polymarket_url: https://polymarket.com/event/example-trump-blockade
-    category: announcement_risk
-    rule_key: official_blockade_lifted_announcement
-    oracle_type: Official Trump or US government announcement
-    preferred_side: "NO"
-    risk_flags:
-      - Trump social post can qualify
-      - media fallback may matter
-      - deadline gamma
-    event_slug: example-trump-blockade
-    condition_id: ""
-    yes_token_id: ""
-    no_token_id: ""
-    data_collection:
-      fetch_gamma: true
-      fetch_clob: true
-      fetch_orderbook: true
-    rule_risk:
-      oracle_type: official_statement_required
-      ambiguity: medium
-      media_fallback: true
-      official_statement_required: true
-      dispute_risk: medium
-    resolution_date: 2026-04-30
-    notes: Requires explicit official announcement that the blockade has ended or will end.
-  - market_id: cl_high_120_end_june
-    name: CL HIGH $120 by end June
-    polymarket_url: https://polymarket.com/event/example-cl-high-120
-    category: oil
-    rule_key: nymex_cl_high_print
-    oracle_type: NYMEX WTI crude oil futures price
-    preferred_side: "NO"
-    risk_flags:
-      - high volatility
-      - correlated with Hormuz escalation
-      - liquidity can gap
-    event_slug: example-cl-high-120
-    condition_id: ""
-    yes_token_id: ""
-    no_token_id: ""
-    data_collection:
-      fetch_gamma: true
-      fetch_clob: true
-      fetch_orderbook: true
-    rule_risk:
-      oracle_type: pure_data
-      ambiguity: low
-      media_fallback: false
-      official_statement_required: false
-      dispute_risk: low
-    resolution_date: 2026-06-30
-    notes: Resolves on whether the specified CL contract reaches or exceeds $120 by deadline.
   - market_id: hormuz_normal_end_june
     name: Hormuz normal by end of June 2026
     polymarket_url: https://polymarket.com/event/strait-of-hormuz-traffic-returns-to-normal-by-end-of-june
     category: core_hormuz
+    thesis_bucket: "Iran conflict"
     rule_key: hormuz_portwatch_7dma
     oracle_type: IMF Portwatch data
     preferred_side: "NO"
@@ -109,6 +30,7 @@ markets:
     name: Hormuz normal by July 31 2026
     polymarket_url: https://polymarket.com/event/strait-of-hormuz-traffic-returns-to-normal-by-july-31
     category: core_hormuz
+    thesis_bucket: "Iran conflict"
     rule_key: hormuz_portwatch_7dma
     oracle_type: IMF Portwatch data
     preferred_side: "NO"
@@ -135,6 +57,7 @@ markets:
     name: Hormuz normal by December 31 2026
     polymarket_url: https://polymarket.com/event/strait-of-hormuz-traffic-returns-to-normal-by-december-31
     category: core_hormuz
+    thesis_bucket: "Iran conflict"
     rule_key: hormuz_portwatch_7dma
     oracle_type: IMF Portwatch data
     preferred_side: "NO"
@@ -162,6 +85,7 @@ markets:
     name: US x Iran permanent peace deal by June 30 2026
     polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
     category: iran_us_diplomacy
+    thesis_bucket: "Iran conflict"
     rule_key: iran_us_peace_treaty_announcement
     oracle_type: Official US/Iran joint statement or formal treaty announcement
     preferred_side: "NO"
@@ -189,6 +113,7 @@ markets:
     name: US x Iran permanent peace deal by December 31 2026
     polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
     category: iran_us_diplomacy
+    thesis_bucket: "Iran conflict"
     rule_key: iran_us_peace_treaty_announcement
     oracle_type: Official US/Iran joint statement or formal treaty announcement
     preferred_side: "NO"
@@ -217,6 +142,7 @@ markets:
     name: Trump announces US Hormuz blockade lifted by May 31 2026
     polymarket_url: https://polymarket.com/event/will-donald-trump-announce-that-the-united-states-blockade-of-the-strait-of-hormuz-has-been-lifted-by-may-31-2026
     category: announcement_risk
+    thesis_bucket: "Iran conflict"
     rule_key: official_blockade_lifted_announcement
     oracle_type: Official Trump or US government announcement
     preferred_side: "NO"
@@ -244,6 +170,7 @@ markets:
     name: Trump announces US Hormuz blockade lifted by June 30 2026
     polymarket_url: https://polymarket.com/event/will-donald-trump-announce-that-the-united-states-blockade-of-the-strait-of-hormuz-has-been-lifted-by-june-30-2026
     category: announcement_risk
+    thesis_bucket: "Iran conflict"
     rule_key: official_blockade_lifted_announcement
     oracle_type: Official Trump or US government announcement
     preferred_side: "NO"
@@ -267,3 +194,187 @@ markets:
       dispute_risk: medium
     resolution_date: 2026-06-30
     notes: Requires explicit official announcement that the US Hormuz blockade has been lifted by deadline.
+  - market_id: iran_airspace_closed_may21
+    name: Iran closes its airspace by May 21
+    polymarket_url: https://polymarket.com/event/iran-closes-its-airspace-by-may-21
+    category: announcement_risk
+    thesis_bucket: "Iran conflict"
+    rule_key: iran_airspace_major_closure
+    oracle_type: Iranian aviation authorities + consensus of credible reporting
+    preferred_side: "NO"
+    risk_flags:
+      - '"major" closure is interpretive'
+      - weather-only closures excluded
+      - airline/foreign-country no-fly-zones do not count
+      - 'bright-line threshold: at least 2 of IKA/THR/MHD/SYZ/IFN suspended'
+    event_slug: iran-closes-its-airspace-by-may-21
+    condition_id: "0x098afead2c41677b0f09ae9d0013ca520eacdb3f0d7c8985c6581de7a0e9ac37"
+    yes_token_id: "25765184634765339363827807992411986670067641678875992164214223288175352348465"
+    no_token_id: "112135611227049632102833296892649508522129989874688677403193353750752980311218"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: false
+      dispute_risk: medium
+    resolution_date: 2026-05-21
+    notes: |
+      YES on a major non-weather closure, cancellation, or suspension of commercial
+      flights across Iran or a major Iranian airspace region by 2026-05-21 23:59 ET.
+      Bright line: non-weather complete suspension of commercial arrivals/departures
+      at ≥2 of IKA, THR, MHD, SYZ, IFN qualifies. Limited cancellations, partial
+      closures, weather-only closures, and foreign airline/country no-fly-zones do
+      not qualify. Primary source: Iranian aviation authorities + consensus of
+      credible reporting.
+  - market_id: uae_warships_hormuz_may31
+    name: UAE sends warships through Strait of Hormuz by May 31 2026
+    polymarket_url: https://polymarket.com/event/will-the-united-arab-emirates-send-warships-through-the-strait-of-hormuz-by-may-31-2026
+    category: warships_hormuz
+    thesis_bucket: "Iran conflict"
+    rule_key: warships_hormuz_transit
+    oracle_type: National government / military announcement OR overwhelming consensus of credible reporting
+    preferred_side: "NO"
+    risk_flags:
+      - low base rate
+      - must transit narrowest section (Iran/Oman) — not Persian Gulf / Gulf of Oman / Arabian Sea
+      - aerial / cyber / proxy actions excluded
+      - military cargo & support vessels count as warships
+    event_slug: will-the-united-arab-emirates-send-warships-through-the-strait-of-hormuz-by-may-31-2026
+    condition_id: "0xc5156fa062c97461c79f46d2e80931f74ed1299864702d7b7ed1cc0008d116e8"
+    yes_token_id: "59030282194382298150399818471891513635179535266899735059928126419041409896251"
+    no_token_id: "49843979321564192902075308923597963943975259297795004613915893853501810625125"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: low
+      media_fallback: true
+      official_statement_required: false
+      dispute_risk: low
+    resolution_date: 2026-05-31
+    notes: |
+      YES on confirmation that UAE warships transited through the Strait of Hormuz
+      (narrowest portion between Iran and Oman) between market creation and
+      2026-05-31 23:59 ET. Military cargo/support vessels count; commercial/civilian
+      do not. Operations only in Persian Gulf, Gulf of Oman, or Arabian Sea without
+      transit through the narrowest section do not qualify. Aerial ops, cyber ops,
+      and proxy/third-party actions do not qualify. Resolves on official UAE
+      government/military confirmation OR overwhelming consensus of credible reporting.
+  - market_id: uk_warships_hormuz_may31
+    name: UK sends warships through Strait of Hormuz by May 31 2026
+    polymarket_url: https://polymarket.com/event/will-the-united-kingdom-send-warships-through-the-strait-of-hormuz-by-may-31-2026
+    category: warships_hormuz
+    thesis_bucket: "Iran conflict"
+    rule_key: warships_hormuz_transit
+    oracle_type: National government / military announcement OR overwhelming consensus of credible reporting
+    preferred_side: "NO"
+    risk_flags:
+      - low base rate
+      - must transit narrowest section (Iran/Oman) — not Persian Gulf / Gulf of Oman / Arabian Sea
+      - aerial / cyber / proxy actions excluded
+      - military cargo & support vessels count as warships
+    event_slug: will-the-united-kingdom-send-warships-through-the-strait-of-hormuz-by-may-31-2026
+    condition_id: "0x3e16995cf503447641ca6a27b40f0e6e1151256c1869e9b0082e7bda26463731"
+    yes_token_id: "113086978742419291208632456570704662173894468176090552875484773033456361373711"
+    no_token_id: "115429095502765992565285944971800964203997042782042474929763008345356570992790"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: low
+      media_fallback: true
+      official_statement_required: false
+      dispute_risk: low
+    resolution_date: 2026-05-31
+    notes: |
+      YES on confirmation that UK warships transited through the Strait of Hormuz
+      (narrowest portion between Iran and Oman) between market creation and
+      2026-05-31 23:59 ET. Military cargo/support vessels count; commercial/civilian
+      do not. Operations only in Persian Gulf, Gulf of Oman, or Arabian Sea without
+      transit through the narrowest section do not qualify. Aerial ops, cyber ops,
+      and proxy/third-party actions do not qualify. Resolves on official UK
+      government/military confirmation OR overwhelming consensus of credible reporting.
+  - market_id: france_warships_hormuz_may31
+    name: France sends warships through Strait of Hormuz by May 31 2026
+    polymarket_url: https://polymarket.com/event/will-france-send-warships-through-the-strait-of-hormuz-by-may-31-2026
+    category: warships_hormuz
+    thesis_bucket: "Iran conflict"
+    rule_key: warships_hormuz_transit
+    oracle_type: National government / military announcement OR overwhelming consensus of credible reporting
+    preferred_side: "NO"
+    risk_flags:
+      - low base rate
+      - must transit narrowest section (Iran/Oman) — not Persian Gulf / Gulf of Oman / Arabian Sea
+      - aerial / cyber / proxy actions excluded
+      - military cargo & support vessels count as warships
+    event_slug: will-france-send-warships-through-the-strait-of-hormuz-by-may-31-2026
+    condition_id: "0xed0f5596263aa1d3dffbe903502f8134864f0b5d8c102c66631b9636b5cc9e4b"
+    yes_token_id: "93385498273357797249283630066309074543056677992480830093403412705344373090930"
+    no_token_id: "92380753583246848248554847926631473927357415980620159157049312260466692279686"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: low
+      media_fallback: true
+      official_statement_required: false
+      dispute_risk: low
+    resolution_date: 2026-05-31
+    notes: |
+      YES on confirmation that French warships transited through the Strait of
+      Hormuz (narrowest portion between Iran and Oman) between market creation and
+      2026-05-31 23:59 ET. Military cargo/support vessels count; commercial/civilian
+      do not. Operations only in Persian Gulf, Gulf of Oman, or Arabian Sea without
+      transit through the narrowest section do not qualify. Aerial ops, cyber ops,
+      and proxy/third-party actions do not qualify. Resolves on official French
+      government/military confirmation OR overwhelming consensus of credible reporting.
+  - market_id: trump_project_freedom_may31
+    name: Trump restarts Project Freedom by May 31
+    polymarket_url: https://polymarket.com/event/will-trump-restart-project-freedom-by-may-31
+    category: announcement_risk
+    thesis_bucket: "Iran conflict"
+    rule_key: official_project_freedom_restart
+    oracle_type: Official Trump, USG, or US military announcement; credible-reporting consensus also suffices
+    preferred_side: "NO"
+    risk_flags:
+      - Trump social post can qualify if definitive
+      - suggestions / openness / preparations explicitly excluded
+      - '"substantially equivalent" escort program also qualifies — interpretive'
+      - deadline gamma
+      - resolves on announcement regardless of when program goes into effect
+    event_slug: will-trump-restart-project-freedom-by-may-31
+    condition_id: "0x9a87a0011494682e4d17a9073059cbbd32ebea4bbc7284219afb5e9a6b4ca8f6"
+    yes_token_id: "57222624691525571349644607559355045246353226505678230701343597937763937089108"
+    no_token_id: "66735179415343085248704122820633487548742544495028560297217288593792661325968"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+    resolution_date: 2026-05-31
+    notes: |
+      YES on a definitive announcement by Trump, the USG, or the US military, by
+      2026-05-31 23:59 ET, that Project Freedom — the US-led naval escort program
+      for commercial ships through the Strait of Hormuz — will be restarted. A
+      "substantially equivalent" US military escort/protection/retrieval program
+      for commercial ships in or through the Strait also qualifies. Suggestions,
+      expressions of openness, reported preparations, and other non-definitive
+      statements do not qualify. The announcement resolves the market regardless
+      of whether or when the program actually goes into effect. Primary source:
+      official Trump/USG/US-military statements; a consensus of credible reporting
+      may also be used.

@@ -471,6 +471,14 @@ def command_promote_positions(args: argparse.Namespace) -> int:
         print(f"Skipped {len(skipped)} positions (not in registry):", file=sys.stderr)
         for s in skipped:
             print(f"  - {s}", file=sys.stderr)
+        if len(portfolio.positions) == 0:
+            print(
+                f"WARNING: all {len(skipped)} imported positions were skipped — "
+                f"{args.output} was overwritten with an empty positions list. "
+                f"Add the missing condition_id values to context/market_registry.yaml "
+                f"and re-run promote-positions.",
+                file=sys.stderr,
+            )
     return 0
 
 
@@ -537,10 +545,19 @@ def command_promote_orders(args: argparse.Namespace) -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(yaml_text, encoding="utf-8")
     print(f"Wrote canonical open orders to {args.output}")
+    total = len(open_orders.buy_orders) + len(open_orders.sell_orders)
     if skipped:
         print(f"Skipped {len(skipped)} orders (not in registry):", file=sys.stderr)
         for s in skipped:
             print(f"  - {s}", file=sys.stderr)
+        if total == 0:
+            print(
+                f"WARNING: all {len(skipped)} imported orders were skipped — "
+                f"{args.output} was overwritten with empty buy/sell lists. "
+                f"Add the missing condition_id values to context/market_registry.yaml "
+                f"and re-run promote-orders.",
+                file=sys.stderr,
+            )
     return 0
 
 

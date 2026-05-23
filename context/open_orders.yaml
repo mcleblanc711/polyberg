@@ -1,33 +1,35 @@
 as_of: '2026-04-26T09:00:00-06:00'
 # Sample order ladder for the public repo. Real orders live in
-# context/open_orders.local.yaml (gitignored).
+# context/open_orders.local.yaml (gitignored) on your local machine and
+# are also written here by the GUI Account tab PROMOTE flow — be aware
+# that running PROMOTE will overwrite this sample file with real state.
 buy_orders:
-- market_id: hormuz_normal_may15
+- market_id: hormuz_normal_end_june
   side: 'NO'
   price: 0.50
   shares: 10.0
   order_type: limit
   notes: 'sample bid'
-- market_id: trump_blockade_lifted_apr30
+- market_id: trump_blockade_lifted_may31
   side: 'NO'
   price: 0.40
   shares: 10.0
   order_type: limit
   notes: 'sample bid'
 sell_orders:
-- market_id: hormuz_normal_may15
+- market_id: hormuz_normal_end_june
   side: 'NO'
   price: 0.85
   shares: 25.0
   order_type: limit
   notes: 'sample ask'
-- market_id: hormuz_normal_may15
+- market_id: hormuz_normal_end_june
   side: 'NO'
   price: 0.95
   shares: 25.0
   order_type: limit
   notes: 'sample ask'
-- market_id: trump_blockade_lifted_apr30
+- market_id: trump_blockade_lifted_may31
   side: 'NO'
   price: 0.80
   shares: 20.0

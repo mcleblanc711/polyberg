@@ -15,17 +15,17 @@ so the packet builder can route it correctly.
 
 ## Credible Reporting Watch
 
-- [2026-04-25 18:00Z] **hormuz_normal_may15** · example outlet (article) —
+- [2026-04-25 18:00Z] **hormuz_normal_end_june** · example outlet (article) —
   Shipping traffic through the strait remained at roughly 60% of the trailing
   7-day average for the third consecutive day.
-- [2026-04-26 09:00Z] **trump_blockade_lifted_apr30** · example wire (article) —
+- [2026-04-26 09:00Z] **trump_blockade_lifted_may31** · example wire (article) —
   No qualifying announcement has been issued. Watch for end-of-day briefings.
 
 ## Noisy Social-Media And Rumour Watch
 
-- [2026-04-26 07:00Z] **cl_high_120_end_june** · @example_handle (tweet) —
-  Front-month Brent softening overnight; no confirmed catalyst, demand-side
-  noise only. Treat as non-authoritative.
+- [2026-04-26 07:00Z] **iran_us_peace_jun30** · @example_handle (tweet) —
+  Sourceless rumour about a new diplomatic backchannel; no confirmed catalyst,
+  social-media chatter only. Treat as non-authoritative.
 
 ## Trader Interpretation Notes
 

@@ -220,9 +220,16 @@ type PromoteState =
   | { kind: 'idle' }
   | { kind: 'previewing' }
   | { kind: 'preview'; yaml: string; skipped: string[] }
-  | { kind: 'writing' }
-  | { kind: 'ok' }
+  | { kind: 'writing'; skipped: string[] }
+  | { kind: 'ok'; skipped: string[] }
   | { kind: 'error'; message: string }
+
+const yamlLooksEmpty = (yaml: string): boolean => {
+  const lists = ['buy_orders', 'sell_orders', 'positions']
+  const present = lists.filter((k) => new RegExp(`^${k}:`, 'm').test(yaml))
+  if (present.length === 0) return false
+  return present.every((k) => new RegExp(`^${k}:\\s*\\[\\]\\s*$`, 'm').test(yaml))
+}
 
 const PromoteRow = ({ file, active }: { file: AccountImportFile; active: SectionId }) => {
   const refresh = usePmDataRefresh()
@@ -245,15 +252,15 @@ const PromoteRow = ({ file, active }: { file: AccountImportFile; active: Section
     setState({ kind: 'preview', yaml: result.stdout, skipped })
   }
 
-  const commit = async (): Promise<void> => {
-    setState({ kind: 'writing' })
+  const commit = async (previewSkipped: string[]): Promise<void> => {
+    setState({ kind: 'writing', skipped: previewSkipped })
     const result = await window.pm.runStage(stage, [])
     if (!result.ok) {
       setState({ kind: 'error', message: result.stderr || result.stdout || `exit ${result.code}` })
       return
     }
     await refresh()
-    setState({ kind: 'ok' })
+    setState({ kind: 'ok', skipped: previewSkipped })
   }
 
   if (!file.exists) {
@@ -282,8 +289,16 @@ const PromoteRow = ({ file, active }: { file: AccountImportFile; active: Section
               : 'PROMOTE TO CONTEXT ▸'}
         </button>
         {state.kind === 'ok' && (
-          <span style={{ ...S.promoteNote, color: C.cyan }}>
+          <span
+            style={{
+              ...S.promoteNote,
+              color: state.skipped.length > 0 ? C.amber : C.cyan
+            }}
+          >
             ● wrote {file.canonicalFilename} · refresh shown
+            {state.skipped.length > 0
+              ? ` · ⚠ ${state.skipped.length} skipped (not in market_registry.yaml)`
+              : ''}
           </span>
         )}
         {state.kind === 'error' && (
@@ -301,7 +316,7 @@ const PromoteRow = ({ file, active }: { file: AccountImportFile; active: Section
           skipped={state.skipped}
           canonicalFilename={file.canonicalFilename}
           onCancel={() => setState({ kind: 'idle' })}
-          onConfirm={commit}
+          onConfirm={() => commit(state.skipped)}
         />
       )}
     </>
@@ -339,6 +354,16 @@ const PromotePreviewModal = ({
           About to overwrite the canonical context file with the YAML below. No file is touched
           until you confirm.
         </div>
+        {yamlLooksEmpty(yaml) && (
+          <div style={S.emptyResultBox}>
+            <div style={S.emptyResultHdr}>⚠ EMPTY RESULT</div>
+            <div style={S.emptyResultBody}>
+              {skipped.length > 0
+                ? `All ${skipped.length} row(s) from the import were skipped (see below). Confirming will overwrite ${canonicalFilename} with an empty file.`
+                : `The normalized output is empty. Confirming will overwrite ${canonicalFilename} with an empty file.`}
+            </div>
+          </div>
+        )}
         <pre style={S.modalCode}>{yaml}</pre>
         {skipped.length > 0 && (
           <div style={S.skippedBox}>
@@ -584,6 +609,28 @@ const S: Record<string, CSSProperties> = {
     border: `1px solid ${C.amber}`,
     padding: 12,
     marginTop: 12
+  },
+  emptyResultBox: {
+    background: C.bgRow,
+    border: `1px solid ${C.red}`,
+    padding: 12,
+    marginTop: 6,
+    marginBottom: 8
+  },
+  emptyResultHdr: {
+    fontSize: 12,
+    color: C.red,
+    fontFamily: F.mono,
+    letterSpacing: 0.8,
+    fontWeight: 700,
+    textShadow: `0 0 4px ${C.red}99`,
+    marginBottom: 6
+  },
+  emptyResultBody: {
+    fontSize: 11,
+    color: C.text,
+    fontFamily: F.mono,
+    lineHeight: 1.5
   },
   skippedHdr: {
     fontSize: 11,

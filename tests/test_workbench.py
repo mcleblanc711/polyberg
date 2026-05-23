@@ -27,13 +27,13 @@ def adjudicator_payload(human_review_required: bool = True) -> dict:
         "disputed_trades": [],
         "rejected_trades": [
             {
-                "market_id": "cl_high_120_end_june",
+                "market_id": "hormuz_normal_end_june",
                 "rationale": "Rejected until rule gap is checked.",
             }
         ],
         "final_order_list": [
             {
-                "market_id": "trump_blockade_lifted_apr30",
+                "market_id": "trump_blockade_lifted_may31",
                 "side": "NO",
                 "action": "sell_ladder",
                 "price": 0.94,

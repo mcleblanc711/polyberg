@@ -31,6 +31,7 @@ class Market(StrictModel):
     name: str
     polymarket_url: str
     category: str
+    thesis_bucket: str = ""
     rule_key: str
     oracle_type: str
     preferred_side: Side

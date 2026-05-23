@@ -3,16 +3,15 @@ from __future__ import annotations
 import shutil
 
 from polyberg.config import repo_path
-from polyberg.packet_builder import build_packet
+from polyberg.packet_builder import build_packet, build_rules
 
 
 def test_build_packet_contains_required_sections() -> None:
     packet = build_packet()
 
     assert "Cash available" in packet
-    assert "hormuz_normal_may15" in packet
+    assert "hormuz_normal_end_june" in packet
     assert "Recent Catalysts" in packet
-    assert "Trading Principles" in packet
     assert "Factual Source Data" in packet
     assert "Unresolved/Missing Information" in packet
     assert "Context Freshness Audit" in packet
@@ -22,6 +21,18 @@ def test_build_packet_contains_required_sections() -> None:
     assert "Missing Info And Safety Warnings" in packet
     assert "Exposure Summary By Thesis Bucket" in packet
     assert "Rule risk" in packet
+    assert "generated_at" in packet
+    assert "freshness_warnings" in packet
+    assert "Trading Principles" not in packet
+    assert "Stable Rules Reference" not in packet
+
+
+def test_build_rules_contains_principles_and_rules() -> None:
+    rules = build_rules()
+
+    assert "Trading Principles" in rules
+    assert "Stable Rules Reference" in rules
+    assert "generated_at" not in rules
 
 
 def test_build_packet_works_with_context_dir(tmp_path) -> None:
@@ -31,7 +42,7 @@ def test_build_packet_works_with_context_dir(tmp_path) -> None:
     packet = build_packet(context_dir=context_dir)
 
     assert "Polymarket Research Packet" in packet
-    assert "hormuz_normal_may15" in packet
+    assert "hormuz_normal_end_june" in packet
 
 
 def test_build_packet_works_with_snapshot(tmp_path) -> None:
@@ -42,7 +53,7 @@ def test_build_packet_works_with_snapshot(tmp_path) -> None:
   "as_of": "2026-04-26T09:00:00-06:00",
   "markets": [
     {
-      "market_id": "hormuz_normal_may15",
+      "market_id": "hormuz_normal_end_june",
       "yes_price": 0.4,
       "no_price": 0.6,
       "best_bid_yes": 0.39,

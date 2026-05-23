@@ -314,7 +314,6 @@ const readLiveState = () => {
 }
 
 const FRESH_FILES = [
-  'live_state.yaml',
   'portfolio_current.yaml',
   'open_orders.yaml',
   'recent_catalysts.md',

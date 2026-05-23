@@ -39,37 +39,53 @@ def build_packet(
     recent_catalysts = normalize_inserted_markdown(
         read_text_file(context_path(context_dir, "recent_catalysts.md"))
     )
-    principles = read_text_file(context_path(context_dir, "trading_principles.md"))
-    stable_rules = read_text_file(context_path(context_dir, "stable_rules.md"))
+
+    if now is None:
+        now = datetime.now(get_timezone())
+
+    freshness_warnings = _compute_freshness_warnings(live_state, portfolio, open_orders, snapshot, now)
 
     sections = [
         "# Polymarket Research Packet",
+        render_packet_metadata(now, freshness_warnings),
         "## Model Instructions",
         "- Treat factual/source data, trader notes, and model interpretation as separate layers.",
         "- Do not suggest market orders or automated execution.",
         "- Treat Twitter/X sentiment and rumours as noisy catalyst-only information.",
         "- Output structured JSON and assume human review is required before action.",
+        "- Stable trading rules and principles are in polymarket_rules.md (provided separately).",
         "## Missing Info And Safety Warnings",
         render_missing_info_and_warnings(live_state, portfolio, open_orders, registry, snapshot),
         "## Context Freshness Audit",
-        render_freshness_audit(live_state, portfolio, open_orders, snapshot=snapshot, now=now),
+        render_freshness_audit(live_state, portfolio, open_orders, snapshot=snapshot, now=now,
+                               freshness_warnings=freshness_warnings),
         "## Factual Source Data",
-        render_live_state(live_state),
+        render_live_state(live_state, portfolio),
         render_portfolio(portfolio),
         render_exposure_summary(portfolio),
         render_open_orders(open_orders),
         render_market_registry(registry),
+        render_registry_thesis_summary(registry),
         render_snapshot_summary(snapshot) if snapshot else "### Market Snapshot\n_None provided._",
         "## Trader Notes And Catalyst Watch",
         recent_catalysts.strip(),
-        "## Stable Trading Principles",
-        principles.strip(),
-        "## Stable Rules Reference",
-        stable_rules.strip(),
         "## Unresolved/Missing Information",
         "- Current live order book depth is not included unless manually added.",
         "- Live API data is intentionally out of scope for this first pass.",
         "- Model outputs are untrusted until validated against local schemas.",
+    ]
+    return "\n\n".join(sections).strip() + "\n"
+
+
+def build_rules(context_dir: Path | None = None) -> str:
+    principles = read_text_file(context_path(context_dir, "trading_principles.md"))
+    stable_rules = read_text_file(context_path(context_dir, "stable_rules.md"))
+    sections = [
+        "# Polymarket Rules Reference",
+        "## Stable Trading Principles",
+        principles.strip(),
+        "## Stable Rules Reference",
+        stable_rules.strip(),
     ]
     return "\n\n".join(sections).strip() + "\n"
 
@@ -80,10 +96,13 @@ def write_packet(
     snapshot_path: Path | None = None,
 ) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(get_timezone())
     output_path.write_text(
-        build_packet(context_dir=context_dir, snapshot_path=snapshot_path),
+        build_packet(context_dir=context_dir, snapshot_path=snapshot_path, now=now),
         encoding="utf-8",
     )
+    rules_path = output_path.parent / "polymarket_rules.md"
+    rules_path.write_text(build_rules(context_dir=context_dir), encoding="utf-8")
     return output_path
 
 
@@ -94,13 +113,57 @@ def normalize_inserted_markdown(text: str) -> str:
     return "\n".join(lines)
 
 
-def render_live_state(live_state: LiveState) -> str:
+def render_packet_metadata(now: datetime, freshness_warnings: list[str]) -> str:
+    lines = [
+        "## Packet Metadata",
+        f"- generated_at: {now.isoformat()}",
+        "- freshness_warnings:",
+    ]
+    if freshness_warnings:
+        lines.extend(f"  - {w}" for w in freshness_warnings)
+    else:
+        lines.append("  - none")
+    return "\n".join(lines)
+
+
+def _compute_freshness_warnings(
+    live_state: LiveState,
+    portfolio: Portfolio,
+    open_orders: OpenOrders,
+    snapshot: MarketSnapshot | None,
+    now: datetime,
+) -> list[str]:
+    max_context_age_hours = get_max_context_age_hours()
+    timestamps = [
+        live_state.as_of,
+        portfolio.as_of,
+        open_orders.as_of,
+    ]
+    if snapshot is not None:
+        timestamps.append(snapshot.as_of)
+    oldest = min(timestamps)
+    age_hours = (now - oldest.astimezone(now.tzinfo)).total_seconds() / 3600
+    distinct_values = {ts.isoformat() for ts in timestamps}
+
+    warnings = []
+    if len(distinct_values) > 1:
+        warnings.append("context files do not share the same as_of timestamp")
+    if age_hours > max_context_age_hours:
+        warnings.append(f"oldest context is older than {max_context_age_hours:g} hours")
+    if age_hours < 0:
+        warnings.append("one or more context timestamps are in the future")
+    return warnings
+
+
+def render_live_state(live_state: LiveState, portfolio: Portfolio | None = None) -> str:
+    cash = portfolio.cash_available if portfolio is not None else live_state.account_snapshot.cash_available
+    port_value = portfolio.portfolio_value if portfolio is not None else live_state.account_snapshot.portfolio_value
     lines = [
         "### Live State",
         f"- As of: {live_state.as_of.isoformat()}",
         f"- Mode: {live_state.mode}",
-        f"- Cash available: {live_state.account_snapshot.cash_available:.2f}",
-        f"- Portfolio value: {live_state.account_snapshot.portfolio_value:.2f}",
+        f"- Cash available: {cash:.2f}",
+        f"- Portfolio value: {port_value:.2f}",
         "- Active thesis:",
     ]
     lines.extend(f"  - {item}" for item in live_state.active_thesis)
@@ -120,8 +183,8 @@ def render_freshness_audit(
     open_orders: OpenOrders,
     snapshot: MarketSnapshot | None = None,
     now: datetime | None = None,
+    freshness_warnings: list[str] | None = None,
 ) -> str:
-    max_context_age_hours = get_max_context_age_hours()
     if now is None:
         now = datetime.now(get_timezone())
     elif now.tzinfo is None or now.utcoffset() is None:
@@ -136,8 +199,9 @@ def render_freshness_audit(
         timestamps.append(ContextTimestamp("market_snapshot", snapshot.as_of))
     newest = max(item.value for item in timestamps)
     oldest = min(item.value for item in timestamps)
-    age_hours = (now - oldest.astimezone(now.tzinfo)).total_seconds() / 3600
-    distinct_values = {item.value.isoformat() for item in timestamps}
+
+    if freshness_warnings is None:
+        freshness_warnings = _compute_freshness_warnings(live_state, portfolio, open_orders, snapshot, now)
 
     lines = [
         f"- Packet built at: {now.isoformat()}",
@@ -147,17 +211,9 @@ def render_freshness_audit(
     ]
     lines.extend(f"  - {item.label}: {item.value.isoformat()}" for item in timestamps)
 
-    warnings = []
-    if len(distinct_values) > 1:
-        warnings.append("context files do not share the same as_of timestamp")
-    if age_hours > max_context_age_hours:
-        warnings.append(f"oldest context is older than {max_context_age_hours:g} hours")
-    if age_hours < 0:
-        warnings.append("one or more context timestamps are in the future")
-
-    if warnings:
+    if freshness_warnings:
         lines.append("- Freshness warnings:")
-        lines.extend(f"  - {warning}" for warning in warnings)
+        lines.extend(f"  - {w}" for w in freshness_warnings)
     else:
         lines.append("- Freshness warnings: none from local timestamps")
 
@@ -255,11 +311,12 @@ def render_order_table(orders: list) -> str:
 def render_market_registry(registry: MarketRegistry) -> str:
     lines = [
         "### Market Registry Summary",
-        "| Market ID | Name | Preferred side | Rule key | Oracle | Resolution | "
+        "| Market ID | Thesis | Name | Preferred side | Rule key | Oracle | Resolution | "
         "Rule risk | Risk flags |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
-    for market in registry.markets:
+    sorted_markets = sorted(registry.markets, key=lambda m: (m.thesis_bucket, m.resolution_date))
+    for market in sorted_markets:
         flags = ", ".join(market.risk_flags)
         rule_risk = "not specified"
         if market.rule_risk is not None:
@@ -270,10 +327,25 @@ def render_market_registry(registry: MarketRegistry) -> str:
                 f"dispute={market.rule_risk.dispute_risk}"
             )
         lines.append(
-            f"| {market.market_id} | {market.name} | {market.preferred_side} | "
+            f"| {market.market_id} | {market.thesis_bucket} | {market.name} | {market.preferred_side} | "
             f"{market.rule_key} | {market.oracle_type} | {market.resolution_date.isoformat()} | "
             f"{rule_risk} | {flags} |"
         )
+    return "\n".join(lines)
+
+
+def render_registry_thesis_summary(registry: MarketRegistry) -> str:
+    bucket_counts: dict[str, int] = {}
+    for market in registry.markets:
+        bucket = market.thesis_bucket or "(unassigned)"
+        bucket_counts[bucket] = bucket_counts.get(bucket, 0) + 1
+    lines = [
+        "### Market Registry — Thesis Summary",
+        "| Thesis | Market count |",
+        "| --- | ---: |",
+    ]
+    for bucket in sorted(bucket_counts):
+        lines.append(f"| {bucket} | {bucket_counts[bucket]} |")
     return "\n".join(lines)
 
 

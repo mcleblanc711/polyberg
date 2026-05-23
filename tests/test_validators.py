@@ -18,8 +18,8 @@ def good_model_response() -> dict:
         "agent_role": "aggressive_trader",
         "candidate_trades": [
             {
-                "market_id": "trump_blockade_lifted_apr30",
-                "market_name": "Trump blockade lifted by Apr 30",
+                "market_id": "trump_blockade_lifted_may31",
+                "market_name": "Trump announces US Hormuz blockade lifted by May 31 2026",
                 "side": "NO",
                 "current_mark": 0.915,
                 "recommendation": "hold_and_sell_ladder",
@@ -173,7 +173,7 @@ def test_adjudicator_schema_requires_human_review_true(tmp_path) -> None:
         "rejected_trades": [],
         "final_order_list": [
             {
-                "market_id": "trump_blockade_lifted_apr30",
+                "market_id": "trump_blockade_lifted_may31",
                 "side": "NO",
                 "action": "sell_ladder",
                 "price": 0.94,
@@ -201,7 +201,7 @@ def test_adjudicator_schema_requires_human_review_present(tmp_path) -> None:
         "rejected_trades": [],
         "final_order_list": [
             {
-                "market_id": "trump_blockade_lifted_apr30",
+                "market_id": "trump_blockade_lifted_may31",
                 "side": "NO",
                 "action": "hold",
                 "price": 0.94,
@@ -228,7 +228,7 @@ def test_adjudicator_schema_rejects_negative_share_final_order(tmp_path) -> None
         "rejected_trades": [],
         "final_order_list": [
             {
-                "market_id": "trump_blockade_lifted_apr30",
+                "market_id": "trump_blockade_lifted_may31",
                 "side": "NO",
                 "action": "sell_ladder",
                 "price": 0.94,
@@ -283,7 +283,7 @@ def test_market_snapshot_validation(tmp_path) -> None:
             "as_of": "2026-04-26T09:00:00-06:00",
             "markets": [
                 {
-                    "market_id": "hormuz_normal_may15",
+                    "market_id": "hormuz_normal_end_june",
                     "yes_price": 0,
                     "no_price": 1,
                     "best_bid_yes": None,
