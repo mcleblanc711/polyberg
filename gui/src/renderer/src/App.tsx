@@ -169,7 +169,6 @@ export const App = () => {
         <div style={S.body}>{renderScreen()}</div>
         <StatusBar screen={screen} />
       </div>
-      <div className="scanline-overlay" />
       {runningStage && (
         <StageRunnerModal stage={runningStage} onClose={() => setRunningStage(null)} />
       )}

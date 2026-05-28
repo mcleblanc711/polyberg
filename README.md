@@ -99,9 +99,19 @@ find it.
 ## Known gaps (so you're not surprised)
 
 - `snapshot-markets` emits the snapshot schema with placeholder prices.
-  Wiring it to the live Gamma/CLOB collectors is a follow-up.
-- The GUI's catalyst viewer doesn't parse `recent_catalysts.md` into
-  per-market rows yet — it shows an empty list.
+  `build_market_snapshot` in `src/polyberg/snapshots.py` needs to be wired
+  to the existing collectors in `src/polyberg/collectors/polymarket_clob.py`
+  (`fetch_order_book`, `fetch_midpoint`, `fetch_spread`). Until then every
+  price field in the packet is `None`.
+- Three registry entries are missing token IDs (`condition_id`,
+  `yes_token_id`, `no_token_id`): `hormuz_normal_may15`,
+  `trump_blockade_lifted_apr30`, `cl_high_120_end_june`. The CLOB
+  collectors skip them silently. Populate from Polymarket Gamma once you
+  have the slugs.
+- `thesis_bucket` is never populated — every position carries
+  `thesis_bucket: ''` because no builder or import command sets it yet.
+  Needs either a manual field in the registry or an assignment rule in the
+  portfolio importer.
 - The Python CLI doesn't apply `*.local.yaml` overlays. Only the GUI does,
   and only for `live_state.yaml`. See *Local-only overlays* below.
 - The generic stage-runner button in the GUI doesn't pass per-stage args,

@@ -26,11 +26,3 @@ body {
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
-
-.scanline-overlay {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 10;
-  background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.4) 100%);
-}
