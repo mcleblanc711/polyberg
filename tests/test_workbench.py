@@ -85,6 +85,37 @@ def test_trade_ticket_generation(tmp_path) -> None:
     assert "Estimated proceeds" in text
 
 
+def test_trade_ticket_emits_ledger_json_sibling(tmp_path) -> None:
+    source = write_json(tmp_path, "adjudicator.json", adjudicator_payload())
+    output = tmp_path / "trade_ticket.md"
+
+    build_trade_ticket(source, output)
+
+    json_path = output.with_suffix(".json")
+    assert json_path.exists()
+    ticket = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert ticket["schema_version"] == "1"
+    assert ticket["source"] == "polyberg-adjudicator"
+    assert ticket["human_review_required"] is True
+    assert len(ticket["decisions"]) == 1
+
+    decision = ticket["decisions"][0]
+    assert decision["market_id"] == "trump_blockade_lifted_may31"
+    assert decision["side"] == "NO"
+    assert decision["intent"] == "sell_ladder"
+    assert decision["decision_type"] == "EXIT"
+    assert decision["price_used"] == 0.94
+    assert decision["max_allocation"] == pytest.approx(0.94 * 15)
+    assert decision["status"] == "DRAFT"
+
+    # source_model_support is carried verbatim; no enum mapping on this side.
+    assert decision["attributions"][0]["source_model_support"] == "both"
+    assert decision["attributions"][0]["recommended_size"] == 15
+
+    assert ticket["rejected"][0]["market_id"] == "hormuz_normal_end_june"
+
+
 def test_trade_ticket_rejects_false_human_review(tmp_path) -> None:
     source = write_json(tmp_path, "adjudicator.json", adjudicator_payload(False))
 

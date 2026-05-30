@@ -3,15 +3,115 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from polyberg.loaders import load_market_registry
+from polyberg.models import (
+    Market,
+    TradeTicket,
+    TradeTicketAttribution,
+    TradeTicketDecision,
+    TradeTicketRejected,
+)
 from polyberg.validators import load_json, validate_adjudicator_output
 
 
-def build_trade_ticket(adjudicator_output: Path, output_path: Path) -> Path:
+def build_trade_ticket(
+    adjudicator_output: Path,
+    output_path: Path,
+    registry_path: Path | None = None,
+) -> Path:
+    """Write the human ``.md`` ticket and a ledger-ready ``.json`` sibling.
+
+    The JSON file is written next to ``output_path`` with a ``.json`` suffix; it
+    is the structured half of the trade_ticket loop that Polygraph imports.
+    """
     validate_adjudicator_output(adjudicator_output)
     payload = load_json(adjudicator_output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(render_trade_ticket(payload), encoding="utf-8")
+
+    ticket = build_trade_ticket_payload(payload, registry_path)
+    json_path = output_path.with_suffix(".json")
+    json_path.write_text(ticket.model_dump_json(indent=2), encoding="utf-8")
     return output_path
+
+
+def build_trade_ticket_payload(
+    payload: dict[str, Any],
+    registry_path: Path | None = None,
+) -> TradeTicket:
+    """Project the adjudicator output into the ledger-ready ticket model.
+
+    Registry fields (``oracle_type``, ``thesis_bucket``, title, slug, rule key)
+    are copied verbatim — this side does no enum mapping by design.
+    """
+    registry = load_market_registry(registry_path)
+    by_id = {market.market_id: market for market in registry.markets}
+
+    final_orders = payload.get("final_order_list", [])
+    decisions = [_decision_from_order(order, by_id.get(order["market_id"])) for order in final_orders]
+    rejected = [
+        TradeTicketRejected(
+            market_id=item.get("market_id", ""),
+            rationale=item.get("rationale", ""),
+        )
+        for item in payload.get("rejected_trades", [])
+    ]
+    human_review = (
+        all(order.get("human_review_required", True) for order in final_orders)
+        if final_orders
+        else True
+    )
+    return TradeTicket(
+        as_of=payload["as_of"],
+        human_review_required=human_review,
+        decisions=decisions,
+        rejected=rejected,
+    )
+
+
+def _decision_from_order(order: dict[str, Any], market: Market | None) -> TradeTicketDecision:
+    price = float(order.get("price", 0))
+    shares = float(order.get("shares", 0))
+    action = order.get("action", "")
+    rationale = order.get("rationale", "")
+
+    attributions: list[TradeTicketAttribution] = []
+    support = order.get("source_model_support")
+    if support:
+        attributions.append(
+            TradeTicketAttribution(
+                source_model_support=support,
+                recommended_price=price,
+                recommended_size=shares,
+                evidence=rationale,
+            )
+        )
+
+    thesis_bucket = (market.thesis_bucket or None) if market else None
+    return TradeTicketDecision(
+        market_id=order["market_id"],
+        market_slug=(market.event_slug or market.market_id) if market else order["market_id"],
+        market_title=market.name if market else order["market_id"],
+        side=order["side"],
+        intent=action,
+        decision_type=_decision_type(action),
+        price_used=price,
+        max_allocation=round(price * shares, 6),
+        thesis_summary=rationale,
+        rule_summary=market.rule_key if market else "",
+        oracle_type=market.oracle_type if market else None,
+        thesis_bucket=thesis_bucket,
+        attributions=attributions,
+    )
+
+
+def _decision_type(action: str) -> str | None:
+    lowered = action.lower()
+    if "buy" in lowered:
+        return "ENTRY"
+    if any(token in lowered for token in ("sell", "trim", "reduce", "exit", "ladder")):
+        return "EXIT"
+    return None
 
 
 def render_trade_ticket(payload: dict[str, Any]) -> str:

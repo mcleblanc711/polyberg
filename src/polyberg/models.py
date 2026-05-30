@@ -205,3 +205,64 @@ class MarketSnapshot(StrictModel):
     @classmethod
     def validate_as_of_timezone(cls, value: datetime) -> datetime:
         return require_timezone(value)
+
+
+class TradeTicketAttribution(StrictModel):
+    """Which assistant backed a final order, carried verbatim for the ledger.
+
+    ``source_model_support`` is left as the adjudicator emitted it (free text or a
+    list); normalization to the ledger's closed assistant set happens on the
+    Polygraph import side, not here — this package deliberately keeps no mapping
+    layer (see the unification build decision).
+    """
+
+    source_model_support: str | list[str]
+    recommended_price: float | None = Field(default=None, ge=0, le=1)
+    recommended_size: float | None = Field(default=None, ge=0)
+    evidence: str = ""
+
+
+class TradeTicketDecision(StrictModel):
+    market_id: str
+    market_slug: str
+    market_title: str
+    side: Side
+    intent: str
+    decision_type: str | None = None
+    price_used: float = Field(ge=0, le=1)
+    max_allocation: float = Field(ge=0)
+    thesis_summary: str = ""
+    rule_summary: str = ""
+    # oracle_type / thesis_bucket are copied verbatim from the registry. They may
+    # not yet be valid ledger enum values (the registry migration is a later
+    # phase); the importer validates leniently and drops unknown values.
+    oracle_type: str | None = None
+    thesis_bucket: str | None = None
+    status: str = "DRAFT"
+    attributions: list[TradeTicketAttribution] = Field(default_factory=list)
+
+    @field_validator("market_id")
+    @classmethod
+    def validate_market_id(cls, value: str) -> str:
+        return require_market_id(value)
+
+
+class TradeTicketRejected(StrictModel):
+    market_id: str
+    rationale: str = ""
+
+
+class TradeTicket(StrictModel):
+    """Machine-readable sibling of the human trade ticket, shaped for the ledger."""
+
+    schema_version: str = "1"
+    source: str = "polyberg-adjudicator"
+    as_of: datetime
+    human_review_required: bool = True
+    decisions: list[TradeTicketDecision] = Field(default_factory=list)
+    rejected: list[TradeTicketRejected] = Field(default_factory=list)
+
+    @field_validator("as_of")
+    @classmethod
+    def validate_as_of_timezone(cls, value: datetime) -> datetime:
+        return require_timezone(value)

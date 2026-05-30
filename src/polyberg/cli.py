@@ -346,6 +346,7 @@ def command_diff_snapshots(args: argparse.Namespace) -> int:
 def command_build_trade_ticket(args: argparse.Namespace) -> int:
     path = build_trade_ticket(args.adjudicator_output, args.output)
     print(f"Wrote human trade ticket to {path}")
+    print(f"Wrote ledger-ready ticket to {path.with_suffix('.json')}")
     return 0
 
 
