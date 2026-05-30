@@ -106,10 +106,16 @@ def test_trade_ticket_includes_nonstandard_final_order_action(tmp_path) -> None:
     assert "trim_exposure" in text
 
 
-def test_snapshot_markets_creates_missing_info_snapshot(tmp_path) -> None:
+def test_snapshot_markets_records_api_errors_in_missing_info(tmp_path) -> None:
     output = tmp_path / "markets_2026-04-26_0900.json"
 
-    build_market_snapshot(output)
+    class AlwaysFailClient:
+        def get_json(self, *_a, **_kw):
+            from polyberg.collectors.polymarket_account import AccountImportError
+
+            raise AccountImportError("HTTP 503 simulated")
+
+    build_market_snapshot(output, http=AlwaysFailClient())  # type: ignore[arg-type]
     data = json.loads(output.read_text(encoding="utf-8"))
 
     assert data["markets"]
