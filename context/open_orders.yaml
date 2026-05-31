@@ -1,8 +1,8 @@
 as_of: '2026-04-26T09:00:00-06:00'
-# Sample order ladder for the public repo. Real orders live in
-# context/open_orders.local.yaml (gitignored) on your local machine and
-# are also written here by the GUI Account tab PROMOTE flow — be aware
-# that running PROMOTE will overwrite this sample file with real state.
+# Sample order ladder for the public repo. Real orders live in the gitignored
+# context/open_orders.local.yaml overlay: PROMOTE (CLI + GUI Account tab) and
+# the GUI draft-order writer target it, and the loaders/GUI prefer the overlay
+# when present, falling back to this sample. This tracked file stays sample-only.
 buy_orders:
 - market_id: hormuz_normal_end_june
   side: 'NO'

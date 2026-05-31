@@ -115,7 +115,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     promote = subparsers.add_parser(
         "promote-positions",
-        help="Normalize a data-api positions import and write portfolio_current.yaml.",
+        help="Normalize a data-api positions import and write portfolio_current.local.yaml.",
     )
     promote.add_argument(
         "--raw",
@@ -126,7 +126,12 @@ def build_parser() -> argparse.ArgumentParser:
     promote.add_argument(
         "--output",
         type=Path,
-        default=repo_path("context", "portfolio_current.yaml"),
+        default=repo_path("context", "portfolio_current.local.yaml"),
+        help=(
+            "Where to write real state. Defaults to the gitignored "
+            "context/portfolio_current.local.yaml overlay so live holdings never "
+            "land in the tracked sample file."
+        ),
     )
     promote.add_argument(
         "--cash",
@@ -163,7 +168,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     promote_orders = subparsers.add_parser(
         "promote-orders",
-        help="Normalize a CLOB open-orders import and write open_orders.yaml.",
+        help="Normalize a CLOB open-orders import and write open_orders.local.yaml.",
     )
     promote_orders.add_argument(
         "--raw",
@@ -174,7 +179,12 @@ def build_parser() -> argparse.ArgumentParser:
     promote_orders.add_argument(
         "--output",
         type=Path,
-        default=repo_path("context", "open_orders.yaml"),
+        default=repo_path("context", "open_orders.local.yaml"),
+        help=(
+            "Where to write real state. Defaults to the gitignored "
+            "context/open_orders.local.yaml overlay so live orders never land in "
+            "the tracked sample file."
+        ),
     )
     promote_orders.add_argument(
         "--dry-run",
@@ -208,8 +218,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help=(
-            "Output path. Defaults to context/portfolio_current.yaml or "
-            "context/open_orders.yaml depending on --kind."
+            "Output path. Defaults to the gitignored context/portfolio_current.local.yaml "
+            "or context/open_orders.local.yaml overlay depending on --kind."
         ),
     )
     paste.add_argument(
@@ -253,7 +263,7 @@ def build_parser() -> argparse.ArgumentParser:
     promote_balance = subparsers.add_parser(
         "promote-balance",
         help=(
-            "Refresh only cash_available in portfolio_current.yaml from the "
+            "Refresh only cash_available in portfolio_current.local.yaml from the "
             "CLOB usdc_balance.json artifact. Positions are preserved."
         ),
     )
@@ -266,7 +276,11 @@ def build_parser() -> argparse.ArgumentParser:
     promote_balance.add_argument(
         "--output",
         type=Path,
-        default=repo_path("context", "portfolio_current.yaml"),
+        default=repo_path("context", "portfolio_current.local.yaml"),
+        help=(
+            "Portfolio file to refresh in place. Defaults to the gitignored "
+            "context/portfolio_current.local.yaml overlay."
+        ),
     )
     promote_balance.add_argument(
         "--dry-run",
@@ -569,8 +583,8 @@ def command_paste_import(args: argparse.Namespace) -> int:
     raw_text = args.input.read_text(encoding="utf-8")
 
     default_output = {
-        "portfolio": repo_path("context", "portfolio_current.yaml"),
-        "orders": repo_path("context", "open_orders.yaml"),
+        "portfolio": repo_path("context", "portfolio_current.local.yaml"),
+        "orders": repo_path("context", "open_orders.local.yaml"),
     }
     output = args.output or default_output[args.kind]
 

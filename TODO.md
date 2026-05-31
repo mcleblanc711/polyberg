@@ -4,7 +4,7 @@
 
 - [ ] **Wire `build_market_snapshot`** (`src/polyberg/snapshots.py:47`) to real collectors in `src/polyberg/collectors/polymarket_clob.py` (`fetch_order_book`, `fetch_midpoint`, `fetch_spread`). Currently writes `None` for every price — biggest single quality win for the packet. Verify against a live market before declaring done.
 - [ ] Decide on `iran_airspace_closed_may21` — resolution date passed 2026-05-21; either purge from registry or document why it stays as a historical reference.
-- [ ] **Fix promote workflow → sample-data leak**: `pm promote-positions` / `pm promote-orders` (and the GUI PROMOTE button) write real state into the tracked `context/portfolio_current.yaml` and `context/open_orders.yaml`. The intent (per file comments) is that real state lives in `*.local.yaml` overlays. Either (a) add overlay-merge logic to the loaders like `live_state.local.yaml` already has and change promote to write to `.local.yaml`, or (b) document explicitly that the tracked files become real-state on local clones and accept the privacy implication. Until fixed, re-running PROMOTE on this machine will overwrite the sample data committed during 2026-05-23 cleanup.
+- [x] **Fix promote workflow → sample-data leak** (option a, 2026-05-31): promote (`promote-positions`/`promote-orders`/`promote-balance`/`paste-import`, CLI defaults + GUI PROMOTE) now writes to the gitignored `*.local.yaml` overlays. CLI loaders (`loaders.prefer_local_overlay`) and the GUI (`repo.contextFile`, used by `readContext` reads, `writers` draft-order writes, and freshness) prefer the overlay when present and fall back to the tracked sample. Tracked `portfolio_current.yaml`/`open_orders.yaml` stay sample-only. Real state from this machine was moved into the overlays during the fix.
 
 ## Bugs / Fixes
 
@@ -12,7 +12,17 @@
 
 ## Features
 
-- [ ] Intake screen "paste text tweets here" — format pasted tweet blobs: separate `@` handles, clean up RT prefixes, strip URLs or inline them, normalize whitespace so each tweet is a distinct readable line
+- [ ] **Intake screen tweet auto-parser** — parse pasted tweets in standard X format: extract author name, `@handle`, timestamp (e.g. "1m"), tweet text, and source line. Auto-populate the `author` field with the handle (with `@`), populate `text` with tweet content only (strip metadata lines and source line). Example parse:
+  ```
+  Mario Nawfal
+  @MarioNawfal
+  ·
+  1m
+  [tweet content here]
+  
+  Source: CBS News
+  ```
+  → author: `@MarioNawfal`, text: `[tweet content here]`. Handle both multi-line tweet content and bulletpoint summaries. Gracefully fall back to manual entry if parse fails.
 - [ ] Evaluate n8n integration — automate daily packet push to Claude Web and/or ChatGPT (assess feasibility: n8n HTTP nodes, headless browser vs API, scheduling, output retrieval)
 - [ ] **Packet output format redesign** (from Claude Web project instructions review):
   - DROP: "Model Instructions" block, "Stable Trading Principles" block, dev scaffolding text, duplicate "Unresolved/Missing Information" section

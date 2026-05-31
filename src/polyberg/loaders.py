@@ -52,12 +52,26 @@ def context_path(context_dir: Path | None, filename: str) -> Path:
     return (context_dir or repo_path("context")).joinpath(filename)
 
 
+def prefer_local_overlay(path: Path) -> Path:
+    """Return the gitignored ``<stem>.local<suffix>`` sibling if it exists.
+
+    Real account state lives in ``*.local.yaml`` overlays that are kept off-repo
+    (see .gitignore). The tracked ``*.yaml`` files ship with sample data. When a
+    local overlay is present we read it in full instead of the sample; otherwise
+    we fall back to the tracked file so public clones still load.
+    """
+    local = path.with_suffix(f".local{path.suffix}")
+    return local if local.exists() else path
+
+
 def load_market_registry_from_context(context_dir: Path | None = None) -> MarketRegistry:
     return load_market_registry(context_path(context_dir, "market_registry.yaml"))
 
 
 def load_portfolio(path: Path | None = None, registry: MarketRegistry | None = None) -> Portfolio:
-    portfolio = parse_model(Portfolio, path or repo_path("context", "portfolio_current.yaml"))
+    portfolio = parse_model(
+        Portfolio, prefer_local_overlay(path or repo_path("context", "portfolio_current.yaml"))
+    )
     if registry is not None:
         validate_market_references(
             [position.market_id for position in portfolio.positions],
@@ -71,7 +85,9 @@ def load_open_orders(
     path: Path | None = None,
     registry: MarketRegistry | None = None,
 ) -> OpenOrders:
-    open_orders = parse_model(OpenOrders, path or repo_path("context", "open_orders.yaml"))
+    open_orders = parse_model(
+        OpenOrders, prefer_local_overlay(path or repo_path("context", "open_orders.yaml"))
+    )
     if registry is not None:
         validate_market_references(
             [order.market_id for order in open_orders.buy_orders + open_orders.sell_orders],

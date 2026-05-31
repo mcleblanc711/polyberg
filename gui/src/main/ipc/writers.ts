@@ -1,11 +1,14 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { dirname, resolve } from 'path'
 import yaml from 'js-yaml'
-import { assertWritable, CONTEXT_DIR, REPORTS_DIR } from './repo'
+import { assertWritable, contextFile, CONTEXT_DIR, REPORTS_DIR } from './repo'
 import type { Catalyst, DraftOrder, PasteKind } from '../../shared/contract'
 
 const CATALYSTS_PATH = resolve(CONTEXT_DIR, 'recent_catalysts.md')
-const ORDERS_PATH = resolve(CONTEXT_DIR, 'open_orders.yaml')
+// Write to the gitignored open_orders.local.yaml overlay when it exists so
+// manual draft orders never land in the tracked sample file. Reads use the
+// same resolution (see readContext + loaders.prefer_local_overlay).
+const ORDERS_PATH = contextFile('open_orders.yaml')
 const REGISTRY_PATH = resolve(CONTEXT_DIR, 'market_registry.yaml')
 
 const PASTE_PATHS: Record<PasteKind, string> = {

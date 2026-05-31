@@ -3,6 +3,7 @@ import { resolve } from 'path'
 import yaml from 'js-yaml'
 import {
   ageMinutes,
+  contextFile,
   CONTEXT_DIR,
   REPO_ROOT,
   REPORTS_DIR,
@@ -181,7 +182,7 @@ const readAccountImportFile = (
     canonicalFilename
   }
   try {
-    base.canonicalText = readFileSync(resolve(CONTEXT_DIR, canonicalFilename), 'utf8')
+    base.canonicalText = readFileSync(contextFile(canonicalFilename), 'utf8')
   } catch {
     base.canonicalText = ''
   }
@@ -227,7 +228,7 @@ const applyPriceHistory = (markets: Market[]): Market[] => {
 }
 
 const readPositions = (markets: Market[]): Position[] => {
-  const data = loadYaml<PortfolioFile>(resolve(CONTEXT_DIR, 'portfolio_current.yaml'))
+  const data = loadYaml<PortfolioFile>(contextFile('portfolio_current.yaml'))
   const known = new Set(markets.map((m) => m.id))
   return (data?.positions ?? [])
     .filter((p) => typeof p.market_id === 'string' && known.has(p.market_id))
@@ -242,13 +243,13 @@ const readPositions = (markets: Market[]): Position[] => {
 }
 
 const readPortfolioCash = (): number | null => {
-  const data = loadYaml<PortfolioFile>(resolve(CONTEXT_DIR, 'portfolio_current.yaml'))
+  const data = loadYaml<PortfolioFile>(contextFile('portfolio_current.yaml'))
   if (data && typeof data.cash_available === 'number') return data.cash_available
   return null
 }
 
 const readOpenOrders = (markets: Market[]): OpenOrder[] => {
-  const data = loadYaml<OpenOrdersFile>(resolve(CONTEXT_DIR, 'open_orders.yaml'))
+  const data = loadYaml<OpenOrdersFile>(contextFile('open_orders.yaml'))
   if (!data) return []
   const placed = asString(data.as_of)
   const known = new Set(markets.map((m) => m.id))
@@ -322,9 +323,14 @@ const FRESH_FILES = [
   'stable_rules.md'
 ]
 
+// Files whose live state lives in a gitignored *.local overlay; resolve their
+// freshness against the overlay actually being read, not the tracked sample.
+const OVERLAY_FRESH_FILES = new Set(['portfolio_current.yaml', 'open_orders.yaml'])
+
 const readFreshness = (): FreshnessEntry[] =>
   FRESH_FILES.map((f) => {
-    const age = ageMinutes(resolve(CONTEXT_DIR, f)) ?? Number.MAX_SAFE_INTEGER
+    const path = OVERLAY_FRESH_FILES.has(f) ? contextFile(f) : resolve(CONTEXT_DIR, f)
+    const age = ageMinutes(path) ?? Number.MAX_SAFE_INTEGER
     return { file: f, age, state: freshnessFor(age) }
   })
 

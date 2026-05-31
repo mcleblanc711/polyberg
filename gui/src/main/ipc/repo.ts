@@ -36,10 +36,23 @@ export const CONTEXT_DIR = resolve(REPO_ROOT, 'context')
 export const REPORTS_DIR = resolve(REPO_ROOT, 'reports', 'generated')
 export const SNAPSHOTS_DIR = resolve(REPO_ROOT, 'data', 'snapshots')
 
+// Prefer the gitignored `<stem>.local.<ext>` overlay (real account state) when
+// present, falling back to the tracked sample file. Mirrors the Python
+// loaders.prefer_local_overlay helper so the GUI and CLI agree on which file
+// holds the live state.
+export const contextFile = (filename: string): string => {
+  const dot = filename.lastIndexOf('.')
+  const localName =
+    dot <= 0 ? `${filename}.local` : `${filename.slice(0, dot)}.local${filename.slice(dot)}`
+  const localPath = resolve(CONTEXT_DIR, localName)
+  return existsSync(localPath) ? localPath : resolve(CONTEXT_DIR, filename)
+}
+
 const READ_ROOTS = [CONTEXT_DIR, REPORTS_DIR, SNAPSHOTS_DIR]
 const WRITE_PATHS = new Set<string>([
   resolve(CONTEXT_DIR, 'recent_catalysts.md'),
   resolve(CONTEXT_DIR, 'open_orders.yaml'),
+  resolve(CONTEXT_DIR, 'open_orders.local.yaml'),
   resolve(REPORTS_DIR, 'account', 'paste_portfolio.json'),
   resolve(REPORTS_DIR, 'account', 'paste_orders.json')
 ])
