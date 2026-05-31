@@ -1,7 +1,8 @@
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useMemo, useState, type ClipboardEvent, type CSSProperties } from 'react'
 import { usePmData, usePmDataRefresh } from '../../lib/pmDataContext'
 import { useLocalState } from '../../lib/useLocalState'
 import { colors as C, fonts as F } from '../../styles/tokens'
+import { parseTweetPaste } from '../../../../shared/tweetParser'
 import type { IntakeItem, IntakeKind, IntakeStatus } from '../../lib/types'
 
 const KINDS: IntakeKind[] = ['tweet', 'article', 'note']
@@ -24,8 +25,32 @@ export const IntakeScreen = () => {
   const [author, setAuthor] = useState('')
   const [kind, setKind] = useState<IntakeKind>('tweet')
   const [showRebuild, setShowRebuild] = useState(false)
+  // Result of the last tweet auto-parse, shown as a hint under the textarea.
+  const [parseHint, setParseHint] = useState<string | null>(null)
 
   const suggestion = useMemo(() => pmData.suggestMarket(text), [text])
+
+  // When kind=tweet, intercept a paste of raw X text and split it into the
+  // author handle + cleaned body. Falls through to the default paste (manual
+  // entry) when the text doesn't look like a tweet.
+  const onPasteText = (e: ClipboardEvent<HTMLTextAreaElement>): void => {
+    if (kind !== 'tweet') return
+    const raw = e.clipboardData.getData('text')
+    if (!raw.trim()) return
+    const result = parseTweetPaste(raw)
+    if (!result.parsed) {
+      setParseHint('could not parse as a tweet — edit manually')
+      return
+    }
+    e.preventDefault()
+    setText(result.text)
+    if (result.author) setAuthor(result.author)
+    const bits = ['parsed']
+    if (result.author) bits.push(result.author)
+    if (result.age) bits.push(result.age)
+    if (result.source) bits.push(`src: ${result.source}`)
+    setParseHint(bits.join(' · '))
+  }
 
   const add = (): void => {
     if (!text.trim()) return
@@ -43,6 +68,7 @@ export const IntakeScreen = () => {
     setItems([it, ...items])
     setText('')
     setAuthor('')
+    setParseHint(null)
   }
 
   const setStatus = (id: string, status: IntakeStatus): void => {
@@ -107,9 +133,15 @@ export const IntakeScreen = () => {
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="paste tweet text, article summary, or note here…"
+            onPaste={onPasteText}
+            placeholder={
+              kind === 'tweet'
+                ? 'paste a raw tweet (name / @handle / time / body) — auto-parsed…'
+                : 'paste article summary or note here…'
+            }
             style={S.textarea}
           />
+          {parseHint ? <div style={S.parseHint}>↳ {parseHint}</div> : null}
           <div style={S.pasteFoot}>
             <div style={{ flex: 1 }}>
               {text.length > 0 && suggestion.id ? (
@@ -138,6 +170,7 @@ export const IntakeScreen = () => {
               onClick={() => {
                 setText('')
                 setAuthor('')
+                setParseHint(null)
               }}
             >
               CLEAR
@@ -609,6 +642,13 @@ const S: Record<string, CSSProperties> = {
     resize: 'vertical',
     outline: 'none',
     boxSizing: 'border-box'
+  },
+  parseHint: {
+    fontSize: 10.5,
+    color: C.cyan,
+    fontFamily: F.mono,
+    letterSpacing: 0.3,
+    marginTop: 6
   },
   pasteFoot: { display: 'flex', gap: 10, marginTop: 10, alignItems: 'center' },
   suggestion: { display: 'flex', gap: 10, alignItems: 'center' },

@@ -12,7 +12,7 @@
 
 ## Features
 
-- [ ] **Intake screen tweet auto-parser** — parse pasted tweets in standard X format: extract author name, `@handle`, timestamp (e.g. "1m"), tweet text, and source line. Auto-populate the `author` field with the handle (with `@`), populate `text` with tweet content only (strip metadata lines and source line). Example parse:
+- [x] **Intake screen tweet auto-parser** — parse pasted tweets in standard X format: extract author name, `@handle`, timestamp (e.g. "1m"), tweet text, and source line. Auto-populate the `author` field with the handle (with `@`), populate `text` with tweet content only (strip metadata lines and source line). Example parse:
   ```
   Mario Nawfal
   @MarioNawfal
@@ -23,6 +23,9 @@
   Source: CBS News
   ```
   → author: `@MarioNawfal`, text: `[tweet content here]`. Handle both multi-line tweet content and bulletpoint summaries. Gracefully fall back to manual entry if parse fails.
+  - [x] Pure parser implemented: `gui/src/shared/tweetParser.ts` (`parseTweetPaste`), forgiving — keeps unclassified lines as body, returns `parsed: false` for manual fallback.
+  - [x] Wired into `IntakeScreen.tsx`: an `onPaste` handler on the tweet textarea auto-fills the author with `@handle` and the body with the cleaned text, stripping metadata/source lines; shows a parse hint and falls back to manual entry on no-match. `npm run typecheck` clean.
+  - [ ] Optional follow-up: a JS test runner (vitest) so `parseTweetPaste` gets unit coverage — none is configured today (parser logic was verified out-of-band during implementation).
 - [ ] Evaluate n8n integration — automate daily packet push to Claude Web and/or ChatGPT (assess feasibility: n8n HTTP nodes, headless browser vs API, scheduling, output retrieval)
 - [ ] **Packet output format redesign** (from Claude Web project instructions review):
   - DROP: "Model Instructions" block, "Stable Trading Principles" block, dev scaffolding text, duplicate "Unresolved/Missing Information" section

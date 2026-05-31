@@ -38,7 +38,64 @@ What that buys you:
 - The Python CLI and the Electron GUI call the same builders, so the
   workflow is identical whether you live in a terminal or want a desk app.
 
+## Daily workflow
+
+This is the loop the tool is built around. Polyberg owns the deterministic
+middle (intake → packet); you and the models own the judgement at the ends.
+
+1. **Pull signal.** Find the relevant tweets and headlines. Paste them into the
+   **Intake** tab — each goes in as a *catalyst* tagged to a `market_id`, and
+   the X-format auto-parser splits a raw paste into author + text for you (see
+   [Tweet & catalyst intake](#tweet--catalyst-intake)). Intake appends to
+   `context/recent_catalysts.md`.
+2. **Refresh account state.** Pull balances, positions, and open orders into the
+   gitignored `*.local.yaml` overlays (GUI **PROMOTE** / account import, or the
+   `promote-*` and `paste-import` CLI commands).
+3. **Build the packet.** `build-packet` assembles one deterministic artifact:
+   live state, portfolio, open orders, market registry, the latest snapshot, the
+   recent catalysts, and the trading rules.
+4. **Brief both models.** Paste `packet.md` into the **Claude Project** (the
+   aggressive trader, `prompts/claude_trader_prompt.md`) and into the **GPT
+   Project** (the resolution-rules risk critic — same packet, instructions
+   refined for GPT, `prompts/chatgpt_risk_prompt.md`).
+5. **Ask Claude for a move.** Prompt Claude for position suggestions on a
+   specific market — sizing, entries, or moving limit orders.
+6. **Steelman with GPT.** Hand Claude's reasoning to GPT as a context dump and
+   have it stress-test and steelman the call: poke holes, surface the opposing
+   case, flag overconfidence and resolution-rule traps.
+7. **Round-trip back to Claude.** Feed GPT's critique back to Claude for the
+   final suggested move and the concrete implementation (orders to place or
+   adjust). The `adjudicator` stage (`prompts/adjudicator_prompt.md`) is the
+   structured version of this hand-off when you want it on rails.
+8. **Place it yourself.** Read the trade ticket, decide, and place the order on
+   Polymarket by hand. Polyberg never touches the exchange.
+
+The two-model loop is deliberate: Claude proposes and implements, GPT
+adversarially reviews, and the packet keeps both reading from the same source of
+truth so a disagreement is about the trade, not about who saw what.
+
+### Tweet & catalyst intake
+
+Catalysts are the one place raw outside signal enters the system, so intake is
+kept uniform. Every item — whether a tweet, an article, or a note — is the same
+shape: a timestamp, a source, and the text, tagged to a `market_id` from
+`context/market_registry.yaml` and filed into `context/recent_catalysts.md`
+under **Credible Reporting Watch** (or the rumour watch for noisy social chatter).
+
+- **Three kinds, one record.** `tweet` / `article` / `note` differ only by how
+  they're labelled; they share the catalyst record and the same routing.
+- **Tweet auto-parser.** Pasting a raw X copy (display name, `@handle`,
+  `·`/relative timestamp, body, trailing `Source:` line) auto-fills the author
+  as `@handle` and the text as the tweet body with the metadata and source lines
+  stripped. It falls back to manual entry if the paste doesn't parse.
+- **Always non-authoritative.** Twitter/X items are catalyst signals only, never
+  resolution evidence — the packet carries them tagged as such.
+
 ## Screens
+
+> The screenshots below are **placeholders** while the GUI usability pass is in
+> flight; the originals are recoverable from git history. Replace
+> `design/screenshots/0*.png` with fresh captures once the redesign lands.
 
 **Dashboard** — positions, freshness audit, research workflow, account rail.
 
