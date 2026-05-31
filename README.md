@@ -93,39 +93,19 @@ under **Credible Reporting Watch** (or the rumour watch for noisy social chatter
 
 ## Screens
 
-> The screenshots below are **placeholders** while the GUI usability pass is in
-> flight; the originals are recoverable from git history. Replace
-> `design/screenshots/0*.png` with fresh captures once the redesign lands.
-
 **Dashboard** — positions, freshness audit, research workflow, account rail.
 
 ![Dashboard](design/screenshots/01-dashboard.png)
 
 **Intake / context rebuilder** — paste tweets, articles, notes; auto-tag to
-markets; diff before any file is written.
+market; diff before any file is written.
 
 ![Intake](design/screenshots/02-intake.png)
-
-**Snapshots** — structured market-snapshot scaffold with diff against prior
-captures. The live Gamma/CLOB collector wiring isn't done yet; today
-`snapshot-markets` emits the schema with placeholder prices.
-
-![Snapshots](design/screenshots/03-snapshots.png)
-
-**Catalysts** — manually curated `recent_catalysts.md` viewer with
-attribution.
-
-![Catalysts](design/screenshots/04-catalysts.png)
 
 **Packet review** — generated `packet.md` next to adjudicator status and
 next stage.
 
 ![Packet](design/screenshots/05-packet.png)
-
-**Markets** — registry view with rule keys, oracle types, and resolution
-risk flags.
-
-![Markets](design/screenshots/06-markets.png)
 
 ---
 
