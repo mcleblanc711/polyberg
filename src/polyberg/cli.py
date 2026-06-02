@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from polyberg.account_normalizer import NormalizerError, promote_data_api_positions
+from polyberg.account_normalizer import NormalizerError
 from polyberg.adjudicator_builder import write_adjudicator_input
 from polyberg.collectors.polymarket_account import (
     AccountImportError,
@@ -15,9 +15,10 @@ from polyberg.collectors.polymarket_clob_auth import load_clob_credentials_from_
 from polyberg.collectors.polymarket_clob_balance import write_clob_balance
 from polyberg.collectors.polymarket_clob_orders import write_clob_open_orders
 from polyberg.collectors.polymarket_gamma import GammaCollectorError
-from polyberg.paste_import import PasteImportError, import_paste
 from polyberg.config import load_repo_dotenv, repo_path
-from polyberg.packet_builder import write_packet
+from polyberg.packet_builder import write_model_packets, write_packet
+from polyberg.packet_builder.api import TARGETS
+from polyberg.paste_import import PasteImportError, import_paste
 from polyberg.price_history import build_price_history_artifact, default_price_history_path
 from polyberg.snapshots import build_market_snapshot, default_snapshot_path, diff_snapshots
 from polyberg.trade_ticket import build_trade_ticket
@@ -41,6 +42,29 @@ def build_parser() -> argparse.ArgumentParser:
     packet.add_argument("--context-dir", type=Path, default=None)
     packet.add_argument("--snapshot", type=Path, default=None)
     packet.set_defaults(func=command_build_packet)
+
+    packet_group = subparsers.add_parser(
+        "packet", help="Model-specific research packet exports (GPT / Claude)."
+    )
+    packet_sub = packet_group.add_subparsers(dest="packet_command", required=True)
+    packet_build = packet_sub.add_parser(
+        "build", help="Build GPT and/or Claude research packets from shared local state."
+    )
+    packet_build.add_argument(
+        "--target",
+        choices=[*TARGETS, "all"],
+        default="all",
+        help="Which model packet(s) to render. Default: all.",
+    )
+    packet_build.add_argument(
+        "--output-dir",
+        type=Path,
+        default=repo_path("dist", "packets"),
+        help="Directory for the rendered packets. Default: dist/packets/.",
+    )
+    packet_build.add_argument("--context-dir", type=Path, default=None)
+    packet_build.add_argument("--snapshot", type=Path, default=None)
+    packet_build.set_defaults(func=command_packet_build)
 
     validate_response = subparsers.add_parser(
         "validate-response", help="Validate a model JSON response."
@@ -308,6 +332,18 @@ def build_parser() -> argparse.ArgumentParser:
 def command_build_packet(args: argparse.Namespace) -> int:
     path = write_packet(args.output, context_dir=args.context_dir, snapshot_path=args.snapshot)
     print(f"Wrote packet to {path}")
+    return 0
+
+
+def command_packet_build(args: argparse.Namespace) -> int:
+    paths = write_model_packets(
+        target=args.target,
+        output_dir=args.output_dir,
+        context_dir=args.context_dir,
+        snapshot_path=args.snapshot,
+    )
+    for path in paths:
+        print(f"Wrote {path}")
     return 0
 
 

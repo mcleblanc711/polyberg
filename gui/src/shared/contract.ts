@@ -177,6 +177,7 @@ export type PasteKind = 'portfolio' | 'orders'
 
 export const ALLOWED_STAGES = [
   'build-packet',
+  'packet',
   'validate-response',
   'validate-adjudicator',
   'build-adjudicator-input',
@@ -214,7 +215,7 @@ export const IPC = {
   watchEvent: 'pm:watch:event'
 } as const
 
-export type ArtifactName = 'packet' | 'adjudicator-input'
+export type ArtifactName = 'packet' | 'adjudicator-input' | 'packet-gpt' | 'packet-claude'
 
 export interface ArtifactRead {
   name: ArtifactName

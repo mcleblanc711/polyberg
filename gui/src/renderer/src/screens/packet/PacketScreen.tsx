@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { StageRunnerModal } from '../../components/StageRunnerModal'
+import { copyPacket } from '../../lib/copyPacket'
 import { usePmData } from '../../lib/pmDataContext'
 import type { ArtifactName, ArtifactRead } from '../../../../shared/contract'
 import { colors as C, fonts as F } from '../../styles/tokens'
@@ -9,16 +10,43 @@ interface ArtifactSpec {
   label: string
   filename: string
   buildStage: string
+  buildArgs?: string[]
+  buildLabel: string
+  copyLabel: string
   hint: string
   promptHint: string
 }
 
 const SPECS: ArtifactSpec[] = [
   {
+    name: 'packet-gpt',
+    label: 'GPT PACKET',
+    filename: 'reports/generated/Polyberg_Current_Research_Packet_GPT_Source.md',
+    buildStage: 'packet',
+    buildArgs: ['build', '--target', 'gpt', '--output-dir', 'reports/generated'],
+    buildLabel: 'generate gpt packet',
+    copyLabel: 'copy gpt packet',
+    hint: 'verbose, layer-separated source — paste into a GPT research/risk tab',
+    promptHint: 'Polyberg_Current_Research_Packet_GPT_Source.md  +  polymarket_rules.md'
+  },
+  {
+    name: 'packet-claude',
+    label: 'CLAUDE PACKET',
+    filename: 'reports/generated/Polyberg_Current_Research_Packet_Claude_Source.md',
+    buildStage: 'packet',
+    buildArgs: ['build', '--target', 'claude', '--output-dir', 'reports/generated'],
+    buildLabel: 'generate claude packet',
+    copyLabel: 'copy claude packet',
+    hint: 'concise, adversarial source — paste into a Claude trader tab',
+    promptHint: 'Polyberg_Current_Research_Packet_Claude_Source.md  +  polymarket_rules.md'
+  },
+  {
     name: 'packet',
-    label: 'PACKET',
+    label: 'PACKET (LEGACY)',
     filename: 'reports/generated/packet.md',
     buildStage: 'build-packet',
+    buildLabel: 'build-packet',
+    copyLabel: 'copy to clipboard',
     hint: 'paste into Claude trader and ChatGPT risk tabs',
     promptHint: 'prompts/claude_trader_prompt.md  +  prompts/chatgpt_risk_prompt.md'
   },
@@ -27,16 +55,21 @@ const SPECS: ArtifactSpec[] = [
     label: 'ADJUDICATOR INPUT',
     filename: 'reports/generated/adjudicator_input.md',
     buildStage: 'build-adjudicator-input',
+    buildLabel: 'build-adjudicator-input',
+    copyLabel: 'copy to clipboard',
     hint: 'paste into adjudicator model after both model outputs are validated',
     promptHint: 'prompts/adjudicator_prompt.md'
   }
 ]
 
+// Per-session market data whose age should gate a packet rebuild. Deliberately
+// excludes market_registry.yaml: it's a stable catalog of tracked markets
+// (config, not market data), so its mtime going past 24h is a false staleness
+// alarm — same reasoning that kept live_state.yaml out of the freshness checks.
 const PACKET_INPUT_FILES = new Set([
   'portfolio_current.yaml',
   'open_orders.yaml',
-  'recent_catalysts.md',
-  'market_registry.yaml'
+  'recent_catalysts.md'
 ])
 
 type Severity = 'info' | 'warn' | 'rebuild' | 'block'
@@ -82,7 +115,9 @@ export const PacketScreen = () => {
   const [runArgs, setRunArgs] = useState<RunArgs | null>(null)
   const [artifacts, setArtifacts] = useState<Record<ArtifactName, ArtifactRead | null>>({
     packet: null,
-    'adjudicator-input': null
+    'adjudicator-input': null,
+    'packet-gpt': null,
+    'packet-claude': null
   })
 
   const loadOne = useCallback(async (name: ArtifactName): Promise<void> => {
@@ -159,19 +194,11 @@ const ArtifactPanel = ({
 
   const onCopy = async (): Promise<void> => {
     if (!artifact?.exists) return
-    try {
-      await window.pm.writeClipboard(artifact.content)
-      setCopyState('copied')
-      return
-    } catch {
-      /* fall through */
-    }
-    try {
-      await navigator.clipboard.writeText(artifact.content)
-      setCopyState('copied')
-    } catch {
-      setCopyState('error')
-    }
+    const outcome = await copyPacket(artifact.content, {
+      writeClipboard: (t) => window.pm.writeClipboard(t),
+      navigatorWrite: (t) => navigator.clipboard.writeText(t)
+    })
+    setCopyState(outcome)
   }
 
   const exists = artifact?.exists ?? false
@@ -197,8 +224,11 @@ const ArtifactPanel = ({
       </div>
 
       <div style={S.actions}>
-        <button style={S.btnGhost} onClick={() => onRun({ stage: spec.buildStage })}>
-          $ {spec.buildStage}
+        <button
+          style={S.btnGhost}
+          onClick={() => onRun({ stage: spec.buildStage, args: spec.buildArgs })}
+        >
+          $ {spec.buildLabel}
         </button>
         <button
           style={{
@@ -213,7 +243,7 @@ const ArtifactPanel = ({
             ? '✓ COPIED'
             : copyState === 'error'
               ? '✕ COPY FAILED'
-              : '⎘ COPY TO CLIPBOARD'}
+              : `⎘ ${spec.copyLabel.toUpperCase()}`}
         </button>
       </div>
 
@@ -253,7 +283,7 @@ const ArtifactPanel = ({
         <pre style={S.code}>{artifact!.content}</pre>
       ) : (
         <div style={S.empty}>
-          run <span style={{ color: C.magenta, fontFamily: F.mono }}>$ {spec.buildStage}</span> to
+          run <span style={{ color: C.magenta, fontFamily: F.mono }}>$ {spec.buildLabel}</span> to
           generate this file
         </div>
       )}
@@ -269,8 +299,9 @@ const computeWarnings = (
 ): Warning[] => {
   const warnings: Warning[] = []
   const artifactAge = artifact?.exists ? artifact.ageMin : null
+  const isModelPacket = spec.name === 'packet-gpt' || spec.name === 'packet-claude'
 
-  if (spec.name === 'packet') {
+  if (spec.name === 'packet' || isModelPacket) {
     const snap = pmData.snapshots[0]
     if (!snap) {
       warnings.push({
@@ -300,8 +331,8 @@ const computeWarnings = (
           severity: 'rebuild',
           text: `input changed since last build: ${names}`,
           hint: `packet was built ${fmtAge(artifactAge)}; inputs updated more recently`,
-          run: { stage: 'build-packet' },
-          runLabel: '$ rebuild packet'
+          run: { stage: spec.buildStage, args: spec.buildArgs },
+          runLabel: `$ ${spec.buildLabel}`
         })
       }
     }
@@ -330,7 +361,7 @@ const computeWarnings = (
     if (!artifact?.exists) {
       warnings.push({
         severity: 'info',
-        text: 'packet not built yet — click $ build-packet above'
+        text: `packet not built yet — click $ ${spec.buildLabel} above`
       })
     }
   }

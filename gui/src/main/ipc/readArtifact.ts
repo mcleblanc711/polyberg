@@ -5,7 +5,12 @@ import { ageMinutes, assertReadable, REPORTS_DIR } from './repo'
 
 const FILENAMES: Record<ArtifactName, string> = {
   packet: 'packet.md',
-  'adjudicator-input': 'adjudicator_input.md'
+  'adjudicator-input': 'adjudicator_input.md',
+  // The CLI `packet build` defaults to dist/packets/, but the GUI invokes it
+  // with `--output-dir reports/generated` so the rendered packets land inside
+  // an allowed read root next to the legacy packet.
+  'packet-gpt': 'Polyberg_Current_Research_Packet_GPT_Source.md',
+  'packet-claude': 'Polyberg_Current_Research_Packet_Claude_Source.md'
 }
 
 export const readArtifact = (name: ArtifactName): ArtifactRead => {

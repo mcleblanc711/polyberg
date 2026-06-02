@@ -314,11 +314,14 @@ const readLiveState = () => {
   return { mode, cash, thesis, constraints, notes, proxyWallet }
 }
 
+// Files whose mtime carries a meaningful "is this fresh?" signal. Excludes
+// market_registry.yaml: it's a stable catalog of tracked markets (config, not
+// per-session market data), so an old mtime is a false staleness alarm — the
+// same reason live_state.yaml was dropped from these checks.
 const FRESH_FILES = [
   'portfolio_current.yaml',
   'open_orders.yaml',
   'recent_catalysts.md',
-  'market_registry.yaml',
   'trading_principles.md',
   'stable_rules.md'
 ]
