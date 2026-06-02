@@ -175,6 +175,10 @@ export interface DraftOrder {
 
 export type PasteKind = 'portfolio' | 'orders'
 
+// Decision-leg JSON inputs pasted in the GUI: the two model responses fed to the
+// adjudicator, and the adjudicator's own output. Written to reports/generated/decision/.
+export type ResponseSlot = 'gpt' | 'claude' | 'adjudicator'
+
 export const ALLOWED_STAGES = [
   'build-packet',
   'packet',
@@ -210,12 +214,18 @@ export const IPC = {
   appendCatalyst: 'pm:appendCatalyst',
   writeDraftOrder: 'pm:writeDraftOrder',
   writePasteInput: 'pm:writePasteInput',
+  writeResponseInput: 'pm:writeResponseInput',
   watchStart: 'pm:watch:start',
   watchStop: 'pm:watch:stop',
   watchEvent: 'pm:watch:event'
 } as const
 
-export type ArtifactName = 'packet' | 'adjudicator-input' | 'packet-gpt' | 'packet-claude'
+export type ArtifactName =
+  | 'packet'
+  | 'adjudicator-input'
+  | 'packet-gpt'
+  | 'packet-claude'
+  | 'trade-ticket'
 
 export interface ArtifactRead {
   name: ArtifactName
@@ -245,5 +255,6 @@ export interface PmBridge {
   appendCatalyst: (marketId: string, entry: Catalyst) => Promise<void>
   writeDraftOrder: (order: DraftOrder) => Promise<void>
   writePasteInput: (kind: PasteKind, text: string) => Promise<string>
+  writeResponseInput: (slot: ResponseSlot, text: string) => Promise<string>
   onContextChange: (cb: (ev: ContextChangeEvent) => void) => () => void
 }

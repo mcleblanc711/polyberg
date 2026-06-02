@@ -1,9 +1,16 @@
 import { clipboard, ipcMain, type IpcMainInvokeEvent } from 'electron'
-import { IPC, type ArtifactName, type Catalyst, type DraftOrder, type PasteKind } from '../../shared/contract'
+import {
+  IPC,
+  type ArtifactName,
+  type Catalyst,
+  type DraftOrder,
+  type PasteKind,
+  type ResponseSlot
+} from '../../shared/contract'
 import { readArtifact } from './readArtifact'
 import { readContext } from './readContext'
 import { runStage, runStageStream } from './runStage'
-import { appendCatalyst, writeDraftOrder, writePasteInput } from './writers'
+import { appendCatalyst, writeDraftOrder, writePasteInput, writeResponseInput } from './writers'
 import { startWatch, stopWatch } from './watcher'
 
 let registered = false
@@ -41,6 +48,10 @@ export const registerIpc = (): void => {
 
   ipcMain.handle(IPC.writePasteInput, (_evt, kind: PasteKind, text: string) => {
     return writePasteInput(kind, text)
+  })
+
+  ipcMain.handle(IPC.writeResponseInput, (_evt, slot: ResponseSlot, text: string) => {
+    return writeResponseInput(slot, text)
   })
 
   ipcMain.handle(IPC.watchStart, (evt: IpcMainInvokeEvent) => {

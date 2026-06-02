@@ -6,6 +6,7 @@ import {
   type DraftOrder,
   type PasteKind,
   type PmBridge,
+  type ResponseSlot,
   type RunStageResult
 } from '../shared/contract'
 
@@ -41,6 +42,9 @@ const pm: PmBridge = {
 
   writePasteInput: (kind: PasteKind, text: string) =>
     ipcRenderer.invoke(IPC.writePasteInput, kind, text),
+
+  writeResponseInput: (slot: ResponseSlot, text: string) =>
+    ipcRenderer.invoke(IPC.writeResponseInput, slot, text),
 
   onContextChange: (cb) => {
     const handler = (_evt: IpcRendererEvent, payload: ContextChangeEvent): void => cb(payload)

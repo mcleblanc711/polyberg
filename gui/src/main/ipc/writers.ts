@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { dirname, resolve } from 'path'
 import yaml from 'js-yaml'
 import { assertWritable, contextFile, CONTEXT_DIR, REPORTS_DIR } from './repo'
-import type { Catalyst, DraftOrder, PasteKind } from '../../shared/contract'
+import type { Catalyst, DraftOrder, PasteKind, ResponseSlot } from '../../shared/contract'
 
 const CATALYSTS_PATH = resolve(CONTEXT_DIR, 'recent_catalysts.md')
 // Write to the gitignored open_orders.local.yaml overlay when it exists so
@@ -14,6 +14,14 @@ const REGISTRY_PATH = resolve(CONTEXT_DIR, 'market_registry.yaml')
 const PASTE_PATHS: Record<PasteKind, string> = {
   portfolio: resolve(REPORTS_DIR, 'account', 'paste_portfolio.json'),
   orders: resolve(REPORTS_DIR, 'account', 'paste_orders.json')
+}
+
+// Decision-leg inputs pasted in the GUI. These are the exact paths the DECISION
+// screen passes to validate-response / build-adjudicator-input / build-trade-ticket.
+const RESPONSE_PATHS: Record<ResponseSlot, string> = {
+  gpt: resolve(REPORTS_DIR, 'decision', 'model_gpt_response.json'),
+  claude: resolve(REPORTS_DIR, 'decision', 'model_claude_response.json'),
+  adjudicator: resolve(REPORTS_DIR, 'decision', 'adjudicator_output.json')
 }
 
 const knownMarketIds = (): Set<string> => {
@@ -107,6 +115,17 @@ export const writePasteInput = (kind: PasteKind, text: string): string => {
   const target = PASTE_PATHS[kind]
   if (!target) {
     throw new Error(`Unknown paste kind: ${String(kind)}`)
+  }
+  const path = assertWritable(target)
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, text, 'utf8')
+  return path
+}
+
+export const writeResponseInput = (slot: ResponseSlot, text: string): string => {
+  const target = RESPONSE_PATHS[slot]
+  if (!target) {
+    throw new Error(`Unknown response slot: ${String(slot)}`)
   }
   const path = assertWritable(target)
   mkdirSync(dirname(path), { recursive: true })

@@ -10,7 +10,8 @@ const FILENAMES: Record<ArtifactName, string> = {
   // with `--output-dir reports/generated` so the rendered packets land inside
   // an allowed read root next to the legacy packet.
   'packet-gpt': 'Polyberg_Current_Research_Packet_GPT_Source.md',
-  'packet-claude': 'Polyberg_Current_Research_Packet_Claude_Source.md'
+  'packet-claude': 'Polyberg_Current_Research_Packet_Claude_Source.md',
+  'trade-ticket': 'trade_ticket.md'
 }
 
 export const readArtifact = (name: ArtifactName): ArtifactRead => {

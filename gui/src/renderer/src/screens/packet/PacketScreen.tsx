@@ -49,17 +49,10 @@ const SPECS: ArtifactSpec[] = [
     copyLabel: 'copy to clipboard',
     hint: 'paste into Claude trader and ChatGPT risk tabs',
     promptHint: 'prompts/claude_trader_prompt.md  +  prompts/chatgpt_risk_prompt.md'
-  },
-  {
-    name: 'adjudicator-input',
-    label: 'ADJUDICATOR INPUT',
-    filename: 'reports/generated/adjudicator_input.md',
-    buildStage: 'build-adjudicator-input',
-    buildLabel: 'build-adjudicator-input',
-    copyLabel: 'copy to clipboard',
-    hint: 'paste into adjudicator model after both model outputs are validated',
-    promptHint: 'prompts/adjudicator_prompt.md'
   }
+  // The adjudicator-input step (and the rest of the decision leg) lives on the
+  // DECISION tab now — it needs pasted model responses as build args, which a
+  // plain artifact panel can't supply.
 ]
 
 // Per-session market data whose age should gate a packet rebuild. Deliberately
@@ -113,9 +106,8 @@ const ageColor = (mins: number | null): string => {
 
 export const PacketScreen = () => {
   const [runArgs, setRunArgs] = useState<RunArgs | null>(null)
-  const [artifacts, setArtifacts] = useState<Record<ArtifactName, ArtifactRead | null>>({
+  const [artifacts, setArtifacts] = useState<Partial<Record<ArtifactName, ArtifactRead | null>>>({
     packet: null,
-    'adjudicator-input': null,
     'packet-gpt': null,
     'packet-claude': null
   })
@@ -152,8 +144,7 @@ export const PacketScreen = () => {
           <ArtifactPanel
             key={spec.name}
             spec={spec}
-            artifact={artifacts[spec.name]}
-            otherArtifacts={artifacts}
+            artifact={artifacts[spec.name] ?? null}
             onRun={(r) => setRunArgs(r)}
           />
         ))}
@@ -175,12 +166,10 @@ export const PacketScreen = () => {
 const ArtifactPanel = ({
   spec,
   artifact,
-  otherArtifacts,
   onRun
 }: {
   spec: ArtifactSpec
   artifact: ArtifactRead | null
-  otherArtifacts: Record<ArtifactName, ArtifactRead | null>
   onRun: (r: RunArgs) => void
 }) => {
   const pmData = usePmData()
@@ -203,7 +192,7 @@ const ArtifactPanel = ({
 
   const exists = artifact?.exists ?? false
   const ageC = ageColor(artifact?.ageMin ?? null)
-  const warnings = computeWarnings(spec, artifact, otherArtifacts, pmData)
+  const warnings = computeWarnings(spec, artifact, pmData)
 
   return (
     <div style={S.panel}>
@@ -294,7 +283,6 @@ const ArtifactPanel = ({
 const computeWarnings = (
   spec: ArtifactSpec,
   artifact: ArtifactRead | null,
-  otherArtifacts: Record<ArtifactName, ArtifactRead | null>,
   pmData: ReturnType<typeof usePmData>
 ): Warning[] => {
   const warnings: Warning[] = []
@@ -362,38 +350,6 @@ const computeWarnings = (
       warnings.push({
         severity: 'info',
         text: `packet not built yet — click $ ${spec.buildLabel} above`
-      })
-    }
-  }
-
-  if (spec.name === 'adjudicator-input') {
-    const packet = otherArtifacts.packet
-    if (!packet?.exists) {
-      warnings.push({
-        severity: 'block',
-        text: 'no packet to adjudicate — build packet.md first',
-        run: { stage: 'build-packet' },
-        runLabel: '$ build-packet'
-      })
-    } else if (
-      artifact?.exists &&
-      artifactAge !== null &&
-      packet.ageMin !== null &&
-      packet.ageMin < artifactAge - 1
-    ) {
-      warnings.push({
-        severity: 'rebuild',
-        text: `packet rebuilt ${fmtAge(packet.ageMin)} — adjudicator input is older`,
-        hint: 'rebuild adjudicator input so it reflects the current packet',
-        run: { stage: 'build-adjudicator-input' },
-        runLabel: '$ rebuild'
-      })
-    }
-
-    if (!artifact?.exists && packet?.exists) {
-      warnings.push({
-        severity: 'info',
-        text: 'adjudicator input not built yet — needs validated claude_output.json + chatgpt_output.json'
       })
     }
   }

@@ -8,10 +8,19 @@ import { CatalystsScreen } from './screens/catalysts/CatalystsScreen'
 import { IntakeScreen } from './screens/intake/IntakeScreen'
 import { MarketsScreen } from './screens/markets/MarketsScreen'
 import { PacketScreen } from './screens/packet/PacketScreen'
+import { DecisionScreen } from './screens/decision/DecisionScreen'
 import { SnapshotsScreen } from './screens/snapshots/SnapshotsScreen'
 import { colors as C, fonts as F } from './styles/tokens'
 
-type ScreenId = 'dashboard' | 'intake' | 'snapshots' | 'catalysts' | 'packet' | 'markets' | 'account'
+type ScreenId =
+  | 'dashboard'
+  | 'intake'
+  | 'snapshots'
+  | 'catalysts'
+  | 'packet'
+  | 'decision'
+  | 'markets'
+  | 'account'
 
 interface Tab {
   id: ScreenId
@@ -47,6 +56,7 @@ const TopBar = ({
     { id: 'snapshots', label: 'SNAPSHOTS' },
     { id: 'catalysts', label: 'CATALYSTS' },
     { id: 'packet', label: 'PACKET' },
+    { id: 'decision', label: 'DECISION' },
     { id: 'markets', label: 'MARKETS' },
     { id: 'account', label: 'ACCOUNT' }
   ]
@@ -151,6 +161,8 @@ export const App = () => {
         return <MarketsScreen />
       case 'packet':
         return <PacketScreen />
+      case 'decision':
+        return <DecisionScreen />
       case 'catalysts':
         return <CatalystsScreen />
       case 'snapshots':
