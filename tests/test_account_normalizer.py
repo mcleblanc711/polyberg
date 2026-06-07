@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -15,8 +15,7 @@ from polyberg.account_normalizer import (
     promote_data_api_positions,
     read_usdc_balance,
 )
-from polyberg.loaders import load_open_orders
-from polyberg.loaders import load_market_registry, load_portfolio
+from polyberg.loaders import load_market_registry, load_open_orders, load_portfolio
 from polyberg.models import MarketRegistry
 
 FIXTURE = Path(__file__).parent / "fixtures" / "account_import" / "positions_data_api.json"
@@ -56,7 +55,7 @@ def test_normalize_real_fixture_maps_every_position(tmp_path: Path) -> None:
         raw_positions,
         registry,
         cash_available=100.0,
-        now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+        now=datetime(2026, 5, 11, tzinfo=UTC),
     )
     assert skipped == []
     assert len(portfolio.positions) == len(raw_positions)
@@ -198,7 +197,7 @@ def test_promote_writes_canonical_yaml_and_preserves_thesis_bucket(tmp_path: Pat
         cash_available=75.0,
         registry_path=registry_path,
         portfolio_path_for_thesis=existing,
-        now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+        now=datetime(2026, 5, 11, tzinfo=UTC),
     )
     assert written_path == output
     assert skipped == []
@@ -273,7 +272,7 @@ def test_promote_balance_updates_cash_and_preserves_positions(tmp_path: Path) ->
     _write_existing_portfolio(portfolio_path, cash=10.0)
 
     updated, previous_cash = promote_balance(
-        balance, portfolio_path, now=datetime(2026, 5, 15, tzinfo=timezone.utc)
+        balance, portfolio_path, now=datetime(2026, 5, 15, tzinfo=UTC)
     )
 
     assert previous_cash == pytest.approx(10.0)
@@ -361,7 +360,7 @@ def test_normalize_clob_orders_splits_buys_and_sells(tmp_path: Path) -> None:
         ),
     ]
     open_orders, skipped = normalize_clob_open_orders(
-        payload, registry, now=datetime(2026, 5, 11, tzinfo=timezone.utc)
+        payload, registry, now=datetime(2026, 5, 11, tzinfo=UTC)
     )
 
     assert skipped == []
@@ -468,7 +467,7 @@ def test_promote_clob_open_orders_writes_canonical_yaml(tmp_path: Path) -> None:
         raw_path=raw_file,
         output_path=output,
         registry_path=registry_path,
-        now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+        now=datetime(2026, 5, 11, tzinfo=UTC),
     )
 
     assert written == output

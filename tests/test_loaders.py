@@ -21,6 +21,7 @@ def test_load_yaml_context_files() -> None:
     market_ids = {m.market_id for m in registry.markets}
     assert {"hormuz_normal_end_june", "hormuz_normal_jul31", "iran_us_peace_jun30"} <= market_ids
     assert portfolio.cash_available >= 0
+    assert isinstance(open_orders.buy_orders, list)
     assert isinstance(live_state.watchlist, list)
 
 

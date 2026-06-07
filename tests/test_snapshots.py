@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -21,7 +21,6 @@ from polyberg.snapshots import (
     _book_top_depth,
     build_market_snapshot,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fake HTTP infrastructure (mirrors test_price_history.py pattern)
@@ -252,7 +251,7 @@ def test_build_market_snapshot_happy_path(tmp_path: Path) -> None:
     client = ReadOnlyHttpClient(CLOB_API_BASE_URL, opener=opener)
 
     out = tmp_path / "snap.json"
-    build_market_snapshot(out, registry_path=reg, now=datetime(2026, 1, 1, tzinfo=timezone.utc), http=client)
+    build_market_snapshot(out, registry_path=reg, now=datetime(2026, 1, 1, tzinfo=UTC), http=client)
 
     payload = json.loads(out.read_text())
     markets = {m["market_id"]: m for m in payload["markets"]}
@@ -276,7 +275,7 @@ def test_build_market_snapshot_missing_token_ids(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     out = tmp_path / "snap.json"
-    build_market_snapshot(out, registry_path=reg, now=datetime(2026, 1, 1, tzinfo=timezone.utc))
+    build_market_snapshot(out, registry_path=reg, now=datetime(2026, 1, 1, tzinfo=UTC))
 
     payload = json.loads(out.read_text())
     m = payload["markets"][0]
@@ -286,7 +285,7 @@ def test_build_market_snapshot_missing_token_ids(tmp_path: Path) -> None:
 
 
 def test_build_market_snapshot_midpoint_failure_falls_back(tmp_path: Path) -> None:
-    """If the yes-midpoint call fails but order book succeeds, prices are None but book fields populate."""
+    """Yes-midpoint failure but order book OK: prices stay None, book fields populate."""
     reg = tmp_path / "registry.yaml"
     reg.write_text(_registry_yaml([{"market_id": "flaky_mid"}]), encoding="utf-8")
 
@@ -304,7 +303,7 @@ def test_build_market_snapshot_midpoint_failure_falls_back(tmp_path: Path) -> No
     build_market_snapshot(
         out,
         registry_path=reg,
-        now=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        now=datetime(2026, 1, 1, tzinfo=UTC),
         http=FlakyMidClient(),  # type: ignore[arg-type]
     )
 
@@ -330,7 +329,7 @@ def test_build_market_snapshot_order_book_failure(tmp_path: Path) -> None:
     build_market_snapshot(
         out,
         registry_path=reg,
-        now=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        now=datetime(2026, 1, 1, tzinfo=UTC),
         http=NoBookClient(),  # type: ignore[arg-type]
     )
 

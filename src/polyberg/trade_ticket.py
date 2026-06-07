@@ -48,7 +48,9 @@ def build_trade_ticket_payload(
     by_id = {market.market_id: market for market in registry.markets}
 
     final_orders = payload.get("final_order_list", [])
-    decisions = [_decision_from_order(order, by_id.get(order["market_id"])) for order in final_orders]
+    decisions = [
+        _decision_from_order(order, by_id.get(order["market_id"])) for order in final_orders
+    ]
     rejected = [
         TradeTicketRejected(
             market_id=item.get("market_id", ""),

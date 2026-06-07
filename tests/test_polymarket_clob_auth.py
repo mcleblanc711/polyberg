@@ -39,7 +39,7 @@ def test_build_hmac_signature_matches_manual_computation() -> None:
     method = "GET"
     path = "/data/orders"
     expected_secret = base64.urlsafe_b64decode(TEST_SECRET)
-    expected_message = f"{timestamp}{method}{path}".encode("utf-8")
+    expected_message = f"{timestamp}{method}{path}".encode()
     expected_digest = hmac.new(expected_secret, expected_message, hashlib.sha256).digest()
     expected = base64.urlsafe_b64encode(expected_digest).decode("utf-8")
 

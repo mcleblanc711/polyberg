@@ -43,7 +43,9 @@ def build_packet(
     if now is None:
         now = datetime.now(get_timezone())
 
-    freshness_warnings = _compute_freshness_warnings(live_state, portfolio, open_orders, snapshot, now)
+    freshness_warnings = _compute_freshness_warnings(
+        live_state, portfolio, open_orders, snapshot, now
+    )
 
     sections = [
         "# Polymarket Research Packet",
@@ -156,8 +158,16 @@ def _compute_freshness_warnings(
 
 
 def render_live_state(live_state: LiveState, portfolio: Portfolio | None = None) -> str:
-    cash = portfolio.cash_available if portfolio is not None else live_state.account_snapshot.cash_available
-    port_value = portfolio.portfolio_value if portfolio is not None else live_state.account_snapshot.portfolio_value
+    cash = (
+        portfolio.cash_available
+        if portfolio is not None
+        else live_state.account_snapshot.cash_available
+    )
+    port_value = (
+        portfolio.portfolio_value
+        if portfolio is not None
+        else live_state.account_snapshot.portfolio_value
+    )
     lines = [
         "### Live State",
         f"- As of: {live_state.as_of.isoformat()}",
@@ -201,7 +211,9 @@ def render_freshness_audit(
     oldest = min(item.value for item in timestamps)
 
     if freshness_warnings is None:
-        freshness_warnings = _compute_freshness_warnings(live_state, portfolio, open_orders, snapshot, now)
+        freshness_warnings = _compute_freshness_warnings(
+        live_state, portfolio, open_orders, snapshot, now
+    )
 
     lines = [
         f"- Packet built at: {now.isoformat()}",
@@ -327,7 +339,8 @@ def render_market_registry(registry: MarketRegistry) -> str:
                 f"dispute={market.rule_risk.dispute_risk}"
             )
         lines.append(
-            f"| {market.market_id} | {market.thesis_bucket} | {market.name} | {market.preferred_side} | "
+            f"| {market.market_id} | {market.thesis_bucket} | {market.name} | "
+            f"{market.preferred_side} | "
             f"{market.rule_key} | {market.oracle_type} | {market.resolution_date.isoformat()} | "
             f"{rule_risk} | {flags} |"
         )

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -125,7 +125,7 @@ def test_build_price_history_artifact_skips_missing_tokens(tmp_path: Path) -> No
         output,
         registry_path=registry_path,
         fetcher=fake_fetch,
-        now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+        now=datetime(2026, 5, 11, tzinfo=UTC),
     )
     payload = json.loads(output.read_text(encoding="utf-8"))
 
@@ -152,7 +152,7 @@ def test_build_price_history_artifact_records_fetch_errors(tmp_path: Path) -> No
         output,
         registry_path=registry_path,
         fetcher=fake_fetch,
-        now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+        now=datetime(2026, 5, 11, tzinfo=UTC),
     )
     payload = json.loads(output.read_text(encoding="utf-8"))
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -12,11 +12,6 @@ from polyberg.collectors.polymarket_account import (
     ReadOnlyHttpClient,
 )
 from polyberg.collectors.polymarket_clob_auth import (
-    POLY_ADDRESS_HEADER,
-    POLY_API_KEY_HEADER,
-    POLY_PASSPHRASE_HEADER,
-    POLY_SIGNATURE_HEADER,
-    POLY_TIMESTAMP_HEADER,
     ClobCredentials,
     build_hmac_signature,
 )
@@ -42,7 +37,7 @@ class FakeResponse:
     def __init__(self, payload: object) -> None:
         self.payload = payload
 
-    def __enter__(self) -> "FakeResponse":
+    def __enter__(self) -> FakeResponse:
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -200,7 +195,7 @@ def test_write_clob_open_orders_writes_payload_keyed_json(tmp_path: Path) -> Non
     )
     http = _make_http(opener)
     output = tmp_path / "account" / "open_orders_clob.json"
-    frozen = datetime(2026, 5, 11, 12, 0, 0, tzinfo=timezone.utc)
+    frozen = datetime(2026, 5, 11, 12, 0, 0, tzinfo=UTC)
 
     path = write_clob_open_orders(
         _creds(),

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -216,11 +216,11 @@ def test_paste_import_auto_fills_as_of_when_omitted(tmp_path: Path) -> None:
         raw_text=json.dumps(doc),
         output_path=output,
         registry_path=registry_path,
-        now=datetime(2026, 5, 11, tzinfo=timezone.utc),
+        now=datetime(2026, 5, 11, tzinfo=UTC),
     )
 
     loaded = load_portfolio(output)
-    assert loaded.as_of == datetime(2026, 5, 11, tzinfo=timezone.utc)
+    assert loaded.as_of == datetime(2026, 5, 11, tzinfo=UTC)
 
 
 def test_paste_import_rejects_non_object_top_level(tmp_path: Path) -> None:

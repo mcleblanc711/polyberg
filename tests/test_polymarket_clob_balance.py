@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -41,7 +41,7 @@ class FakeResponse:
     def __init__(self, payload: object) -> None:
         self.payload = payload
 
-    def __enter__(self) -> "FakeResponse":
+    def __enter__(self) -> FakeResponse:
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -191,7 +191,7 @@ def test_write_clob_balance_writes_artifact(tmp_path: Path) -> None:
     )
     http = _make_http(opener)
     output = tmp_path / "account" / "usdc_balance.json"
-    frozen = datetime(2026, 5, 14, 12, 0, 0, tzinfo=timezone.utc)
+    frozen = datetime(2026, 5, 14, 12, 0, 0, tzinfo=UTC)
 
     path = write_clob_balance(
         _creds(),
