@@ -326,6 +326,40 @@ def build_parser() -> argparse.ArgumentParser:
     price_history.add_argument("--context-dir", type=Path, default=None)
     price_history.set_defaults(func=command_fetch_price_history)
 
+    registry_add = subparsers.add_parser(
+        "registry-add",
+        help="Add a market to the registry from a Polymarket URL/slug (auto-fills IDs from Gamma).",
+    )
+    registry_add.add_argument("--url", help="Polymarket event URL.")
+    registry_add.add_argument("--slug", help="Event slug (alternative to --url).")
+    registry_add.add_argument(
+        "--preview",
+        action="store_true",
+        help="Fetch and print the auto-filled identifier fields as JSON; write nothing.",
+    )
+    registry_add.add_argument("--market-id", help="Registry market_id ([a-z0-9_]).")
+    registry_add.add_argument("--category", default="")
+    registry_add.add_argument("--rule-key", default="")
+    registry_add.add_argument("--oracle-type", default="")
+    registry_add.add_argument("--preferred-side", choices=["YES", "NO"])
+    registry_add.add_argument("--thesis-bucket", default="")
+    registry_add.add_argument("--notes", default="")
+    registry_add.add_argument(
+        "--risk-flag",
+        action="append",
+        dest="risk_flags",
+        default=[],
+        help="Repeatable risk-flag string.",
+    )
+    registry_add.add_argument(
+        "--market-index",
+        type=int,
+        default=0,
+        help="Which market within a multi-market event (0-based).",
+    )
+    registry_add.add_argument("--context-dir", type=Path, default=None)
+    registry_add.set_defaults(func=command_registry_add)
+
     return parser
 
 
@@ -666,6 +700,94 @@ def command_fetch_price_history(args: argparse.Namespace) -> int:
         print(str(exc), file=sys.stderr)
         return 1
     print(f"Wrote price-history artifact to {path}")
+    return 0
+
+
+def command_registry_add(args: argparse.Namespace) -> int:
+    import json as _json
+
+    from polyberg.registry_editor import (
+        RegistryEditError,
+        build_market,
+        fetch_candidate,
+        registry_path,
+        select_market,
+        suggest_market_id,
+        upsert_market_entry,
+    )
+
+    source = args.url or args.slug
+    if not source:
+        print("Provide --url or --slug", file=sys.stderr)
+        return 1
+    try:
+        candidate = fetch_candidate(source)
+    except RegistryEditError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if args.preview:
+        try:
+            market = select_market(candidate, args.market_index)
+        except RegistryEditError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        payload = {
+            "name": candidate["name"],
+            "polymarket_url": candidate["polymarket_url"],
+            "event_slug": candidate["event_slug"],
+            "suggested_market_id": suggest_market_id(candidate["name"]),
+            "num_markets": len(candidate["markets"]),
+            "market_index": args.market_index,
+            "condition_id": market["condition_id"],
+            "yes_token_id": market["yes_token_id"],
+            "no_token_id": market["no_token_id"],
+            "outcomes": market["outcomes"],
+            "resolution_date": market["resolution_date"],
+            "markets": [
+                {"index": i, "question": m["question"], "condition_id": m["condition_id"]}
+                for i, m in enumerate(candidate["markets"])
+            ],
+        }
+        print(_json.dumps(payload, indent=2))
+        return 0
+
+    missing = [
+        name
+        for name, val in (
+            ("--market-id", args.market_id),
+            ("--category", args.category),
+            ("--rule-key", args.rule_key),
+            ("--oracle-type", args.oracle_type),
+            ("--preferred-side", args.preferred_side),
+        )
+        if not val
+    ]
+    if missing:
+        print(f"Missing required fields for commit: {', '.join(missing)}", file=sys.stderr)
+        return 1
+
+    try:
+        entry = build_market(
+            candidate,
+            market_id=args.market_id,
+            category=args.category,
+            rule_key=args.rule_key,
+            oracle_type=args.oracle_type,
+            preferred_side=args.preferred_side,
+            thesis_bucket=args.thesis_bucket,
+            notes=args.notes,
+            risk_flags=args.risk_flags,
+            market_index=args.market_index,
+        )
+        path = upsert_market_entry(entry, registry_path(args.context_dir))
+    except RegistryEditError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    except Exception as exc:  # pydantic ValidationError, bad market_id, etc.
+        print(f"Could not build registry entry: {exc}", file=sys.stderr)
+        return 1
+    print(f"Added market {entry.market_id} to {path}")
     return 0
 
 

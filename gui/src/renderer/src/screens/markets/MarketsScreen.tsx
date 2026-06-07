@@ -1,7 +1,8 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { usePmData } from '../../lib/pmDataContext'
 import { colors as C, fonts as F } from '../../styles/tokens'
 import type { RuleRisk } from '../../lib/types'
+import { AddMarketModal } from './AddMarketModal'
 
 const riskColor = (risk: RuleRisk): string =>
   risk === 'high' ? C.red : risk === 'medium' ? C.amber : C.textDim
@@ -11,8 +12,10 @@ const riskBorder = (risk: RuleRisk): string =>
 
 export const MarketsScreen = () => {
   const pmData = usePmData()
+  const [showAdd, setShowAdd] = useState(false)
   return (
     <div style={S.root}>
+      {showAdd && <AddMarketModal onClose={() => setShowAdd(false)} />}
       <div style={S.header}>
         <div>
           <div style={S.h1}>MARKET REGISTRY</div>
@@ -20,7 +23,9 @@ export const MarketsScreen = () => {
             // market_registry.yaml · {pmData.markets.length} tracked · read/write
           </div>
         </div>
-        <button style={S.btnGhost}>+ ADD MARKET</button>
+        <button style={S.btnGhost} onClick={() => setShowAdd(true)}>
+          + ADD MARKET
+        </button>
       </div>
       <div style={S.panel}>
         <table style={S.table}>
