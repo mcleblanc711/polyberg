@@ -17,9 +17,13 @@ from polyberg.models import MarketRegistry
 from polyberg.registry_editor import (
     RegistryEditError,
     build_market,
+    delete_market_entry,
     fetch_candidate,
+    get_editable_fields,
+    market_display_name,
     slug_from_url,
     suggest_market_id,
+    update_market_entry,
     upsert_market_entry,
 )
 
@@ -74,6 +78,37 @@ def _event_payload() -> list:
 
 def _http() -> ReadOnlyHttpClient:
     return ReadOnlyHttpClient(GAMMA_API_BASE_URL, opener=ListOpener(_event_payload()))
+
+
+def _bracket_event_payload() -> list:
+    """A multi-bracket event: one shared title, distinct per-bracket questions."""
+    return [
+        {
+            "slug": "ships-event",
+            "title": "How many ships transit Hormuz in June?",
+            "endDate": "2026-06-30T00:00:00Z",
+            "markets": [
+                {
+                    "question": ">25 ships",
+                    "conditionId": "0xbracket0",
+                    "clobTokenIds": json.dumps(["a0", "b0"]),
+                    "outcomes": json.dumps(["Yes", "No"]),
+                },
+                {
+                    "question": "26-50 ships",
+                    "conditionId": "0xbracket1",
+                    "clobTokenIds": json.dumps(["a1", "b1"]),
+                    "outcomes": json.dumps(["Yes", "No"]),
+                },
+            ],
+        }
+    ]
+
+
+def _bracket_http() -> ReadOnlyHttpClient:
+    return ReadOnlyHttpClient(
+        GAMMA_API_BASE_URL, opener=ListOpener(_bracket_event_payload())
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -234,3 +269,142 @@ def test_suggest_market_id() -> None:
         == "strait_of_hormuz_normal_by_june"
     )
     assert suggest_market_id("") == "new_market"
+
+
+# ---------------------------------------------------------------------------
+# Multi-bracket events — name/id derived from the per-bracket question
+# ---------------------------------------------------------------------------
+
+
+def test_single_market_uses_event_title() -> None:
+    candidate = fetch_candidate("demo-event", http=_http())
+    name = market_display_name(candidate, candidate["markets"][0])
+    assert name == "Demo binary market?"
+
+
+def test_multi_bracket_names_disambiguate() -> None:
+    candidate = fetch_candidate("ships-event", http=_bracket_http())
+    n0 = market_display_name(candidate, candidate["markets"][0])
+    n1 = market_display_name(candidate, candidate["markets"][1])
+    assert n0 == "How many ships transit Hormuz in June? — >25 ships"
+    assert n1 == "How many ships transit Hormuz in June? — 26-50 ships"
+    assert n0 != n1
+    # Suggested ids derived from those names must differ → no duplicate-id clash.
+    assert suggest_market_id(n0) != suggest_market_id(n1)
+
+
+def test_build_market_brackets_distinct(tmp_path) -> None:
+    path = _seed_registry(tmp_path)
+    candidate = fetch_candidate("ships-event", http=_bracket_http())
+    for idx, mid in ((0, "ships_gt25"), (1, "ships_26_50")):
+        entry = build_market(
+            candidate,
+            market_id=mid,
+            category="ships",
+            rule_key="ships_rule",
+            oracle_type="UMA",
+            preferred_side="YES" if idx == 0 else "NO",
+            market_index=idx,
+        )
+        upsert_market_entry(entry, path)
+    registry = MarketRegistry(**(yaml.safe_load(path.read_text(encoding="utf-8")) or {}))
+    by_id = {m.market_id: m for m in registry.markets}
+    assert by_id["ships_gt25"].condition_id == "0xbracket0"
+    assert by_id["ships_26_50"].condition_id == "0xbracket1"
+    assert by_id["ships_gt25"].name != by_id["ships_26_50"].name
+
+
+# ---------------------------------------------------------------------------
+# update / delete
+# ---------------------------------------------------------------------------
+
+
+def _seed_two(tmp_path: Path) -> Path:
+    path = _seed_registry(tmp_path)
+    candidate = fetch_candidate("demo-event", http=_http())
+    upsert_market_entry(
+        build_market(
+            candidate,
+            market_id="demo_market",
+            category="test",
+            rule_key="demo_rule",
+            oracle_type="UMA",
+            preferred_side="NO",
+            risk_flags=["a", "b"],
+            notes="seed2",
+        ),
+        path,
+    )
+    return path
+
+
+def test_update_edits_only_editable_fields(tmp_path) -> None:
+    path = _seed_two(tmp_path)
+    update_market_entry(
+        "existing_market",
+        {"category": "edited", "preferred_side": "NO", "notes": "changed"},
+        path,
+    )
+    registry = MarketRegistry(**(yaml.safe_load(path.read_text(encoding="utf-8")) or {}))
+    edited = next(m for m in registry.markets if m.market_id == "existing_market")
+    assert edited.category == "edited"
+    assert edited.preferred_side == "NO"
+    assert edited.notes == "changed"
+    # Identifiers and the other entry untouched.
+    assert edited.market_id == "existing_market"
+    assert any(m.market_id == "demo_market" for m in registry.markets)
+
+
+def test_update_clears_risk_flags(tmp_path) -> None:
+    path = _seed_two(tmp_path)
+    update_market_entry("demo_market", {"risk_flags": []}, path)
+    registry = MarketRegistry(**(yaml.safe_load(path.read_text(encoding="utf-8")) or {}))
+    edited = next(m for m in registry.markets if m.market_id == "demo_market")
+    assert edited.risk_flags == []
+
+
+def test_update_rejects_locked_field(tmp_path) -> None:
+    path = _seed_two(tmp_path)
+    with pytest.raises(RegistryEditError):
+        update_market_entry("existing_market", {"condition_id": "0xnope"}, path)
+
+
+def test_update_rejects_unknown_market(tmp_path) -> None:
+    path = _seed_two(tmp_path)
+    with pytest.raises(RegistryEditError):
+        update_market_entry("ghost", {"category": "x"}, path)
+
+
+def test_update_rejects_invalid_value(tmp_path) -> None:
+    path = _seed_two(tmp_path)
+    with pytest.raises((RegistryEditError, ValidationError)):
+        update_market_entry("existing_market", {"preferred_side": "MAYBE"}, path)
+
+
+def test_get_editable_fields(tmp_path) -> None:
+    path = _seed_two(tmp_path)
+    fields = get_editable_fields("demo_market", path)
+    assert fields["category"] == "test"
+    assert fields["risk_flags"] == ["a", "b"]
+    assert fields["condition_id"] == "0xabc"  # locked id surfaced for display
+    assert fields["market_id"] == "demo_market"
+
+
+def test_delete_removes_one_entry(tmp_path) -> None:
+    path = _seed_two(tmp_path)
+    delete_market_entry("existing_market", path)
+    registry = MarketRegistry(**(yaml.safe_load(path.read_text(encoding="utf-8")) or {}))
+    assert registry.market_ids == {"demo_market"}
+
+
+def test_delete_last_entry_leaves_empty_list(tmp_path) -> None:
+    path = _seed_registry(tmp_path)
+    delete_market_entry("existing_market", path)
+    registry = MarketRegistry(**(yaml.safe_load(path.read_text(encoding="utf-8")) or {}))
+    assert registry.markets == []
+
+
+def test_delete_unknown_market(tmp_path) -> None:
+    path = _seed_two(tmp_path)
+    with pytest.raises(RegistryEditError):
+        delete_market_entry("ghost", path)

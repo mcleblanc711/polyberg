@@ -197,7 +197,9 @@ export const ALLOWED_STAGES = [
   'promote-orders',
   'promote-balance',
   'paste-import',
-  'registry-add'
+  'registry-add',
+  'registry-update',
+  'registry-delete'
 ] as const
 
 export type AllowedStage = (typeof ALLOWED_STAGES)[number]

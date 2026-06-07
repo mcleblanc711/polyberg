@@ -3,6 +3,7 @@ import { usePmData } from '../../lib/pmDataContext'
 import { colors as C, fonts as F } from '../../styles/tokens'
 import type { RuleRisk } from '../../lib/types'
 import { AddMarketModal } from './AddMarketModal'
+import { EditMarketModal } from './EditMarketModal'
 
 const riskColor = (risk: RuleRisk): string =>
   risk === 'high' ? C.red : risk === 'medium' ? C.amber : C.textDim
@@ -13,9 +14,11 @@ const riskBorder = (risk: RuleRisk): string =>
 export const MarketsScreen = () => {
   const pmData = usePmData()
   const [showAdd, setShowAdd] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
   return (
     <div style={S.root}>
       {showAdd && <AddMarketModal onClose={() => setShowAdd(false)} />}
+      {editId && <EditMarketModal marketId={editId} onClose={() => setEditId(null)} />}
       <div style={S.header}>
         <div>
           <div style={S.h1}>MARKET REGISTRY</div>
@@ -64,7 +67,12 @@ export const MarketsScreen = () => {
                   {m.mark > 0 ? `${(m.mark * 100).toFixed(1)}¢` : '—'}
                 </td>
                 <td style={S.td}>
-                  <button style={{ ...S.btnGhost, color: C.cyanText }}>EDIT</button>
+                  <button
+                    style={{ ...S.btnGhost, color: C.cyanText }}
+                    onClick={() => setEditId(m.id)}
+                  >
+                    EDIT
+                  </button>
                 </td>
               </tr>
             ))}

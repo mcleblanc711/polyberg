@@ -360,6 +360,41 @@ def build_parser() -> argparse.ArgumentParser:
     registry_add.add_argument("--context-dir", type=Path, default=None)
     registry_add.set_defaults(func=command_registry_add)
 
+    registry_update = subparsers.add_parser(
+        "registry-update",
+        help="Edit the judgment fields of an existing registry market (IDs stay locked).",
+    )
+    registry_update.add_argument("--market-id", help="market_id of the entry to edit.")
+    registry_update.add_argument(
+        "--preview",
+        action="store_true",
+        help="Print the entry's current editable fields as JSON; write nothing.",
+    )
+    # Defaults are None so an omitted flag leaves the field unchanged.
+    registry_update.add_argument("--name", default=None)
+    registry_update.add_argument("--category", default=None)
+    registry_update.add_argument("--rule-key", default=None)
+    registry_update.add_argument("--oracle-type", default=None)
+    registry_update.add_argument("--preferred-side", choices=["YES", "NO"], default=None)
+    registry_update.add_argument("--thesis-bucket", default=None)
+    registry_update.add_argument("--notes", default=None)
+    registry_update.add_argument(
+        "--risk-flags",
+        dest="risk_flags",
+        default=None,
+        help="Comma-separated risk flags; replaces the list. Empty string clears it.",
+    )
+    registry_update.add_argument("--context-dir", type=Path, default=None)
+    registry_update.set_defaults(func=command_registry_update)
+
+    registry_delete = subparsers.add_parser(
+        "registry-delete",
+        help="Remove a market from the registry by market_id.",
+    )
+    registry_delete.add_argument("--market-id", help="market_id of the entry to remove.")
+    registry_delete.add_argument("--context-dir", type=Path, default=None)
+    registry_delete.set_defaults(func=command_registry_delete)
+
     return parser
 
 
@@ -710,6 +745,7 @@ def command_registry_add(args: argparse.Namespace) -> int:
         RegistryEditError,
         build_market,
         fetch_candidate,
+        market_display_name,
         registry_path,
         select_market,
         suggest_market_id,
@@ -736,7 +772,7 @@ def command_registry_add(args: argparse.Namespace) -> int:
             "name": candidate["name"],
             "polymarket_url": candidate["polymarket_url"],
             "event_slug": candidate["event_slug"],
-            "suggested_market_id": suggest_market_id(candidate["name"]),
+            "suggested_market_id": suggest_market_id(market_display_name(candidate, market)),
             "num_markets": len(candidate["markets"]),
             "market_index": args.market_index,
             "condition_id": market["condition_id"],
@@ -788,6 +824,82 @@ def command_registry_add(args: argparse.Namespace) -> int:
         print(f"Could not build registry entry: {exc}", file=sys.stderr)
         return 1
     print(f"Added market {entry.market_id} to {path}")
+    return 0
+
+
+def command_registry_update(args: argparse.Namespace) -> int:
+    import json as _json
+
+    from polyberg.registry_editor import (
+        RegistryEditError,
+        get_editable_fields,
+        registry_path,
+        update_market_entry,
+    )
+
+    if not args.market_id:
+        print("Provide --market-id", file=sys.stderr)
+        return 1
+    path = registry_path(args.context_dir)
+
+    if args.preview:
+        try:
+            fields = get_editable_fields(args.market_id, path)
+        except RegistryEditError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(_json.dumps(fields, indent=2, default=str))
+        return 0
+
+    # Only flags that were actually passed become edits; None means "leave as-is".
+    updates: dict[str, object] = {}
+    for flag, value in (
+        ("name", args.name),
+        ("category", args.category),
+        ("thesis_bucket", args.thesis_bucket),
+        ("rule_key", args.rule_key),
+        ("oracle_type", args.oracle_type),
+        ("preferred_side", args.preferred_side),
+        ("notes", args.notes),
+    ):
+        if value is not None:
+            updates[flag] = value
+    # --risk-flags is a comma string so "" can clear the list; None leaves it.
+    if args.risk_flags is not None:
+        updates["risk_flags"] = [f.strip() for f in args.risk_flags.split(",") if f.strip()]
+
+    if not updates:
+        print("No fields to update (pass at least one editable field)", file=sys.stderr)
+        return 1
+
+    try:
+        out = update_market_entry(args.market_id, updates, path)
+    except RegistryEditError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    except Exception as exc:  # pydantic ValidationError, etc.
+        print(f"Could not update registry entry: {exc}", file=sys.stderr)
+        return 1
+    print(f"Updated market {args.market_id} in {out}")
+    return 0
+
+
+def command_registry_delete(args: argparse.Namespace) -> int:
+    from polyberg.registry_editor import (
+        RegistryEditError,
+        delete_market_entry,
+        registry_path,
+    )
+
+    if not args.market_id:
+        print("Provide --market-id", file=sys.stderr)
+        return 1
+    try:
+        out = delete_market_entry(args.market_id, registry_path(args.context_dir))
+    except RegistryEditError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"Deleted market {args.market_id} from {out}")
     return 0
 
 
