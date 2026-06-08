@@ -111,13 +111,31 @@ def normalize_gamma_market(raw: dict) -> dict:
         "no_token_id": no_token,
         "outcomes": outcomes,
         "resolution_date": _date_part(raw.get("endDate")),
+        # Free-text resolution rules and the per-bracket label ("50-74", "<25").
+        # The auto-parse suggestion engine mines these for judgment fields.
+        "description": raw.get("description") or None,
+        "group_item_title": (raw.get("groupItemTitle") or "").strip() or None,
     }
+
+
+def _tag_labels(event: dict) -> list[str]:
+    """Flatten Gamma's ``tags`` list-of-objects into a list of label strings."""
+    labels: list[str] = []
+    for tag in event.get("tags") or []:
+        if isinstance(tag, dict):
+            label = tag.get("label")
+            if isinstance(label, str) and label.strip():
+                labels.append(label.strip())
+        elif isinstance(tag, str) and tag.strip():
+            labels.append(tag.strip())
+    return labels
 
 
 def normalize_gamma_event(event: dict) -> dict:
     """Map a Gamma event into an event-level header plus normalized markets."""
     event_slug = event.get("slug")
     title = event.get("title")
+    event_description = event.get("description") or None
     markets_raw = event.get("markets") or []
     markets: list[dict] = []
     for market in markets_raw:
@@ -128,11 +146,15 @@ def normalize_gamma_event(event: dict) -> dict:
             normalized["resolution_date"] = _date_part(event.get("endDate"))
         if not normalized["question"]:
             normalized["question"] = title
+        if not normalized["description"]:
+            normalized["description"] = event_description
         markets.append(normalized)
     return {
         "event_slug": event_slug,
         "name": title,
         "polymarket_url": f"https://polymarket.com/event/{event_slug}" if event_slug else None,
+        "resolution_source": event.get("resolutionSource") or None,
+        "tags": _tag_labels(event),
         "markets": markets,
     }
 

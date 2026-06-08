@@ -33,7 +33,7 @@ def adjudicator_payload(human_review_required: bool = True) -> dict:
         ],
         "final_order_list": [
             {
-                "market_id": "trump_blockade_lifted_may31",
+                "market_id": "hormuz_normal_jul31",
                 "side": "NO",
                 "action": "sell_ladder",
                 "price": 0.94,
@@ -101,7 +101,7 @@ def test_trade_ticket_emits_ledger_json_sibling(tmp_path) -> None:
     assert len(ticket["decisions"]) == 1
 
     decision = ticket["decisions"][0]
-    assert decision["market_id"] == "trump_blockade_lifted_may31"
+    assert decision["market_id"] == "hormuz_normal_jul31"
     assert decision["side"] == "NO"
     assert decision["intent"] == "sell_ladder"
     assert decision["decision_type"] == "EXIT"

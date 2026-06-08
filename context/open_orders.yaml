@@ -10,7 +10,7 @@ buy_orders:
   shares: 10.0
   order_type: limit
   notes: 'sample bid'
-- market_id: trump_blockade_lifted_may31
+- market_id: hormuz_normal_jul31
   side: 'NO'
   price: 0.40
   shares: 10.0
@@ -29,7 +29,7 @@ sell_orders:
   shares: 25.0
   order_type: limit
   notes: 'sample ask'
-- market_id: trump_blockade_lifted_may31
+- market_id: hormuz_normal_jul31
   side: 'NO'
   price: 0.80
   shares: 20.0

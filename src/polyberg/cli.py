@@ -335,7 +335,15 @@ def build_parser() -> argparse.ArgumentParser:
     registry_add.add_argument(
         "--preview",
         action="store_true",
-        help="Fetch and print the auto-filled identifier fields as JSON; write nothing.",
+        help="Fetch and print the auto-filled identifiers + suggested judgment "
+        "fields as JSON; write nothing.",
+    )
+    registry_add.add_argument(
+        "--all",
+        action="store_true",
+        dest="add_all",
+        help="Add every market/bracket in the event using auto-suggested judgment "
+        "fields (skips ones whose suggested market_id already exists).",
     )
     registry_add.add_argument("--market-id", help="Registry market_id ([a-z0-9_]).")
     registry_add.add_argument("--category", default="")
@@ -350,6 +358,11 @@ def build_parser() -> argparse.ArgumentParser:
         dest="risk_flags",
         default=[],
         help="Repeatable risk-flag string.",
+    )
+    registry_add.add_argument(
+        "--rule-risk-json",
+        default=None,
+        help="JSON object for the rule_risk block (e.g. the suggested one); optional.",
     )
     registry_add.add_argument(
         "--market-index",
@@ -738,6 +751,14 @@ def command_fetch_price_history(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_registry_for_suggest(path: Path):
+    import yaml as _yaml
+
+    from polyberg.models import MarketRegistry
+
+    return MarketRegistry(**(_yaml.safe_load(path.read_text(encoding="utf-8")) or {}))
+
+
 def command_registry_add(args: argparse.Namespace) -> int:
     import json as _json
 
@@ -751,6 +772,7 @@ def command_registry_add(args: argparse.Namespace) -> int:
         suggest_market_id,
         upsert_market_entry,
     )
+    from polyberg.registry_suggest import suggest_for_market
 
     source = args.url or args.slug
     if not source:
@@ -762,16 +784,23 @@ def command_registry_add(args: argparse.Namespace) -> int:
         print(str(exc), file=sys.stderr)
         return 1
 
+    target = registry_path(args.context_dir)
+    registry = _load_registry_for_suggest(target)
+    existing_cids = {m.condition_id for m in registry.markets if m.condition_id}
+
     if args.preview:
         try:
             market = select_market(candidate, args.market_index)
         except RegistryEditError as exc:
             print(str(exc), file=sys.stderr)
             return 1
+        per_market = [suggest_for_market(candidate, m, registry) for m in candidate["markets"]]
         payload = {
             "name": candidate["name"],
             "polymarket_url": candidate["polymarket_url"],
             "event_slug": candidate["event_slug"],
+            "resolution_source": candidate["resolution_source"],
+            "tags": candidate["tags"],
             "suggested_market_id": suggest_market_id(market_display_name(candidate, market)),
             "num_markets": len(candidate["markets"]),
             "market_index": args.market_index,
@@ -780,13 +809,34 @@ def command_registry_add(args: argparse.Namespace) -> int:
             "no_token_id": market["no_token_id"],
             "outcomes": market["outcomes"],
             "resolution_date": market["resolution_date"],
+            "description": market["description"],
+            "group_item_title": market["group_item_title"],
+            # Suggested judgment fields for the selected market (prefills the form).
+            "suggestion": per_market[args.market_index],
             "markets": [
-                {"index": i, "question": m["question"], "condition_id": m["condition_id"]}
+                {
+                    "index": i,
+                    "question": m["question"],
+                    "condition_id": m["condition_id"],
+                    "group_item_title": m["group_item_title"],
+                    "suggested_market_id": per_market[i]["market_id"],
+                    "preferred_side": per_market[i]["preferred_side"],
+                    "matched_market_id": per_market[i]["matched_market_id"],
+                    # Already in the registry by id, OR the same on-chain market
+                    # (condition_id) under a different id — either way, don't re-add.
+                    "exists": (
+                        per_market[i]["market_id"] in registry.market_ids
+                        or m["condition_id"] in existing_cids
+                    ),
+                }
                 for i, m in enumerate(candidate["markets"])
             ],
         }
         print(_json.dumps(payload, indent=2))
         return 0
+
+    if args.add_all:
+        return _registry_add_all(candidate, registry, target)
 
     missing = [
         name
@@ -803,6 +853,14 @@ def command_registry_add(args: argparse.Namespace) -> int:
         print(f"Missing required fields for commit: {', '.join(missing)}", file=sys.stderr)
         return 1
 
+    rule_risk = None
+    if args.rule_risk_json:
+        try:
+            rule_risk = _json.loads(args.rule_risk_json)
+        except _json.JSONDecodeError as exc:
+            print(f"Invalid --rule-risk-json: {exc}", file=sys.stderr)
+            return 1
+
     try:
         entry = build_market(
             candidate,
@@ -814,9 +872,10 @@ def command_registry_add(args: argparse.Namespace) -> int:
             thesis_bucket=args.thesis_bucket,
             notes=args.notes,
             risk_flags=args.risk_flags,
+            rule_risk=rule_risk,
             market_index=args.market_index,
         )
-        path = upsert_market_entry(entry, registry_path(args.context_dir))
+        path = upsert_market_entry(entry, target)
     except RegistryEditError as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -825,6 +884,65 @@ def command_registry_add(args: argparse.Namespace) -> int:
         return 1
     print(f"Added market {entry.market_id} to {path}")
     return 0
+
+
+def _registry_add_all(candidate: dict, registry, target: Path) -> int:
+    """Add every market/bracket in an event using auto-suggested judgment fields.
+
+    Each bracket is suggested independently (so a band inherits its family's
+    rule_key/oracle but keeps a safe default side). Brackets whose suggested
+    market_id already exists are skipped, not overwritten. Prints a JSON summary
+    so the GUI can report what landed.
+    """
+    import json as _json
+
+    from polyberg.registry_editor import (
+        RegistryEditError,
+        build_market,
+        upsert_market_entry,
+    )
+    from polyberg.registry_suggest import suggest_for_market
+
+    added: list[str] = []
+    skipped: list[dict] = []
+    failed: list[dict] = []
+    for idx, market in enumerate(candidate["markets"]):
+        sug = suggest_for_market(candidate, market, registry)
+        mid = sug["market_id"]
+        existing_cids = {m.condition_id for m in registry.markets if m.condition_id}
+        if mid in registry.market_ids:
+            skipped.append({"market_id": mid, "reason": "already exists"})
+            continue
+        if market["condition_id"] and market["condition_id"] in existing_cids:
+            skipped.append({"market_id": mid, "reason": "condition_id already in registry"})
+            continue
+        try:
+            entry = build_market(
+                candidate,
+                market_id=mid,
+                category=sug["category"],
+                rule_key=sug["rule_key"],
+                oracle_type=sug["oracle_type"],
+                preferred_side=sug["preferred_side"],
+                thesis_bucket=sug["thesis_bucket"],
+                notes=sug["notes"],
+                risk_flags=sug["risk_flags"],
+                rule_risk=sug["rule_risk"],
+                market_index=idx,
+            )
+            upsert_market_entry(entry, target)
+            # Refresh so the next bracket's duplicate check sees what just landed.
+            registry = _load_registry_for_suggest(target)
+            added.append(mid)
+        except (RegistryEditError, Exception) as exc:  # noqa: BLE001 - report, keep going
+            failed.append({"market_id": mid, "error": str(exc)})
+    print(
+        _json.dumps(
+            {"added": added, "skipped": skipped, "failed": failed, "path": str(target)},
+            indent=2,
+        )
+    )
+    return 0 if not failed else 1
 
 
 def command_registry_update(args: argparse.Namespace) -> int:

@@ -53,22 +53,22 @@ markets:
       dispute_risk: low
     resolution_date: 2026-07-31
     notes: Resolves on IMF Portwatch 7-day moving average of Hormuz transit calls.
-  - market_id: hormuz_normal_dec31
-    name: Hormuz normal by December 31 2026
-    polymarket_url: https://polymarket.com/event/strait-of-hormuz-traffic-returns-to-normal-by-december-31
-    category: core_hormuz
+  - market_id: hormuz_60_ships_any_day_jun30
+    name: 60 ships transit Strait of Hormuz on any day by June 30 2026
+    polymarket_url: https://polymarket.com/event/will-60-ships-transit-the-strait-of-hormuz-on-any-day-by-june-30-2026
+    category: hormuz_transit_count
     thesis_bucket: "Iran conflict"
-    rule_key: hormuz_portwatch_7dma
-    oracle_type: IMF Portwatch data
+    rule_key: hormuz_portwatch_single_day_threshold
+    oracle_type: IMF Portwatch data (ship-transit count)
     preferred_side: "NO"
     risk_flags:
       - pure data oracle
-      - low media ambiguity
-      - long-dated decay
-    event_slug: strait-of-hormuz-traffic-returns-to-normal-by-december-31
-    condition_id: "0x5c79dfde05559b79a9cb9f7c4187e4d49632dd042572ae676952f812732591cc"
-    yes_token_id: "83783489454659420807679723574840032660002326710045123865554753994450797728825"
-    no_token_id: "48727431314333088243693016929623363710488980152833544156961659445129455301311"
+      - single-day high-water threshold — any one qualifying day resolves YES
+      - threshold/source not independently re-verified against rules page
+    event_slug: will-60-ships-transit-the-strait-of-hormuz-on-any-day-by-june-30-2026
+    condition_id: "0xc38b96e6fb12fc68d003ff326f2a11eb3c8f04c2fce7fcfc9d62f5e18131817c"
+    yes_token_id: "110055634198836019282064984999510038099262932901449181983391865403423717757928"
+    no_token_id: "73569794514029756158555806820449660339596043277135399813806108606225576927150"
     data_collection:
       fetch_gamma: true
       fetch_clob: true
@@ -79,81 +79,480 @@ markets:
       media_fallback: false
       official_statement_required: false
       dispute_risk: low
-    resolution_date: 2026-12-31
-    notes: Resolves on IMF Portwatch 7-day moving average of Hormuz transit calls.
-  - market_id: iran_us_peace_jun30
-    name: US x Iran permanent peace deal by June 30 2026
+    resolution_date: 2026-06-30
+    notes: |
+      YES if at least 60 ships transit the Strait of Hormuz on any single day on
+      or before June 30 2026 (a daily high-water threshold — one qualifying day is
+      enough). Binary market. Resolves on the IMF Portwatch ship-transit count.
+      Confirm the exact threshold and counting window against the Polymarket rules
+      page before trading.
+  - market_id: hormuz_transit_50_74_jun1_7
+    name: 50-74 ships transit Strait of Hormuz between June 1-7 2026
+    polymarket_url: https://polymarket.com/event/how-many-ships-transit-the-strait-of-hormuz-week-of-june-1
+    category: hormuz_transit_count
+    thesis_bucket: "Iran conflict"
+    rule_key: hormuz_portwatch_weekly_count_band
+    oracle_type: IMF Portwatch data (ship-transit count)
+    preferred_side: "YES"
+    risk_flags:
+      - pure data oracle
+      - bucketed (negative-risk) market — exactly one band resolves YES
+      - resolves 2026-06-07 (near-term)
+      - band threshold/source not independently re-verified against rules page
+    event_slug: how-many-ships-transit-the-strait-of-hormuz-week-of-june-1
+    condition_id: "0x5ef5d98a838a227eeba08607b99d88febf2262c204d0e18911bbbcca14b7e95f"
+    yes_token_id: "88262286037565272303491640104233609632609844783893991102706076549854048705367"
+    no_token_id: "60173068419747503546902994233877750721948142135184581030438531498908472140055"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: pure_data
+      ambiguity: low
+      media_fallback: false
+      official_statement_required: false
+      dispute_risk: low
+    resolution_date: 2026-06-07
+    notes: |
+      YES if the total ships transiting the Strait of Hormuz between June 1 and
+      June 7 2026 falls in the 50-74 band. One bucket of a negative-risk weekly
+      ship-count market. Resolves on the IMF Portwatch ship-transit count. Confirm
+      the exact band edges and counting window against the Polymarket rules page
+      before trading.
+  - market_id: hormuz_transit_75_99_jun1_7
+    name: 75-99 ships transit Strait of Hormuz between June 1-7 2026
+    polymarket_url: https://polymarket.com/event/how-many-ships-transit-the-strait-of-hormuz-week-of-june-1
+    category: hormuz_transit_count
+    thesis_bucket: "Iran conflict"
+    rule_key: hormuz_portwatch_weekly_count_band
+    oracle_type: IMF Portwatch data (ship-transit count)
+    preferred_side: "YES"
+    risk_flags:
+      - pure data oracle
+      - bucketed (negative-risk) market — exactly one band resolves YES
+      - resolves 2026-06-07 (near-term)
+      - band threshold/source not independently re-verified against rules page
+    event_slug: how-many-ships-transit-the-strait-of-hormuz-week-of-june-1
+    condition_id: "0x6a81d4102d0ebca31f9592cdee40bfbd7cf2ac2cdca6f9041944a0bd32403915"
+    yes_token_id: "9369096381606045982291205435020087511346650032085531869038717626385155378159"
+    no_token_id: "17239792123777008770919471021109609079461555660944186336350483017798545812484"
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: pure_data
+      ambiguity: low
+      media_fallback: false
+      official_statement_required: false
+      dispute_risk: low
+    resolution_date: 2026-06-07
+    notes: |
+      YES if the total ships transiting the Strait of Hormuz between June 1 and
+      June 7 2026 falls in the 75-99 band. One bucket of a negative-risk weekly
+      ship-count market (same event as the 50-74 band). Resolves on the IMF
+      Portwatch ship-transit count. Confirm the exact band edges and counting
+      window against the Polymarket rules page before trading.
+  - market_id: avg_of_ships_transiting_strait_of_hormuz_end_of_june
+    name: 'Avg. # of ships transiting Strait of Hormuz end of June?'
+    polymarket_url: https://polymarket.com/event/avg-of-ships-transiting-strait-of-hormuz-end-of-june
+    category: core_hormuz
+    thesis_bucket: Iran conflict
+    rule_key: hormuz_portwatch_7dma
+    oracle_type: IMF Portwatch data
+    preferred_side: 'YES'
+    risk_flags:
+    - pure data oracle
+    resolution_date: 2026-06-30
+    notes: ''
+    event_slug: avg-of-ships-transiting-strait-of-hormuz-end-of-june
+    condition_id: '0x9d4936122603e355384ebd4c744fddb88155e963ef76ff0fec44d16d85f69fbd'
+    yes_token_id: '111857015393116424059701714190034222065735868065961184809220061920534492421587'
+    no_token_id: '93293150240623098730093988290807981748749336030515307511533997306507145900635'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+  - market_id: how_many_ships_transit_the_strait_of_hormuz_week_of_june_8
+    name: How many ships transit the Strait of Hormuz week of June 8?
+    polymarket_url: https://polymarket.com/event/how-many-ships-transit-the-strait-of-hormuz-week-of-june-8
+    category: core_hormuz
+    thesis_bucket: ''
+    rule_key: hormuz_portwatch_7dma
+    oracle_type: IMF Portwatch data
+    preferred_side: 'YES'
+    risk_flags: []
+    resolution_date: 2026-06-14
+    notes: ''
+    event_slug: how-many-ships-transit-the-strait-of-hormuz-week-of-june-8
+    condition_id: '0x22c0216228ef4f9585786ab787855f533d098d6fab779e5d6cc2d57dc7feb47d'
+    yes_token_id: '78007959712673512487585738371554004096089535652298559758352599826955187950820'
+    no_token_id: '70466592544129195293350056324778203188607648968354174274328405162637886575148'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+  - market_id: how_many_ships_transit_the_strait_of_hormuz_week_of_june_8_will_50_74_ships_transit_the_strait_of_hormuz_between_june_8_june_14
+    name: How many ships transit the Strait of Hormuz week of June 8? — Will 25-49 ships
+      transit the Strait of Hormuz between June 8-June 14?
+    polymarket_url: https://polymarket.com/event/how-many-ships-transit-the-strait-of-hormuz-week-of-june-8
+    category: core_hormuz
+    thesis_bucket: ''
+    rule_key: hormuz_portwatch_7dma
+    oracle_type: IMF portwatch data
+    preferred_side: 'NO'
+    risk_flags: []
+    resolution_date: 2026-06-14
+    notes: ''
+    event_slug: how-many-ships-transit-the-strait-of-hormuz-week-of-june-8
+    condition_id: '0x15a27b4ab344a2f7c9f6589d56c2533c9c6f615c7411bfe661fd7777b230e6e7'
+    yes_token_id: '21964793279721009525093146808546731851804717648598573691192854056898103244678'
+    no_token_id: '90692191337151134079703991371035498520245729701983721601145510422455154016149'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+  - market_id: avg_ships_transiting_strait_hormuz_june_10_20
+    name: 'Avg. # of ships transiting Strait of Hormuz end of June? — Will there be
+      between 10 and 20 average daily transits of the Strait of Hormuz on June 30?'
+    polymarket_url: https://polymarket.com/event/avg-of-ships-transiting-strait-of-hormuz-end-of-june
+    category: core_hormuz
+    thesis_bucket: Iran conflict
+    rule_key: hormuz_portwatch_7dma
+    oracle_type: IMF Portwatch data
+    preferred_side: 'YES'
+    risk_flags:
+    - pure data oracle
+    resolution_date: 2026-06-30
+    notes: hedge with 0-10, highly likely average is between 0-20
+    event_slug: avg-of-ships-transiting-strait-of-hormuz-end-of-june
+    condition_id: '0x0f352562046739e3113040166c62294e15cd8eeb48b2ee97a62e4faf3cd24b09'
+    yes_token_id: '119612682905882406389820175222209156066901026238897324149635937306716755186'
+    no_token_id: '7167928163462603316177800687444048483427462254268347844077036045911720449634'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+  - market_id: iran_permanent_peace_deal_april_22
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      April 22, 2026?
     polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
     category: iran_us_diplomacy
-    thesis_bucket: "Iran conflict"
-    rule_key: iran_us_peace_treaty_announcement
-    oracle_type: Official US/Iran joint statement or formal treaty announcement
-    preferred_side: "NO"
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
     risk_flags:
-      - definition ambiguity (what counts as permanent peace)
-      - media fallback may matter
-      - announcement-driven
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-04-22
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
     event_slug: us-x-iran-permanent-peace-deal-by
-    condition_id: "0x6114a8a3f9ac214f48a7e20d169f1c7a5c84082cb6f7058ed9fe1137b11fd0e7"
-    yes_token_id: "31867385211987925701696042012772036156561382644688734856312468506547392739862"
-    no_token_id: "34730098823282204056880725250863591694415190633560416900548276632326632294207"
+    condition_id: '0xbbc6689d0f6d57ea42168836712237c7308b3e0118c8914d31b6126d0f3254c5'
+    yes_token_id: '10355316169421062771540371697837923442956106006258739802114788264214901200573'
+    no_token_id: '112998834930140849739317686306046962022222428099467375077336504369963794934957'
     data_collection:
       fetch_gamma: true
       fetch_clob: true
       fetch_orderbook: true
     rule_risk:
       oracle_type: official_statement_required
-      ambiguity: high
+      ambiguity: medium
       media_fallback: true
       official_statement_required: true
-      dispute_risk: high
-    resolution_date: 2026-06-30
-    notes: Resolves on whether a permanent US-Iran peace agreement is announced by the deadline; definition of permanent is dispute-prone.
-  - market_id: iran_us_peace_dec31
-    name: US x Iran permanent peace deal by December 31 2026
+      dispute_risk: medium
+  - market_id: iran_permanent_peace_deal_april_30
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      April 30, 2026?
     polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
     category: iran_us_diplomacy
-    thesis_bucket: "Iran conflict"
-    rule_key: iran_us_peace_treaty_announcement
-    oracle_type: Official US/Iran joint statement or formal treaty announcement
-    preferred_side: "NO"
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
     risk_flags:
-      - definition ambiguity (what counts as permanent peace)
-      - media fallback may matter
-      - announcement-driven
-      - long-dated decay
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-04-30
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
     event_slug: us-x-iran-permanent-peace-deal-by
-    condition_id: "0x9769f78cbc95a5ed11895e6064bac471d8fd8f930b260cf581b68d3f58630d27"
-    yes_token_id: "104718292808309433767402444061650910790437726449955521731268760928480423099204"
-    no_token_id: "109077864409172129917789250820055245630238807727951185347513063342440711098153"
+    condition_id: '0xceb6dfaa2cf5abc9d47ebc867b984a7715104944249274e8a483a2e17473e5f5'
+    yes_token_id: '64575112906857627673396031002364315784778510108272214779568803819416675082435'
+    no_token_id: '16735391771285941445401615956052324743124272348274952820359859379638645997506'
     data_collection:
       fetch_gamma: true
       fetch_clob: true
       fetch_orderbook: true
     rule_risk:
       oracle_type: official_statement_required
-      ambiguity: high
+      ambiguity: medium
       media_fallback: true
       official_statement_required: true
-      dispute_risk: high
+      dispute_risk: medium
+  - market_id: iran_permanent_peace_deal_may_31
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      May 31, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
+    risk_flags:
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-05-31
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0x0e4a0c937b8934c2475613b6322b3f8edc8dedc24762e01e42b0e6f87424a089'
+    yes_token_id: '72094069823942324362885404801938332659316240217382754851102758232469673300092'
+    no_token_id: '42918220085288219341491829385501246298233444593663440094436147850542032590016'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+  - market_id: iran_permanent_peace_deal_june_30
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      June 30, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
+    risk_flags:
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-05-31
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0x6114a8a3f9ac214f48a7e20d169f1c7a5c84082cb6f7058ed9fe1137b11fd0e7'
+    yes_token_id: '31867385211987925701696042012772036156561382644688734856312468506547392739862'
+    no_token_id: '34730098823282204056880725250863591694415190633560416900548276632326632294207'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+  - market_id: iran_permanent_peace_deal_april_24
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      April 24, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
+    risk_flags:
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-04-24
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0x084a4aac9da433824013ad192196193d7d1bd8293c0fedc9eb7e687909fd1d0f'
+    yes_token_id: '73451767581833755534290283287150634572320766963843705278849195665912417601921'
+    no_token_id: '81526178641185308468785014715929124534877997252766637103131165456634740242354'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+  - market_id: iran_permanent_peace_deal_may_15
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      May 15, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
+    risk_flags:
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-05-15
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0x1db02ba50e2312a62b4104de691cc7a76065d8d0da40decf93eb1b914a3217b7'
+    yes_token_id: '88304163265734087403223321042172792808390195323159743956352682998398711353447'
+    no_token_id: '74106961297441804122404565448852295289442372706468216938279361169799682393163'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+  - market_id: iran_permanent_peace_deal_december_31
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      December 31, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
+    risk_flags:
+    - media fallback may matter
+    - announcement-driven
     resolution_date: 2026-12-31
-    notes: Resolves on whether a permanent US-Iran peace agreement is announced by the deadline; definition of permanent is dispute-prone.
-  - market_id: trump_blockade_lifted_may31
-    name: Trump announces US Hormuz blockade lifted by May 31 2026
-    polymarket_url: https://polymarket.com/event/will-donald-trump-announce-that-the-united-states-blockade-of-the-strait-of-hormuz-has-been-lifted-by-may-31-2026
-    category: announcement_risk
-    thesis_bucket: "Iran conflict"
-    rule_key: official_blockade_lifted_announcement
-    oracle_type: Official Trump or US government announcement
-    preferred_side: "NO"
-    risk_flags:
-      - Trump social post can qualify
-      - media fallback may matter
-      - deadline gamma
-    event_slug: trump-announces-us-blockade-of-hormuz-lifted-by
-    condition_id: "0x8b369e10358094a99ffe7f85a81a8e8ca68c611eee0fe63a2efa790ad045bcd6"
-    yes_token_id: "926377706175971731068420551849041218012736398250875962020506643091812084572"
-    no_token_id: "94315794193549059581335413697128981885401517477409406376098346536800437431936"
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0x9769f78cbc95a5ed11895e6064bac471d8fd8f930b260cf581b68d3f58630d27'
+    yes_token_id: '104718292808309433767402444061650910790437726449955521731268760928480423099204'
+    no_token_id: '109077864409172129917789250820055245630238807727951185347513063342440711098153'
     data_collection:
       fetch_gamma: true
       fetch_clob: true
@@ -164,24 +563,43 @@ markets:
       media_fallback: true
       official_statement_required: true
       dispute_risk: medium
-    resolution_date: 2026-05-31
-    notes: Requires explicit official announcement that the US Hormuz blockade has been lifted by deadline.
-  - market_id: trump_blockade_lifted_jun30
-    name: Trump announces US Hormuz blockade lifted by June 30 2026
-    polymarket_url: https://polymarket.com/event/will-donald-trump-announce-that-the-united-states-blockade-of-the-strait-of-hormuz-has-been-lifted-by-june-30-2026
-    category: announcement_risk
-    thesis_bucket: "Iran conflict"
-    rule_key: official_blockade_lifted_announcement
-    oracle_type: Official Trump or US government announcement
-    preferred_side: "NO"
+  - market_id: iran_permanent_peace_deal_may_8
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      May 8, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
     risk_flags:
-      - Trump social post can qualify
-      - media fallback may matter
-      - deadline gamma
-    event_slug: trump-announces-us-blockade-of-hormuz-lifted-by
-    condition_id: "0x4d0c4865bdecc5f7971dbab47bb6c069d93909dec75bdff52fb766ae6094a6d6"
-    yes_token_id: "3083404519678343650655471605176293351429031165021004407551950188691137583301"
-    no_token_id: "91327963816071149848778866069116092720624787010415966850482851584645804352773"
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-05-08
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0xc5331256bff341491df0656772c4245a99a483c58eeda2faa70fa6bb8b7b0405'
+    yes_token_id: '53886837528295918199173213040710747917684350390439332312874024244950707854931'
+    no_token_id: '29200931906543294012092489208099110567531377765151375566798406927877147242781'
     data_collection:
       fetch_gamma: true
       fetch_clob: true
@@ -192,170 +610,43 @@ markets:
       media_fallback: true
       official_statement_required: true
       dispute_risk: medium
-    resolution_date: 2026-06-30
-    notes: Requires explicit official announcement that the US Hormuz blockade has been lifted by deadline.
-  - market_id: iran_airspace_closed_may21
-    name: Iran closes its airspace by May 21
-    polymarket_url: https://polymarket.com/event/iran-closes-its-airspace-by-may-21
-    category: announcement_risk
-    thesis_bucket: "Iran conflict"
-    rule_key: iran_airspace_major_closure
-    oracle_type: Iranian aviation authorities + consensus of credible reporting
-    preferred_side: "NO"
+  - market_id: iran_permanent_peace_deal_may_11
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      May 11, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
     risk_flags:
-      - '"major" closure is interpretive'
-      - weather-only closures excluded
-      - airline/foreign-country no-fly-zones do not count
-      - 'bright-line threshold: at least 2 of IKA/THR/MHD/SYZ/IFN suspended'
-    event_slug: iran-closes-its-airspace-by-may-21
-    condition_id: "0x098afead2c41677b0f09ae9d0013ca520eacdb3f0d7c8985c6581de7a0e9ac37"
-    yes_token_id: "25765184634765339363827807992411986670067641678875992164214223288175352348465"
-    no_token_id: "112135611227049632102833296892649508522129989874688677403193353750752980311218"
-    data_collection:
-      fetch_gamma: true
-      fetch_clob: true
-      fetch_orderbook: true
-    rule_risk:
-      oracle_type: official_statement_required
-      ambiguity: medium
-      media_fallback: true
-      official_statement_required: false
-      dispute_risk: medium
-    resolution_date: 2026-05-21
-    notes: |
-      YES on a major non-weather closure, cancellation, or suspension of commercial
-      flights across Iran or a major Iranian airspace region by 2026-05-21 23:59 ET.
-      Bright line: non-weather complete suspension of commercial arrivals/departures
-      at ≥2 of IKA, THR, MHD, SYZ, IFN qualifies. Limited cancellations, partial
-      closures, weather-only closures, and foreign airline/country no-fly-zones do
-      not qualify. Primary source: Iranian aviation authorities + consensus of
-      credible reporting.
-  - market_id: uae_warships_hormuz_may31
-    name: UAE sends warships through Strait of Hormuz by May 31 2026
-    polymarket_url: https://polymarket.com/event/will-the-united-arab-emirates-send-warships-through-the-strait-of-hormuz-by-may-31-2026
-    category: warships_hormuz
-    thesis_bucket: "Iran conflict"
-    rule_key: warships_hormuz_transit
-    oracle_type: National government / military announcement OR overwhelming consensus of credible reporting
-    preferred_side: "NO"
-    risk_flags:
-      - low base rate
-      - must transit narrowest section (Iran/Oman) — not Persian Gulf / Gulf of Oman / Arabian Sea
-      - aerial / cyber / proxy actions excluded
-      - military cargo & support vessels count as warships
-    event_slug: will-the-united-arab-emirates-send-warships-through-the-strait-of-hormuz-by-may-31-2026
-    condition_id: "0xc5156fa062c97461c79f46d2e80931f74ed1299864702d7b7ed1cc0008d116e8"
-    yes_token_id: "59030282194382298150399818471891513635179535266899735059928126419041409896251"
-    no_token_id: "49843979321564192902075308923597963943975259297795004613915893853501810625125"
-    data_collection:
-      fetch_gamma: true
-      fetch_clob: true
-      fetch_orderbook: true
-    rule_risk:
-      oracle_type: official_statement_required
-      ambiguity: low
-      media_fallback: true
-      official_statement_required: false
-      dispute_risk: low
-    resolution_date: 2026-05-31
-    notes: |
-      YES on confirmation that UAE warships transited through the Strait of Hormuz
-      (narrowest portion between Iran and Oman) between market creation and
-      2026-05-31 23:59 ET. Military cargo/support vessels count; commercial/civilian
-      do not. Operations only in Persian Gulf, Gulf of Oman, or Arabian Sea without
-      transit through the narrowest section do not qualify. Aerial ops, cyber ops,
-      and proxy/third-party actions do not qualify. Resolves on official UAE
-      government/military confirmation OR overwhelming consensus of credible reporting.
-  - market_id: uk_warships_hormuz_may31
-    name: UK sends warships through Strait of Hormuz by May 31 2026
-    polymarket_url: https://polymarket.com/event/will-the-united-kingdom-send-warships-through-the-strait-of-hormuz-by-may-31-2026
-    category: warships_hormuz
-    thesis_bucket: "Iran conflict"
-    rule_key: warships_hormuz_transit
-    oracle_type: National government / military announcement OR overwhelming consensus of credible reporting
-    preferred_side: "NO"
-    risk_flags:
-      - low base rate
-      - must transit narrowest section (Iran/Oman) — not Persian Gulf / Gulf of Oman / Arabian Sea
-      - aerial / cyber / proxy actions excluded
-      - military cargo & support vessels count as warships
-    event_slug: will-the-united-kingdom-send-warships-through-the-strait-of-hormuz-by-may-31-2026
-    condition_id: "0x3e16995cf503447641ca6a27b40f0e6e1151256c1869e9b0082e7bda26463731"
-    yes_token_id: "113086978742419291208632456570704662173894468176090552875484773033456361373711"
-    no_token_id: "115429095502765992565285944971800964203997042782042474929763008345356570992790"
-    data_collection:
-      fetch_gamma: true
-      fetch_clob: true
-      fetch_orderbook: true
-    rule_risk:
-      oracle_type: official_statement_required
-      ambiguity: low
-      media_fallback: true
-      official_statement_required: false
-      dispute_risk: low
-    resolution_date: 2026-05-31
-    notes: |
-      YES on confirmation that UK warships transited through the Strait of Hormuz
-      (narrowest portion between Iran and Oman) between market creation and
-      2026-05-31 23:59 ET. Military cargo/support vessels count; commercial/civilian
-      do not. Operations only in Persian Gulf, Gulf of Oman, or Arabian Sea without
-      transit through the narrowest section do not qualify. Aerial ops, cyber ops,
-      and proxy/third-party actions do not qualify. Resolves on official UK
-      government/military confirmation OR overwhelming consensus of credible reporting.
-  - market_id: france_warships_hormuz_may31
-    name: France sends warships through Strait of Hormuz by May 31 2026
-    polymarket_url: https://polymarket.com/event/will-france-send-warships-through-the-strait-of-hormuz-by-may-31-2026
-    category: warships_hormuz
-    thesis_bucket: "Iran conflict"
-    rule_key: warships_hormuz_transit
-    oracle_type: National government / military announcement OR overwhelming consensus of credible reporting
-    preferred_side: "NO"
-    risk_flags:
-      - low base rate
-      - must transit narrowest section (Iran/Oman) — not Persian Gulf / Gulf of Oman / Arabian Sea
-      - aerial / cyber / proxy actions excluded
-      - military cargo & support vessels count as warships
-    event_slug: will-france-send-warships-through-the-strait-of-hormuz-by-may-31-2026
-    condition_id: "0xed0f5596263aa1d3dffbe903502f8134864f0b5d8c102c66631b9636b5cc9e4b"
-    yes_token_id: "93385498273357797249283630066309074543056677992480830093403412705344373090930"
-    no_token_id: "92380753583246848248554847926631473927357415980620159157049312260466692279686"
-    data_collection:
-      fetch_gamma: true
-      fetch_clob: true
-      fetch_orderbook: true
-    rule_risk:
-      oracle_type: official_statement_required
-      ambiguity: low
-      media_fallback: true
-      official_statement_required: false
-      dispute_risk: low
-    resolution_date: 2026-05-31
-    notes: |
-      YES on confirmation that French warships transited through the Strait of
-      Hormuz (narrowest portion between Iran and Oman) between market creation and
-      2026-05-31 23:59 ET. Military cargo/support vessels count; commercial/civilian
-      do not. Operations only in Persian Gulf, Gulf of Oman, or Arabian Sea without
-      transit through the narrowest section do not qualify. Aerial ops, cyber ops,
-      and proxy/third-party actions do not qualify. Resolves on official French
-      government/military confirmation OR overwhelming consensus of credible reporting.
-  - market_id: trump_project_freedom_may31
-    name: Trump restarts Project Freedom by May 31
-    polymarket_url: https://polymarket.com/event/will-trump-restart-project-freedom-by-may-31
-    category: announcement_risk
-    thesis_bucket: "Iran conflict"
-    rule_key: official_project_freedom_restart
-    oracle_type: Official Trump, USG, or US military announcement; credible-reporting consensus also suffices
-    preferred_side: "NO"
-    risk_flags:
-      - Trump social post can qualify if definitive
-      - suggestions / openness / preparations explicitly excluded
-      - '"substantially equivalent" escort program also qualifies — interpretive'
-      - deadline gamma
-      - resolves on announcement regardless of when program goes into effect
-    event_slug: will-trump-restart-project-freedom-by-may-31
-    condition_id: "0x9a87a0011494682e4d17a9073059cbbd32ebea4bbc7284219afb5e9a6b4ca8f6"
-    yes_token_id: "57222624691525571349644607559355045246353226505678230701343597937763937089108"
-    no_token_id: "66735179415343085248704122820633487548742544495028560297217288593792661325968"
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-05-11
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0x667c01a18ac1efb8300ce2c4d9fd573275cb633344148675beee8e097db193c4'
+    yes_token_id: '22816012951780458167668705790296878696108244233480341128638214613962237032260'
+    no_token_id: '16992591417835365075987953500891364234765040373305609741753635765150174624197'
     data_collection:
       fetch_gamma: true
       fetch_clob: true
@@ -366,15 +657,379 @@ markets:
       media_fallback: true
       official_statement_required: true
       dispute_risk: medium
-    resolution_date: 2026-05-31
-    notes: |
-      YES on a definitive announcement by Trump, the USG, or the US military, by
-      2026-05-31 23:59 ET, that Project Freedom — the US-led naval escort program
-      for commercial ships through the Strait of Hormuz — will be restarted. A
-      "substantially equivalent" US military escort/protection/retrieval program
-      for commercial ships in or through the Strait also qualifies. Suggestions,
-      expressions of openness, reported preparations, and other non-definitive
-      statements do not qualify. The announcement resolves the market regardless
-      of whether or when the program actually goes into effect. Primary source:
-      official Trump/USG/US-military statements; a consensus of credible reporting
-      may also be used.
+  - market_id: iran_permanent_peace_deal_may_13
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      May 13, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
+    risk_flags:
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-05-13
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0x2509daa236d3aea83c910be4e00f50027dd72e6fa0d350536d07cd079f58d7ab'
+    yes_token_id: '42668369151459316227719399008269940824030721664501669546980811568526930947689'
+    no_token_id: '92656287244508248142836665587276966729287344656350027595890627546675094202484'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+  - market_id: iran_permanent_peace_deal_july_31
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      July 31, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
+    risk_flags:
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-07-31
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0x20af55ab35186377b81219db6cb8615240cba42cea41731091be9484a5f5b122'
+    yes_token_id: '99566541619640652317512639709808184120400767516277184685355777020179304540844'
+    no_token_id: '28291496839879254326626786894419520677254800246510983988977971845743573275150'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+  - market_id: iran_permanent_peace_deal_june_15
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      June 15, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
+    risk_flags:
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-06-15
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0xd86a816093fcd0a0e1ca440bc5ce199bd3c5a8d6139e044b076958164f8c5423'
+    yes_token_id: '5904694069529905826680225678119990013628860098514322777023141327768111791078'
+    no_token_id: '59855952379545476461266875939089074481171378466995213858930892770855011813551'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+  - market_id: iran_permanent_peace_deal_may_22
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      May 22, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
+    risk_flags:
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-05-22
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0x53098776eb95dbbd2e899c4fcd787a043ba725f55433948da2fbd00abdfcd3ae'
+    yes_token_id: '107715390014862406485536118714081498606413437514382660058593986098320182104000'
+    no_token_id: '112249977663410173375384821892752109430080117981152352426675515026117039542524'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+  - market_id: iran_permanent_peace_deal_may_26
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      May 26, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
+    risk_flags:
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-05-26
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0x421bc1929df1429cf2cb94f80c1ce6a3ed0d1f0b7a2749b9890075f94eb549e9'
+    yes_token_id: '72964978221398605522514751377428383911377976290846845653048953950250638951071'
+    no_token_id: '52965156717339871692714186660785951310421831919562520539239006775699853846973'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+  - market_id: iran_permanent_peace_deal_june_7
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      June 7, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
+    risk_flags:
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-06-07
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0x366f89649caea042c96ee741b185461ec7faa408a2664ec44469a0061924b537'
+    yes_token_id: '15995243820336177841554632127584222169952027258346817014909996961549144471612'
+    no_token_id: '104709284002113814284527094459750550924724996349053105098692118136695631316738'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+  - market_id: iran_permanent_peace_deal_august_31
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      August 31, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
+    risk_flags:
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-08-31
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0xda519921a7090298cbdc56ee838a403a5193c2b3f637aef3e154e52de7b5e79c'
+    yes_token_id: '18350166227701937595781661497315771588029127293300032980353664093725965421470'
+    no_token_id: '111620990270843725584626268463694118257247411716640525160088443769687154332947'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium
+  - market_id: iran_permanent_peace_deal_october_31
+    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
+      October 31, 2026?
+    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
+    category: iran_us_diplomacy
+    thesis_bucket: Iran conflict
+    rule_key: ''
+    oracle_type: Official announcement OR consensus of credible reporting
+    preferred_side: 'NO'
+    risk_flags:
+    - media fallback may matter
+    - announcement-driven
+    resolution_date: 2026-10-31
+    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
+      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
+      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
+      \ explicitly indicates that military hostilities between the United States and\
+      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
+      \ signaling a lasting end to military hostilities between the United States and\
+      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
+      \ agreement to end military hostilities between the US and Iran on a lasting basis\
+      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
+      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
+      \ to have been established if either of the following conditions are met:\n\n\
+      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
+      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
+      \ the governments of the United States and Iran provide clear public confirmation\
+      \ that a qualifying agreement has been definitively established. Negotiations,\
+      \ statements of progress, or other statements which do not constitute a definitive\
+      \ announcement that a qualifying agreement has been reached will not count.\n\n\
+      The primary resolution source for this market will be official information from\
+      \ the governments of the United States and Iran; however, a consensus of credible\
+      \ reporting…"
+    event_slug: us-x-iran-permanent-peace-deal-by
+    condition_id: '0x087713ab2905e789c42c3fafdf747512f8d7883b7fab1ac554b703310c09d869'
+    yes_token_id: '87454787582145370245918768733918745779368258596964798398674915534231998102607'
+    no_token_id: '42929218786041360532688703724922109279260889138815166709480889910338941707084'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true
+    rule_risk:
+      oracle_type: official_statement_required
+      ambiguity: medium
+      media_fallback: true
+      official_statement_required: true
+      dispute_risk: medium

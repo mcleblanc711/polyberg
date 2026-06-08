@@ -15,8 +15,8 @@ positions:
   current_value: 72.00
   pnl: 17.00
   thesis_bucket: 'Iran conflict'
-- market_id: trump_blockade_lifted_may31
-  market_name: Trump announces US Hormuz blockade lifted by May 31 2026
+- market_id: hormuz_normal_jul31
+  market_name: Hormuz normal by July 31 2026
   side: 'NO'
   avg_price: 0.45
   mark_price: 0.55
@@ -24,8 +24,8 @@ positions:
   current_value: 44.00
   pnl: 8.00
   thesis_bucket: 'Iran conflict'
-- market_id: iran_us_peace_jun30
-  market_name: US x Iran permanent peace deal by June 30 2026
+- market_id: hormuz_60_ships_any_day_jun30
+  market_name: 60 ships transit Strait of Hormuz on any day by June 30 2026
   side: 'NO'
   avg_price: 0.30
   mark_price: 0.345
