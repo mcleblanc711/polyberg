@@ -10,6 +10,7 @@ import { MarketsScreen } from './screens/markets/MarketsScreen'
 import { PacketScreen } from './screens/packet/PacketScreen'
 import { DecisionScreen } from './screens/decision/DecisionScreen'
 import { SnapshotsScreen } from './screens/snapshots/SnapshotsScreen'
+import { LadderScreen } from './screens/ladder/LadderScreen'
 import { colors as C, fonts as F } from './styles/tokens'
 
 type ScreenId =
@@ -19,6 +20,7 @@ type ScreenId =
   | 'catalysts'
   | 'packet'
   | 'decision'
+  | 'ladder'
   | 'markets'
   | 'account'
 
@@ -57,6 +59,7 @@ const TopBar = ({
     { id: 'catalysts', label: 'CATALYSTS' },
     { id: 'packet', label: 'PACKET' },
     { id: 'decision', label: 'DECISION' },
+    { id: 'ladder', label: 'LADDER' },
     { id: 'markets', label: 'MARKETS' },
     { id: 'account', label: 'ACCOUNT' }
   ]
@@ -163,6 +166,8 @@ export const App = () => {
         return <PacketScreen />
       case 'decision':
         return <DecisionScreen />
+      case 'ladder':
+        return <LadderScreen />
       case 'catalysts':
         return <CatalystsScreen />
       case 'snapshots':

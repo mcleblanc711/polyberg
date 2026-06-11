@@ -193,26 +193,6 @@ markets:
       fetch_gamma: true
       fetch_clob: true
       fetch_orderbook: true
-  - market_id: how_many_ships_transit_the_strait_of_hormuz_week_of_june_8_will_50_74_ships_transit_the_strait_of_hormuz_between_june_8_june_14
-    name: How many ships transit the Strait of Hormuz week of June 8? — Will 25-49 ships
-      transit the Strait of Hormuz between June 8-June 14?
-    polymarket_url: https://polymarket.com/event/how-many-ships-transit-the-strait-of-hormuz-week-of-june-8
-    category: core_hormuz
-    thesis_bucket: ''
-    rule_key: hormuz_portwatch_7dma
-    oracle_type: IMF portwatch data
-    preferred_side: 'NO'
-    risk_flags: []
-    resolution_date: 2026-06-14
-    notes: ''
-    event_slug: how-many-ships-transit-the-strait-of-hormuz-week-of-june-8
-    condition_id: '0x15a27b4ab344a2f7c9f6589d56c2533c9c6f615c7411bfe661fd7777b230e6e7'
-    yes_token_id: '21964793279721009525093146808546731851804717648598573691192854056898103244678'
-    no_token_id: '90692191337151134079703991371035498520245729701983721601145510422455154016149'
-    data_collection:
-      fetch_gamma: true
-      fetch_clob: true
-      fetch_orderbook: true
   - market_id: avg_ships_transiting_strait_hormuz_june_10_20
     name: 'Avg. # of ships transiting Strait of Hormuz end of June? — Will there be
       between 10 and 20 average daily transits of the Strait of Hormuz on June 30?'
@@ -751,53 +731,6 @@ markets:
       media_fallback: true
       official_statement_required: true
       dispute_risk: medium
-  - market_id: iran_permanent_peace_deal_june_15
-    name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
-      June 15, 2026?
-    polymarket_url: https://polymarket.com/event/us-x-iran-permanent-peace-deal-by
-    category: iran_us_diplomacy
-    thesis_bucket: Iran conflict
-    rule_key: ''
-    oracle_type: Official announcement OR consensus of credible reporting
-    preferred_side: 'NO'
-    risk_flags:
-    - media fallback may matter
-    - announcement-driven
-    resolution_date: 2026-06-15
-    notes: "This market will resolve to “Yes” if Iran and the United states agree to\
-      \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
-      \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
-      \ explicitly indicates that military hostilities between the United States and\
-      \ Iran have ended or will permanently cease, or uses equivalent language clearly\
-      \ signaling a lasting end to military hostilities between the United States and\
-      \ Iran. Agreements that are explicitly temporary or which do not include a definitive\
-      \ agreement to end military hostilities between the US and Iran on a lasting basis\
-      \ (e.g. a temporary extension of the two-week ceasefire agreement announced on\
-      \ April 7, 2026), will not qualify.\n\nA qualifying agreement will be considered\
-      \ to have been established if either of the following conditions are met:\n\n\
-      - The United States and Iran each sign or formally adopt a written agreement (e.g.\
-      \ a treaty or multi-point agreement) which meets the above criteria.\n\n- Both\
-      \ the governments of the United States and Iran provide clear public confirmation\
-      \ that a qualifying agreement has been definitively established. Negotiations,\
-      \ statements of progress, or other statements which do not constitute a definitive\
-      \ announcement that a qualifying agreement has been reached will not count.\n\n\
-      The primary resolution source for this market will be official information from\
-      \ the governments of the United States and Iran; however, a consensus of credible\
-      \ reporting…"
-    event_slug: us-x-iran-permanent-peace-deal-by
-    condition_id: '0xd86a816093fcd0a0e1ca440bc5ce199bd3c5a8d6139e044b076958164f8c5423'
-    yes_token_id: '5904694069529905826680225678119990013628860098514322777023141327768111791078'
-    no_token_id: '59855952379545476461266875939089074481171378466995213858930892770855011813551'
-    data_collection:
-      fetch_gamma: true
-      fetch_clob: true
-      fetch_orderbook: true
-    rule_risk:
-      oracle_type: official_statement_required
-      ambiguity: medium
-      media_fallback: true
-      official_statement_required: true
-      dispute_risk: medium
   - market_id: iran_permanent_peace_deal_may_22
     name: US x Iran permanent peace deal by...? — US x Iran permanent peace deal by
       May 22, 2026?
@@ -1033,3 +966,42 @@ markets:
       media_fallback: true
       official_statement_required: true
       dispute_risk: medium
+  - market_id: ships_transit_strait_hormuz_june_8_25_49
+    name: How many ships transit the Strait of Hormuz week of June 8? — Will 25-49 ships
+      transit the Strait of Hormuz between June 8-June 14?
+    polymarket_url: https://polymarket.com/event/how-many-ships-transit-the-strait-of-hormuz-week-of-june-8
+    category: core_hormuz
+    thesis_bucket: ''
+    rule_key: hormuz_portwatch_7dma
+    oracle_type: IMF Portwatch data
+    preferred_side: 'NO'
+    risk_flags: []
+    resolution_date: 2026-06-14
+    notes: "This market will resolve according to the finalized total number of transit\
+      \ calls that IMF Portwatch reports for the Strait of Hormuz for all days from\
+      \ June 8, 2026, through June 14, 2026, inclusive.\n\nTransit calls include container,\
+      \ dry bulk, roll-on/roll-off, general cargo, and tanker ships. Ships not reported\
+      \ by IMF Portwatch will not be considered.\n\nData for a specific date must be\
+      \ finalized before it is considered for this market (namely, once the next date's\
+      \ data point is available, the previous one is finalized). \n\nThis market will\
+      \ resolve as soon as data has been finalized for the final date in the specified\
+      \ period. If the data for the final date of the specified period has not been\
+      \ finalized by the end of the third calendar day (ET) after the day on which such\
+      \ data is released, this market will resolve based on data published up to that\
+      \ point. Additionally, if not all relevant data has been released and finalized\
+      \ within 14 calendar days of the end of the specified period, this market will\
+      \ resolve based on data published up to that point.\n\nIn case of obvious data\
+      \ integrity issues (i.e., erroneous data), the market may remain open until the\
+      \ end of the third calendar day (ET) after the date on which such data is first\
+      \ released to allow for corrections. Data integrity issues refer only to clerical\
+      \ or other similar errors in the underlying data, and do not include cases where\
+      \ IMF Portwatch differs from alternative sources.\n\nOnly revisions to previously\
+      \ published data poi…"
+    event_slug: how-many-ships-transit-the-strait-of-hormuz-week-of-june-8
+    condition_id: '0x15a27b4ab344a2f7c9f6589d56c2533c9c6f615c7411bfe661fd7777b230e6e7'
+    yes_token_id: '21964793279721009525093146808546731851804717648598573691192854056898103244678'
+    no_token_id: '90692191337151134079703991371035498520245729701983721601145510422455154016149'
+    data_collection:
+      fetch_gamma: true
+      fetch_clob: true
+      fetch_orderbook: true

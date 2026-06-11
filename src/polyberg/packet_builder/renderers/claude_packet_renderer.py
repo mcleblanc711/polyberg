@@ -60,6 +60,10 @@ def render_claude_packet(cp: CanonicalPacket) -> str:
             "- Intended use: adversarial research review. Mode: research only, "
             "limit orders only, human review required."
         ),
+    ]
+    if cp.blocking_warnings:
+        sections.append(_render_blocking_warnings(cp.blocking_warnings))
+    sections += [
         "## Executive State",
         (
             f"- Portfolio value: {portfolio['portfolio_value']:.2f} · "
@@ -76,7 +80,13 @@ def render_claude_packet(cp: CanonicalPacket) -> str:
         "## Portfolio And Exposure",
         (
             positions_table(portfolio["positions"])
-            + "\n\n**Exposure by thesis bucket**\n\n"
+            + "\n\n**Exposure by thesis bucket**"
+            + (
+                " _(fallback: grouped by rule_key — all thesis_buckets empty)_"
+                if cp.exposure_is_fallback
+                else ""
+            )
+            + "\n\n"
             + exposure_table(cp.exposure_summary)
             + "\n\n**Concentration warnings**\n\n"
             + bullet_list(cp.concentration_warnings, empty="_None from local values._")
@@ -114,6 +124,16 @@ def render_claude_packet(cp: CanonicalPacket) -> str:
         "```json\n" + cp.compact_json() + "\n```",
     ]
     return "\n\n".join(sections).strip() + "\n"
+
+
+def _render_blocking_warnings(warnings: list[str]) -> str:
+    lines = [
+        "## ⚠ BLOCKING WARNINGS — SESSION GATE FAILURES",
+        "**These must be resolved before any analysis or recommendation can proceed.**",
+        "",
+    ]
+    lines.extend(f"- {w}" for w in warnings)
+    return "\n".join(lines)
 
 
 def _render_gates(cp: CanonicalPacket) -> str:

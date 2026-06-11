@@ -44,6 +44,14 @@ class Market(StrictModel):
     no_token_id: str | None = None
     data_collection: DataCollection | None = None
     rule_risk: RuleRisk | None = None
+    # Band fields for categorical/bracketed markets. band_label is the outcome
+    # text for this specific band (e.g., "10-20", "under 10"). band_verified is
+    # False when the band boundaries can't be parsed from the available text.
+    band_label: str | None = None
+    band_low: float | None = None
+    band_high: float | None = None
+    bounds_inclusive: bool | None = None
+    band_verified: bool = True
 
     @field_validator("market_id")
     @classmethod
@@ -77,6 +85,12 @@ class Position(StrictModel):
     current_value: float = Field(ge=0)
     pnl: float
     thesis_bucket: str
+    # Band fields — populated when the held outcome is a numeric bracket, not a
+    # simple Yes/No. band_label is the verbatim outcome text from the CLOB/data-api.
+    band_label: str | None = None
+    band_low: float | None = None
+    band_high: float | None = None
+    bounds_inclusive: bool | None = None
 
     @field_validator("market_id")
     @classmethod

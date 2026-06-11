@@ -17,6 +17,8 @@ const pm: PmBridge = {
 
   readArtifact: (name) => ipcRenderer.invoke(IPC.readArtifact, name),
 
+  readSchema: (name) => ipcRenderer.invoke(IPC.readSchema, name),
+
   writeClipboard: (text) => ipcRenderer.invoke(IPC.writeClipboard, text),
 
   runStage: (name, args) => ipcRenderer.invoke(IPC.runStage, name, args),

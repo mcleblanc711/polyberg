@@ -22,12 +22,13 @@ def positions_table(positions: list[dict]) -> str:
     if not positions:
         return "_No open positions._"
     lines = [
-        "| Market | Side | Avg | Mark | Shares | Current value | PnL | Thesis |",
-        "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
+        "| Market | Band | Side | Avg | Mark | Shares | Current value | PnL | Thesis |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     for p in positions:
+        band = p.get("band_label") or ""
         lines.append(
-            f"| {p['market_id']} | {p['side']} | {p['avg_price']:.3f} | "
+            f"| {p['market_id']} | {band} | {p['side']} | {p['avg_price']:.3f} | "
             f"{p['mark_price']:.3f} | {p['shares']:g} | {p['current_value']:.2f} | "
             f"{p['pnl']:.2f} | {p['thesis_bucket']} |"
         )

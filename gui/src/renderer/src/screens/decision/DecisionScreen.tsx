@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { StageRunnerModal } from '../../components/StageRunnerModal'
 import { copyPacket } from '../../lib/copyPacket'
-import type { ArtifactRead, ResponseSlot } from '../../../../shared/contract'
+import { buildFormatPrompt } from '../../lib/formatPrompt'
+import type { ArtifactRead, ResponseSlot, SchemaName } from '../../../../shared/contract'
 import { clipCard, colors as C, fonts as F } from '../../styles/tokens'
 
 // Fixed paths the CLI stages reference. Pasted JSON is written here by
@@ -99,6 +100,8 @@ export const DecisionScreen = () => {
           onChange={(v) => setText((p) => ({ ...p, gpt: v }))}
           onRun={() => void validateResponse('gpt')}
           runLabel="write & validate gpt"
+          schema="model-trade-response"
+          schemaLabel="Model trade response"
         />
 
         <PasteStep
@@ -109,6 +112,8 @@ export const DecisionScreen = () => {
           onChange={(v) => setText((p) => ({ ...p, claude: v }))}
           onRun={() => void validateResponse('claude')}
           runLabel="write & validate claude"
+          schema="model-trade-response"
+          schemaLabel="Model trade response"
         />
 
         <BuildStep
@@ -133,6 +138,8 @@ export const DecisionScreen = () => {
           onChange={(v) => setText((p) => ({ ...p, adjudicator: v }))}
           onRun={() => void validateResponse('adjudicator')}
           runLabel="write & validate verdict"
+          schema="adjudicator-output"
+          schemaLabel="Adjudicator verdict"
         />
 
         <BuildStep
@@ -188,7 +195,9 @@ const PasteStep = ({
   value,
   onChange,
   onRun,
-  runLabel
+  runLabel,
+  schema,
+  schemaLabel
 }: {
   n: number
   title: string
@@ -197,26 +206,59 @@ const PasteStep = ({
   onChange: (v: string) => void
   onRun: () => void
   runLabel: string
-}) => (
-  <StepShell n={n} title={title} sub={sub}>
-    <textarea
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      spellCheck={false}
-      placeholder={'{\n  ...\n}'}
-      style={S.textarea}
-    />
-    <div style={S.actions}>
-      <button
-        style={{ ...S.btnPrimary, opacity: value.trim() ? 1 : 0.4 }}
-        onClick={onRun}
-        disabled={!value.trim()}
-      >
-        ▸ {runLabel.toUpperCase()}
-      </button>
-    </div>
-  </StepShell>
-)
+  schema: SchemaName
+  schemaLabel: string
+}) => {
+  const [promptState, setPromptState] = useState<'idle' | 'copied' | 'error'>('idle')
+
+  useEffect(() => {
+    if (promptState === 'idle') return
+    const t = setTimeout(() => setPromptState('idle'), 1800)
+    return () => clearTimeout(t)
+  }, [promptState])
+
+  const onCopyPrompt = async (): Promise<void> => {
+    try {
+      const schemaJson = await window.pm.readSchema(schema)
+      const prompt = buildFormatPrompt(schemaJson, schemaLabel)
+      const outcome = await copyPacket(prompt, {
+        writeClipboard: (t) => window.pm.writeClipboard(t),
+        navigatorWrite: (t) => navigator.clipboard.writeText(t)
+      })
+      setPromptState(outcome)
+    } catch {
+      setPromptState('error')
+    }
+  }
+
+  return (
+    <StepShell n={n} title={title} sub={sub}>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        spellCheck={false}
+        placeholder={'{\n  ...\n}'}
+        style={S.textarea}
+      />
+      <div style={S.actions}>
+        <button style={S.btnGhost} onClick={() => void onCopyPrompt()}>
+          {promptState === 'copied'
+            ? '✓ PROMPT COPIED'
+            : promptState === 'error'
+              ? '✕ COPY FAILED'
+              : '⎘ COPY FORMAT PROMPT'}
+        </button>
+        <button
+          style={{ ...S.btnPrimary, opacity: value.trim() ? 1 : 0.4 }}
+          onClick={onRun}
+          disabled={!value.trim()}
+        >
+          ▸ {runLabel.toUpperCase()}
+        </button>
+      </div>
+    </StepShell>
+  )
+}
 
 const BuildStep = ({
   n,

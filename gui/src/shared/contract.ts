@@ -179,6 +179,11 @@ export type PasteKind = 'portfolio' | 'orders'
 // adjudicator, and the adjudicator's own output. Written to reports/generated/decision/.
 export type ResponseSlot = 'gpt' | 'claude' | 'adjudicator'
 
+// JSON Schemas (in schemas/) the decision leg validates pasted responses against.
+// Used to generate format-forcing prompts the user hands to Claude/GPT so their
+// replies come back as schema-valid JSON.
+export type SchemaName = 'model-trade-response' | 'adjudicator-output'
+
 export const ALLOWED_STAGES = [
   'build-packet',
   'packet',
@@ -199,7 +204,8 @@ export const ALLOWED_STAGES = [
   'paste-import',
   'registry-add',
   'registry-update',
-  'registry-delete'
+  'registry-delete',
+  'ladder'
 ] as const
 
 export type AllowedStage = (typeof ALLOWED_STAGES)[number]
@@ -210,6 +216,7 @@ export const isAllowedStage = (name: string): name is AllowedStage =>
 export const IPC = {
   readContext: 'pm:readContext',
   readArtifact: 'pm:readArtifact',
+  readSchema: 'pm:readSchema',
   writeClipboard: 'pm:writeClipboard',
   runStage: 'pm:runStage',
   runStageStream: 'pm:runStageStream',
@@ -248,6 +255,7 @@ export interface ContextChangeEvent {
 export interface PmBridge {
   readContext: () => Promise<PmDataPayload>
   readArtifact: (name: ArtifactName) => Promise<ArtifactRead>
+  readSchema: (name: SchemaName) => Promise<string>
   writeClipboard: (text: string) => Promise<void>
   runStage: (name: string, args?: string[]) => Promise<RunStageResult>
   runStageStream: (

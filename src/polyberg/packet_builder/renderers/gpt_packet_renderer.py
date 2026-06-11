@@ -85,6 +85,10 @@ def render_gpt_packet(cp: CanonicalPacket) -> str:
             "`polymarket_rules.md`.\n"
             "- Mode: research only. Human review required before any action."
         ),
+    ]
+    if cp.blocking_warnings:
+        sections.append(_render_blocking_warnings(cp.blocking_warnings))
+    sections += [
         "## 0. How GPT Should Use This Source",
         HOW_TO_USE.strip(),
         "## 1. Freshness And Completeness Warnings",
@@ -100,7 +104,13 @@ def render_gpt_packet(cp: CanonicalPacket) -> str:
             f"- Cash available: {portfolio['cash_available']:.2f}\n\n"
             "_Marks below are local marks, not live bid/ask/depth._\n\n"
             + positions_table(portfolio["positions"])
-            + "\n\n**Exposure Summary By Thesis Bucket**\n\n"
+            + "\n\n**Exposure Summary By Thesis Bucket**"
+            + (
+                " _(fallback: grouped by rule_key — all thesis_buckets empty)_"
+                if cp.exposure_is_fallback
+                else ""
+            )
+            + "\n\n"
             + exposure_table(cp.exposure_summary)
             + "\n\n"
             + "**Concentration warnings**\n\n"
@@ -142,6 +152,16 @@ def render_gpt_packet(cp: CanonicalPacket) -> str:
         "```json\n" + cp.compact_json() + "\n```",
     ]
     return "\n\n".join(sections).strip() + "\n"
+
+
+def _render_blocking_warnings(warnings: list[str]) -> str:
+    lines = [
+        "## ⚠ BLOCKING WARNINGS — SESSION GATE FAILURES",
+        "**These must be resolved before any analysis or recommendation can proceed.**",
+        "",
+    ]
+    lines.extend(f"- {w}" for w in warnings)
+    return "\n".join(lines)
 
 
 def _render_gate(cp: CanonicalPacket) -> str:

@@ -35,6 +35,7 @@ export const REPO_ROOT = findRepoRoot()
 export const CONTEXT_DIR = resolve(REPO_ROOT, 'context')
 export const REPORTS_DIR = resolve(REPO_ROOT, 'reports', 'generated')
 export const SNAPSHOTS_DIR = resolve(REPO_ROOT, 'data', 'snapshots')
+export const SCHEMAS_DIR = resolve(REPO_ROOT, 'schemas')
 
 // Prefer the gitignored `<stem>.local.<ext>` overlay (real account state) when
 // present, falling back to the tracked sample file. Mirrors the Python
@@ -48,7 +49,7 @@ export const contextFile = (filename: string): string => {
   return existsSync(localPath) ? localPath : resolve(CONTEXT_DIR, filename)
 }
 
-const READ_ROOTS = [CONTEXT_DIR, REPORTS_DIR, SNAPSHOTS_DIR]
+const READ_ROOTS = [CONTEXT_DIR, REPORTS_DIR, SNAPSHOTS_DIR, SCHEMAS_DIR]
 const WRITE_PATHS = new Set<string>([
   resolve(CONTEXT_DIR, 'recent_catalysts.md'),
   resolve(CONTEXT_DIR, 'open_orders.yaml'),

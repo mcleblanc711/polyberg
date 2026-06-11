@@ -7,6 +7,7 @@ from pathlib import Path
 
 from polyberg.config import get_max_context_age_hours
 from polyberg.models import (
+    Market,
     MarketRegistry,
     MarketSnapshot,
     OpenOrders,
@@ -35,9 +36,14 @@ class CanonicalPacket:
     source_timestamps: dict[str, str | None]
     freshness_warnings: list[str]
     missing_info: list[str]
+    # blocking_warnings must be resolved before any trade recommendation.
+    # Each entry names the specific position and the failure reason.
+    blocking_warnings: list[str]
     constraints: dict[str, object]
     portfolio: dict[str, object]
     exposure_summary: list[dict[str, object]]
+    # True when thesis_buckets were all empty and rule_key was used as fallback.
+    exposure_is_fallback: bool
     concentration_warnings: list[str]
     open_orders: dict[str, object]
     market_registry: list[dict[str, object]]
@@ -53,9 +59,11 @@ class CanonicalPacket:
             "source_timestamps": self.source_timestamps,
             "freshness_warnings": self.freshness_warnings,
             "missing_info": self.missing_info,
+            "blocking_warnings": self.blocking_warnings,
             "constraints": self.constraints,
             "portfolio": self.portfolio,
             "exposure_summary": self.exposure_summary,
+            "exposure_is_fallback": self.exposure_is_fallback,
             "concentration_warnings": self.concentration_warnings,
             "open_orders": self.open_orders,
             "market_registry": self.market_registry,
@@ -77,6 +85,7 @@ class CanonicalPacket:
             "constraints": self.constraints,
             "freshness_warnings": self.freshness_warnings,
             "missing_info": self.missing_info,
+            "blocking_warnings": self.blocking_warnings,
             "portfolio": {
                 "as_of": self.portfolio["as_of"],
                 "portfolio_value": self.portfolio["portfolio_value"],
@@ -85,6 +94,7 @@ class CanonicalPacket:
                     {
                         "market_id": p["market_id"],
                         "side": p["side"],
+                        "band_label": p.get("band_label"),
                         "shares": p["shares"],
                         "avg_price": p["avg_price"],
                         "mark_price": p["mark_price"],
@@ -95,6 +105,7 @@ class CanonicalPacket:
                 ],
             },
             "exposure_summary": self.exposure_summary,
+            "exposure_is_fallback": self.exposure_is_fallback,
             "concentration_warnings": self.concentration_warnings,
             "open_orders": {
                 "as_of": self.open_orders["as_of"],
@@ -120,7 +131,11 @@ def build_canonical_packet(
         )
 
     freshness_warnings = _compute_freshness_warnings(state)
-    exposure_summary, concentration_warnings = _build_exposure(state.portfolio)
+    registry_by_id = {m.market_id: m for m in state.registry.markets}
+    exposure_summary, exposure_is_fallback, concentration_warnings = _build_exposure(
+        state.portfolio, registry_by_id
+    )
+    blocking_warnings = _build_blocking_warnings(state.portfolio, registry_by_id)
     missing_info = _build_missing_info(state)
     parsed = parse_catalysts(state.catalysts_markdown)
 
@@ -136,9 +151,11 @@ def build_canonical_packet(
         },
         freshness_warnings=freshness_warnings,
         missing_info=missing_info,
+        blocking_warnings=blocking_warnings,
         constraints=_build_constraints(state),
         portfolio=_build_portfolio(state.portfolio),
         exposure_summary=exposure_summary,
+        exposure_is_fallback=exposure_is_fallback,
         concentration_warnings=concentration_warnings,
         open_orders=_build_open_orders(state.open_orders),
         market_registry=_build_registry(state.registry),
@@ -198,6 +215,7 @@ def _build_portfolio(portfolio: Portfolio) -> dict[str, object]:
                 "market_id": p.market_id,
                 "market_name": p.market_name,
                 "side": p.side,
+                "band_label": p.band_label,
                 "avg_price": p.avg_price,
                 "mark_price": p.mark_price,
                 "shares": p.shares,
@@ -210,32 +228,47 @@ def _build_portfolio(portfolio: Portfolio) -> dict[str, object]:
     }
 
 
-def _build_exposure(portfolio: Portfolio) -> tuple[list[dict[str, object]], list[str]]:
+def _build_exposure(
+    portfolio: Portfolio,
+    registry_by_id: dict[str, Market],
+) -> tuple[list[dict[str, object]], bool, list[str]]:
+    """Build exposure summary grouped by thesis_bucket.
+
+    Falls back to rule_key grouping when all positions have empty thesis_bucket.
+    Returns (summary_rows, is_fallback, concentration_warnings).
+    """
     total = portfolio.portfolio_value
-    bucket_values: dict[str, float] = {}
-    bucket_counts: dict[str, int] = {}
     warnings: list[str] = []
     for position in portfolio.positions:
-        bucket_values[position.thesis_bucket] = (
-            bucket_values.get(position.thesis_bucket, 0) + position.current_value
-        )
-        bucket_counts[position.thesis_bucket] = (
-            bucket_counts.get(position.thesis_bucket, 0) + 1
-        )
         if total > 0 and position.current_value / total > 0.35:
             warnings.append(
                 f"single position {position.market_id} exceeds 35% of portfolio value"
             )
-
     if total > 0 and portfolio.cash_available / total < 0.05:
         warnings.append("cash is below 5% of portfolio value")
+
+    all_empty = all(not p.thesis_bucket for p in portfolio.positions)
+    use_fallback = all_empty and bool(portfolio.positions)
+
+    bucket_values: dict[str, float] = {}
+    bucket_counts: dict[str, int] = {}
+    for position in portfolio.positions:
+        if use_fallback:
+            market = registry_by_id.get(position.market_id)
+            rk = market.rule_key if market and market.rule_key else "(unknown)"
+            key = f"[rule_key] {rk}"
+        else:
+            key = position.thesis_bucket
+        bucket_values[key] = bucket_values.get(key, 0) + position.current_value
+        bucket_counts[key] = bucket_counts.get(key, 0) + 1
 
     summary: list[dict[str, object]] = []
     for bucket in sorted(bucket_values):
         value = bucket_values[bucket]
         percent = (value / total * 100) if total else 0.0
         if percent > 40:
-            warnings.append(f"thesis bucket {bucket} exceeds 40% of portfolio value")
+            label = "rule_key" if use_fallback else "thesis bucket"
+            warnings.append(f"{label} {bucket} exceeds 40% of portfolio value")
         summary.append(
             {
                 "thesis_bucket": bucket,
@@ -244,7 +277,35 @@ def _build_exposure(portfolio: Portfolio) -> tuple[list[dict[str, object]], list
                 "position_count": bucket_counts[bucket],
             }
         )
-    return summary, warnings
+    return summary, use_fallback, warnings
+
+
+def _build_blocking_warnings(
+    portfolio: Portfolio,
+    registry_by_id: dict[str, Market],
+) -> list[str]:
+    """Enumerate gate failures that must be resolved before recommendations.
+
+    Two failure kinds are checked:
+    - BAND UNRESOLVED: position is on a banded market (registry has band_label
+      set) but the position itself carries no band_label.
+    - THESIS BUCKET EMPTY: position.thesis_bucket is blank.
+    """
+    warnings: list[str] = []
+    for position in portfolio.positions:
+        market = registry_by_id.get(position.market_id)
+        if market is not None and market.band_label is not None and not position.band_label:
+            warnings.append(
+                f"BAND UNRESOLVED: {position.market_id} — registry expects band label "
+                f"{market.band_label!r} but position carries none; re-ingest from data-api "
+                f"or CLOB to populate band_label"
+            )
+        if not position.thesis_bucket:
+            warnings.append(
+                f"THESIS BUCKET EMPTY: {position.market_id} — assign a thesis_bucket in "
+                f"the registry or portfolio before this position can be risk-analysed"
+            )
+    return sorted(set(warnings))
 
 
 def _order_to_dict(order: Order) -> dict[str, object]:

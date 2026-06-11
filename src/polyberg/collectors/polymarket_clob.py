@@ -73,3 +73,39 @@ def normalize_order_book(raw: dict) -> dict:
         "asks": raw.get("asks", []),
         "asset_id": raw.get("asset_id") or raw.get("token_id"),
     }
+
+
+def fetch_clob_market(condition_id: str, http: ReadOnlyHttpClient | None = None) -> dict:
+    """Fetch a CLOB V2 market by condition_id; returns market dict with tokens list.
+
+    Each token entry has at minimum ``token_id`` and ``outcome`` fields.  Use
+    ``outcome_by_token_id`` to resolve a held token to its outcome label.
+
+    Raises :class:`ClobCollectorError` on transport or unexpected shape.
+    """
+    if not condition_id:
+        raise ClobCollectorError("Missing condition_id for CLOB market fetch")
+    client = http or ReadOnlyHttpClient(CLOB_API_BASE_URL)
+    try:
+        raw = client.get_json(f"/markets/{condition_id}", headers=_HEADERS)
+    except AccountImportError as exc:
+        raise ClobCollectorError(str(exc)) from exc
+    if not isinstance(raw, dict):
+        raise ClobCollectorError(
+            f"Unexpected CLOB market response shape for condition_id {condition_id}"
+        )
+    return raw
+
+
+def outcome_by_token_id(market_data: dict, token_id: str) -> str | None:
+    """Return the outcome label for a specific token_id within a CLOB market response.
+
+    Returns None if the token is not found in the tokens list.
+    """
+    for token in market_data.get("tokens") or []:
+        if not isinstance(token, dict):
+            continue
+        if str(token.get("token_id") or "") == str(token_id):
+            outcome = token.get("outcome")
+            return str(outcome) if outcome is not None else None
+    return None

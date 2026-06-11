@@ -1,0 +1,50 @@
+# Ladder target state — seed file (safe to commit; real targets go in the gitignored overlay).
+#
+# To use real targets: copy this file to live/target_ladders.local.yaml and edit.
+# The local overlay is automatically preferred when present.
+#
+# Rules enforced by the validator:
+#   [limit-only]       All orders are limit. Market orders are structurally unrepresentable
+#                      (any extra field like "order_type: market" is rejected by the schema).
+#   [sell-cap]         SELL rung price must be ≤ 0.96. Use limit-sell discipline;
+#                      the cap prevents fat-finger fills near 1.0.
+#   [cash-collision]   Warning: sum of (price × shares) across ALL BUY rungs exceeds
+#                      available cash. Non-blocking — worst case the exchange cancels
+#                      unfunded orders if every rung fills.
+#   [dirty-oracle]     Warning: BUY ladder on a market with band_verified=false or
+#                      rule_risk.media_fallback=true risks fill inversion.
+#
+# Matching (diff vs live):
+#   price_tolerance    Rungs within this price delta are treated as the same rung.
+#   shares_tolerance   Shares difference below this on a matched rung → keep the order.
+#
+# Local overlay: live/target_ladders.local.yaml (gitignored) takes precedence when present.
+
+schema_version: "1"
+
+matching:
+  price_tolerance: 0.0005   # half a tick
+  shares_tolerance: 1.0     # absolute shares
+
+ladders:
+  # SELL ladder: cash-rebuild by selling NO shares into strength
+  - market_id: hormuz_normal_end_june
+    outcome: "NO"
+    action: SELL
+    rungs:
+      - price: 0.90
+        shares: 150
+      - price: 0.94
+        shares: 100
+    tags:
+      purpose: cash_rebuild
+
+  # BUY ladder: resting runner bid on the later-dated market
+  - market_id: hormuz_normal_jul31
+    outcome: "NO"
+    action: BUY
+    rungs:
+      - price: 0.72
+        shares: 200
+    tags:
+      purpose: runner

@@ -33,6 +33,134 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="polyberg")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    ladder_group = subparsers.add_parser("ladder", help="Ladder order management.")
+    ladder_sub = ladder_group.add_subparsers(dest="ladder_command", required=True)
+
+    ladder_plan = ladder_sub.add_parser(
+        "plan",
+        help="Diff target ladders vs live orders and print a reconciliation plan.",
+    )
+    ladder_plan.add_argument("--target", type=Path, default=None, help="Target ladders YAML path.")
+    ladder_plan.add_argument(
+        "--live-from",
+        type=Path,
+        default=None,
+        dest="live_from",
+        help="Import-clob-orders JSON artifact to use instead of a live CLOB fetch.",
+    )
+    ladder_plan.add_argument(
+        "--cash",
+        type=float,
+        default=None,
+        help="Override available cash (USD). Falls back to live CLOB fetch then portfolio yaml.",
+    )
+    ladder_plan.add_argument("--price-tolerance", type=float, default=None, dest="price_tolerance")
+    ladder_plan.add_argument(
+        "--shares-tolerance", type=float, default=None, dest="shares_tolerance"
+    )
+    ladder_plan.add_argument(
+        "--manage-all",
+        action="store_true",
+        default=False,
+        dest="manage_all",
+        help="Cancel live orders outside managed keys (not just those on managed keys).",
+    )
+    ladder_plan.add_argument(
+        "--no-paste",
+        action="store_true",
+        default=False,
+        dest="no_paste",
+        help="Suppress the pipe-delimited paste block.",
+    )
+    ladder_plan.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        dest="as_json",
+        help="Emit the plan as machine-readable JSON (for the GUI) instead of markdown.",
+    )
+    ladder_plan.set_defaults(func=command_ladder_plan)
+
+    ladder_execute = ladder_sub.add_parser(
+        "execute",
+        help="Build a fresh plan, then walk it with per-action y/n confirmation "
+        "(cancels via API, placements as manual paste lines).",
+    )
+    ladder_execute.add_argument(
+        "--target", type=Path, default=None, help="Target ladders YAML path."
+    )
+    ladder_execute.add_argument(
+        "--live-from",
+        type=Path,
+        default=None,
+        dest="live_from",
+        help="Import-clob-orders JSON artifact to use instead of a live CLOB fetch.",
+    )
+    ladder_execute.add_argument(
+        "--cash",
+        type=float,
+        default=None,
+        help="Override available cash (USD). Falls back to live CLOB fetch then portfolio yaml.",
+    )
+    ladder_execute.add_argument(
+        "--price-tolerance", type=float, default=None, dest="price_tolerance"
+    )
+    ladder_execute.add_argument(
+        "--shares-tolerance", type=float, default=None, dest="shares_tolerance"
+    )
+    ladder_execute.add_argument(
+        "--manage-all",
+        action="store_true",
+        default=False,
+        dest="manage_all",
+        help="Cancel live orders outside managed keys (not just those on managed keys).",
+    )
+    ladder_execute.add_argument(
+        "--log",
+        type=Path,
+        default=None,
+        help="Order log jsonl path. Default: live/order_log.jsonl.",
+    )
+    ladder_execute.set_defaults(func=command_ladder_execute)
+
+    # GUI-support subcommands: each performs exactly one confirmed action so the
+    # GUI's per-action confirm modal stays the human gate (mirrors `execute`).
+    ladder_cancel = ladder_sub.add_parser(
+        "cancel",
+        help="Cancel a single open order by id (non-interactive; GUI confirms first).",
+    )
+    ladder_cancel.add_argument("--order-id", required=True, dest="order_id")
+    ladder_cancel.add_argument(
+        "--log",
+        type=Path,
+        default=None,
+        help="Order log jsonl path. Default: live/order_log.jsonl.",
+    )
+    ladder_cancel.set_defaults(func=command_ladder_cancel)
+
+    ladder_preflight = ladder_sub.add_parser(
+        "preflight",
+        help="Fire GET /balance-allowance/update (required after closes before new orders).",
+    )
+    ladder_preflight.set_defaults(func=command_ladder_preflight)
+
+    ladder_record = ladder_sub.add_parser(
+        "record-manual",
+        help="Log a manually-placed order as manual_confirmed (GUI 'MARK PLACED').",
+    )
+    ladder_record.add_argument("--market", required=True, dest="market_id")
+    ladder_record.add_argument("--outcome", required=True, choices=["YES", "NO"])
+    ladder_record.add_argument("--side", required=True, choices=["BUY", "SELL"])
+    ladder_record.add_argument("--price", required=True, type=float)
+    ladder_record.add_argument("--shares", required=True, type=float)
+    ladder_record.add_argument(
+        "--log",
+        type=Path,
+        default=None,
+        help="Order log jsonl path. Default: live/order_log.jsonl.",
+    )
+    ladder_record.set_defaults(func=command_ladder_record_manual)
+
     packet = subparsers.add_parser("build-packet", help="Build a markdown model context packet.")
     packet.add_argument(
         "--output",
@@ -1018,6 +1146,245 @@ def command_registry_delete(args: argparse.Namespace) -> int:
         print(str(exc), file=sys.stderr)
         return 1
     print(f"Deleted market {args.market_id} from {out}")
+    return 0
+
+
+def _build_ladder_plan_from_args(args: argparse.Namespace):
+    """Shared plan construction for `ladder plan` and `ladder execute`.
+
+    Returns (exit_code, plan, url_map); plan/url_map are None unless exit_code is 0.
+    """
+    import json as _json
+    from decimal import Decimal
+
+    from polyberg.ladder.diff import diff_ladders
+    from polyberg.ladder.live_orders import live_rungs_from_raw
+    from polyberg.ladder.models import load_target_ladders
+    from polyberg.ladder.validate import LadderValidationError, validate_targets
+    from polyberg.loaders import LoaderError, load_market_registry, load_portfolio
+
+    try:
+        registry = load_market_registry()
+    except LoaderError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1, None, None
+
+    try:
+        targets = load_target_ladders(args.target, registry)
+    except LoaderError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1, None, None
+
+    # Resolve cash: --cash flag > live CLOB fetch > portfolio yaml (+stale warn)
+    cash: Decimal | None = None
+    cash_is_stale = False
+    if args.cash is not None:
+        cash = Decimal(str(args.cash))
+    else:
+        try:
+            from polyberg.collectors.polymarket_clob_auth import load_clob_credentials_from_env
+            from polyberg.collectors.polymarket_clob_balance import (
+                balance_to_decimal_usdc,
+                fetch_collateral_balance,
+            )
+            creds = load_clob_credentials_from_env()
+            raw_balance = fetch_collateral_balance(creds)
+            cash = balance_to_decimal_usdc(raw_balance["balance"])
+        except Exception:  # noqa: BLE001 - missing creds or network; fall through
+            pass
+    if cash is None:
+        try:
+            portfolio = load_portfolio()
+            cash = Decimal(str(portfolio.cash_available))
+            cash_is_stale = True
+        except LoaderError as exc:
+            print(f"Cannot resolve cash_available: {exc}", file=sys.stderr)
+            return 1, None, None
+
+    # Resolve live orders: --live-from file or live CLOB fetch
+    if args.live_from is not None:
+        if not args.live_from.exists():
+            print(f"--live-from file not found: {args.live_from}", file=sys.stderr)
+            return 1, None, None
+        try:
+            raw_doc = _json.loads(args.live_from.read_text(encoding="utf-8"))
+        except _json.JSONDecodeError as exc:
+            print(f"Invalid JSON in {args.live_from}: {exc}", file=sys.stderr)
+            return 1, None, None
+        raw_orders = raw_doc.get("payload", raw_doc) if isinstance(raw_doc, dict) else raw_doc
+        if not isinstance(raw_orders, list):
+            print(f"Expected list of orders in {args.live_from}", file=sys.stderr)
+            return 1, None, None
+    else:
+        try:
+            from polyberg.collectors.polymarket_clob_orders import fetch_open_orders
+            creds = load_clob_credentials_from_env()
+            raw_orders = fetch_open_orders(creds)
+        except AccountImportError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1, None, None
+
+    try:
+        live_rungs, unmapped = live_rungs_from_raw(raw_orders, registry)
+    except ValueError as exc:
+        print(f"Live orders error: {exc}", file=sys.stderr)
+        return 1, None, None
+
+    # Validate targets before diff
+    try:
+        warnings = validate_targets(targets, registry, cash, cash_is_stale)
+    except LadderValidationError as exc:
+        for msg in exc.messages:
+            print(f"[hard fail] {msg}", file=sys.stderr)
+        return 2, None, None
+
+    # Build matching config with any CLI overrides
+    matching = targets.matching
+    overrides: dict[str, float] = {}
+    if args.price_tolerance is not None:
+        overrides["price_tolerance"] = args.price_tolerance
+    if args.shares_tolerance is not None:
+        overrides["shares_tolerance"] = args.shares_tolerance
+    if overrides:
+        matching = matching.model_copy(update=overrides)
+
+    plan = diff_ladders(
+        targets,
+        live_rungs,
+        unmapped,
+        matching=matching,
+        manage_all=args.manage_all,
+    )
+    if warnings:
+        plan.warnings.extend(warnings)
+
+    url_map = {m.market_id: m.polymarket_url for m in registry.markets}
+    return 0, plan, url_map
+
+
+def command_ladder_plan(args: argparse.Namespace) -> int:
+    import json as _json
+
+    from polyberg.ladder.render import plan_to_dict, render_plan
+
+    as_json = getattr(args, "as_json", False)
+    rc, plan, url_map = _build_ladder_plan_from_args(args)
+    if rc != 0:
+        if as_json and rc == 2:
+            # Hard validation failure: emit a structured error the GUI can render
+            # as a red banner instead of a (missing) plan. Messages were already
+            # printed to stderr by _build_ladder_plan_from_args.
+            print(_json.dumps({"ok": False, "exit_code": 2}))
+        return rc
+    if as_json:
+        print(_json.dumps({"ok": True, "plan": plan_to_dict(plan, url_map)}))
+        return 0
+    output = render_plan(plan, url_map=url_map, paste=not args.no_paste)
+    print(output, end="")
+    return 0
+
+
+def command_ladder_execute(args: argparse.Namespace) -> int:
+    from polyberg.ladder.executor import execute_plan
+    from polyberg.ladder.render import render_plan
+
+    rc, plan, url_map = _build_ladder_plan_from_args(args)
+    if rc != 0:
+        return rc
+
+    print(render_plan(plan, url_map=url_map, paste=False), end="")
+
+    if not plan.cancel and not plan.place:
+        print("Nothing to execute: plan has no cancels or placements.")
+        return 0
+
+    try:
+        creds = load_clob_credentials_from_env()
+    except AccountImportError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    log_path = args.log if args.log is not None else repo_path("live", "order_log.jsonl")
+    return execute_plan(plan, creds, log_path, url_map=url_map)
+
+
+def command_ladder_cancel(args: argparse.Namespace) -> int:
+    """Cancel one order by id over the API and append a log entry. The GUI's
+    confirm modal is the human gate; this command never prompts."""
+    import json as _json
+    from datetime import datetime
+
+    from polyberg.config import get_timezone
+    from polyberg.ladder.clob_cancel import ClobCancelError, cancel_order
+    from polyberg.ladder.executor import _log_entry, append_order_log
+
+    try:
+        creds = load_clob_credentials_from_env()
+    except AccountImportError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    log_path = args.log if args.log is not None else repo_path("live", "order_log.jsonl")
+    ts = datetime.now(get_timezone())
+    try:
+        response = cancel_order(creds, args.order_id)
+    except ClobCancelError as exc:
+        append_order_log(
+            log_path,
+            _log_entry(
+                ts, "CANCEL", "", "", "", 0.0, 0.0, args.order_id, "http_error",
+                exc.excerpt or str(exc),
+            ),
+        )
+        print(f"Cancel failed for {args.order_id}: {exc}", file=sys.stderr)
+        return 1
+    append_order_log(
+        log_path,
+        _log_entry(
+            ts, "CANCEL", "", "", "", 0.0, 0.0, args.order_id, "ok", _json.dumps(response)
+        ),
+    )
+    print(f"Cancelled {args.order_id}")
+    return 0
+
+
+def command_ladder_preflight(args: argparse.Namespace) -> int:
+    """Fire GET /balance-allowance/update (required after closes before placing)."""
+    import json as _json
+
+    from polyberg.ladder.executor import fire_preflight
+
+    try:
+        creds = load_clob_credentials_from_env()
+    except AccountImportError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    try:
+        response = fire_preflight(creds)
+    except AccountImportError as exc:
+        print(f"Pre-flight failed: {exc}", file=sys.stderr)
+        return 1
+    print(_json.dumps(response))
+    return 0
+
+
+def command_ladder_record_manual(args: argparse.Namespace) -> int:
+    """Append a manual_confirmed PLACE entry (GUI marks a placement done)."""
+    from polyberg.ladder.executor import record_manual_placement
+
+    log_path = args.log if args.log is not None else repo_path("live", "order_log.jsonl")
+    record_manual_placement(
+        log_path,
+        args.market_id,
+        args.outcome,
+        args.side,
+        args.price,
+        args.shares,
+    )
+    print(
+        f"Recorded manual PLACE {args.market_id} {args.outcome} {args.side} "
+        f"@ {args.price:.4f} x {args.shares:.1f}"
+    )
     return 0
 
 

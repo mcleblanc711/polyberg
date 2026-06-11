@@ -23,6 +23,10 @@ reports/generated/**
 context/*.local.yaml
 context/*.local.md
 
+# Ladder live state (real orders, logs — gitignored; tracked seed is live/target_ladders.yaml)
+live/target_ladders.local.yaml
+live/order_log.jsonl
+
 # Electron GUI build artifacts
 gui/node_modules/
 gui/out/

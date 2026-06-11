@@ -5,10 +5,12 @@ import {
   type Catalyst,
   type DraftOrder,
   type PasteKind,
-  type ResponseSlot
+  type ResponseSlot,
+  type SchemaName
 } from '../../shared/contract'
 import { readArtifact } from './readArtifact'
 import { readContext } from './readContext'
+import { readSchema } from './readSchema'
 import { runStage, runStageStream } from './runStage'
 import { appendCatalyst, writeDraftOrder, writePasteInput, writeResponseInput } from './writers'
 import { startWatch, stopWatch } from './watcher'
@@ -22,6 +24,8 @@ export const registerIpc = (): void => {
   ipcMain.handle(IPC.readContext, () => readContext())
 
   ipcMain.handle(IPC.readArtifact, (_evt, name: ArtifactName) => readArtifact(name))
+
+  ipcMain.handle(IPC.readSchema, (_evt, name: SchemaName) => readSchema(name))
 
   ipcMain.handle(IPC.writeClipboard, (_evt, text: string) => {
     if (typeof text !== 'string') {

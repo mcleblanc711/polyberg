@@ -132,6 +132,60 @@ Oil prices are trading higher.
 4:16 PM · Jun 7, 2026
 - [2026-06-08 02:32Z] **hormuz_normal_jul31** · @RealPolitikSion (tweet) — After missile fire at Israel: IAF strikes regime targets in Iran. IDF strikes approximately 15 military targets in Iran, including a drone warehouse and an airport in Tehran. The IRGC says that Israel carried out the attack using ballistic missiles.
 - [2026-06-08 02:32Z] **hormuz_normal_jul31** · @NBCNews (tweet) — BREAKING: Israel strikes Iranian military targets hours after Tehran launched its own attacks. Follow live updates.
+- [2026-06-08 14:46Z] **hormuz_normal_jul31** · @HormuzLetter (tweet) — BREAKING: Iran says it has now fully blocked the Bab el-Mandeb Strait, along with the complete closure of the Strait of Hormuz, with the next step being strikes on oil, gas and energy infrastructure of US-allied Gulf countries in response to today's Israeli strikes on the Petrochemical Complex, per a source close to Iran's Ghalibaf.
+3:52 AM · Jun 8, 2026
+- [2026-06-08 14:46Z] **iran_permanent_peace_deal_july_31** · @JustTrumpTruth (tweet) — Both sides, Israel and Iran, are looking to do an immediate CEASEFIRE! Final negotiations on “Peace” are proceeding, subject to ignorance or stupidity getting in its way. The Blockade will remain in place, and in full force and effect, until a “Final Deal” is reached. Things should move quickly. Thank you for your attention to this matter! President DONALD J. TRUMP
+- [2026-06-08 14:43Z] **iran_permanent_peace_deal_august_31** · @Osint613 (tweet) — Iran's leadership has lost contact with supreme leader Mojtaba Khamenei since last night, according to Iran International. Yesterday's retaliatory strikes on Israel following the IDF's Dahiya attack were launched without coordination with Khamenei's office, relying instead on pre-prepared military protocols. The speed of Iran's response exceeded what the normal messaging process with Khamenei would have permitted.
+5:14 AM · Jun 8, 2026
+- [2026-06-08 14:43Z] **hormuz_normal_jul31** · @drpezeshkian (tweet) — Translated from Persian
+Our priority is national security and the peace of our people. We will defend the rights of the nation with authority and will not retreat in the face of any threat. Diplomacy and defense are the two wings of national power; we have neither abandoned the field nor the negotiating table. God willing, with unity and rationality, Iran will emerge triumphant from this trial as well.
+Rate this translation:
+5:42 AM · Jun 8, 2026
+- [2026-06-08 14:42Z] **iran_permanent_peace_deal_august_31** · @Osint613 (tweet) — Netanyahu convening security cabinet tonight at 9 PM.
+- Times of Israel
+7:53 AM · Jun 8, 2026
+- [2026-06-08 14:42Z] **iran_permanent_peace_deal_august_31** · @Osint613 (tweet) — Iranian Army: The U.S. will bear responsibility for any future Israeli aggression against Iran.
+7:58 AM · Jun 8, 2026
+- [2026-06-08 14:42Z] **iran_permanent_peace_deal_august_31** · @Osint613 (tweet) — Hezbollah is attacking northern Israel again right now
+8:05 AM · Jun 8, 2026
+- [2026-06-08 14:42Z] **hormuz_normal_jul31** · @AJEnglish (tweet) — Iran and Israel bomb each other: Is the ceasefire over?
+Analysts say both sides are pushing the ceasefire to its limits while seeking greater leverage.
+Here’s all you need to know ⤵️
+- [2026-06-08 14:42Z] **hormuz_normal_jul31** · @Osint613 (tweet) — NOW: Senior Iranian official to Al Mayadeen: Trump’s claim that the U.S. was not involved in Israel’s attack on Iran “does not match the facts.” The official warned that Iran’s “infrastructure for infrastructure” doctrine remains in force and said the response could extend beyond Israel to include U.S. interests and bases.
+3:45 AM · Jun 8, 2026
+- [2026-06-09 12:52Z] **hormuz_normal_jul31** · @HormuzLetter (tweet) — BREAKING: Iran rejects Trump's claim today that a deal is "very close" and that Iran is "interested" in signing it, with an Iranian official telling CNN that Iran "has no objection to talking with the US," anymore, and the reason for Trump's call to Netanyahu to stop the planned much larger third Israeli attack on Iran today was not any imminent agreement or ceasefire like Trump claimed.
+2:33 PM · Jun 8, 2026
+- [2026-06-09 12:50Z] **hormuz_normal_jul31** · @KobeissiLetter (tweet) — Square profile picture
+The Kobeissi Letter
+BREAKING: President Trump reportedly called Israeli Prime Minister Netanyahu and warned him that if he went back to war with Iran, he might be fighting on his own, per Axios.
+Trump reportedly said, "Bibi, you better be careful, or you will be on your own very soon."
+2:03 PM · Jun 8, 2026
+- [2026-06-09 12:50Z] **hormuz_normal_jul31** · @Osint613 (tweet) — Trump on Iran:
+“If we go and bomb, which we can do very easily if we want, and we spend another two or three weeks bombing, they’ll have nothing left whatsoever.
+But you won’t have the Strait open for months. If we do the bombing, a lot of people are going to be killed. Who wants to do that? I don’t.
+We’ll get a signed document that’s actually stronger than doing the bombing.”
+3:02 AM · Jun 9, 2026
+- [2026-06-10 04:08Z] **hormuz_normal_jul31** · @AJABreaking (tweet) — Square profile picture
+الجزيرة - عاجل
+Translated from Arabic
+Urgent | Fars News Agency citing a military source: The Revolutionary Guard used Khaibar Shekan missiles in striking F-35 fighter hangars in #Jordan
+- [2026-06-10 04:07Z] **hormuz_normal_jul31** · @AJABreaking (tweet) — Translated from Arabic
+Urgent | New York Times on a US official: Initial assessments confirm the interception of nearly all Iranian missiles and drones
+- [2026-06-10 04:07Z] **hormuz_normal_jul31** · @AJABreaking (tweet) — Translated from Arabic
+The Iranian Revolutionary Guard announces targeting the US Blue Base in Jordan and Ali Al-Salem in Kuwait with missiles and drones in response to the US attack, according to Fars Agency -
+- [2026-06-10 04:07Z] **hormuz_normal_jul31** · @AJENews (tweet) — BREAKING: Jordanian military says five Iranian missiles intercepted
+- [2026-06-10 04:07Z] **hormuz_normal_jul31** · @AJENews (tweet) — BREAKING: Air raid sirens activated a second time in Bahrain
+- [2026-06-10 04:06Z] **avg_of_ships_transiting_strait_of_hormuz_end_of_june** · @AJENews (tweet) — BREAKING: Kuwaiti air defences 'intercepting hostile aerial targets'
+- [2026-06-10 04:12Z] **hormuz_normal_jul31** · @Osint613 (tweet) — Reuters: U.S. struck nearly 20 targets in Iran, U.S. official says.
+- [2026-06-11 00:49Z] **hormuz_normal_jul31** · @AJENews (tweet) — BREAKING: Iranian media report explosions in Sirik, Karaj and Abyek in Qazvin province. Residents reported loud blasts in the areas, with no immediate details on the cause.
+- [2026-06-11 00:47Z] **hormuz_normal_jul31** · @MarioNawfal (tweet) — 🚨🇮🇷 BREAKING: Iran has just declared the Strait of Hormuz fully closed.
+Khatam al-Anbiya, the military's central headquarters, announced no vessel of any kind, commercial or otherwise, will be permitted to cross.
+A declared closure only means what Iran can enforce, and its enforcement tools have spent two weeks being systematically destroyed.
+But the announcement alone reignites the oil panic, and any attempt to actually stop the convoys collides head on with the U.S. Navy.
+- [2026-06-11 00:46Z] **hormuz_normal_jul31** · @officialrnintel (tweet) — 🇺🇸🇮🇷🇧🇭⚡- IRIB claims Iran launched a retaliatory strike on the U.S. Fifth Fleet in Bahrain.
+6:14 PM · Jun 10, 2026
+- [2026-06-11 00:46Z] **hormuz_normal_jul31** · @officialrnintel (tweet) — 🇮🇷🇧🇭⚡️- BREAKING: Sirens in Bahrain, locals tell Rerum Novarum.
+6:31 PM · Jun 10, 2026
 
 ## Noisy Social-Media And Rumour Watch
 

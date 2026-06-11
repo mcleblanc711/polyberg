@@ -20,6 +20,7 @@ from pathlib import Path
 
 import yaml
 
+from polyberg.band_parser import parse_band_label
 from polyberg.config import get_timezone
 from polyberg.loaders import load_market_registry, load_portfolio
 from polyberg.models import MarketRegistry, OpenOrders, Order, Portfolio, Position
@@ -79,17 +80,23 @@ def normalize_data_api_positions(
         if size <= 0:
             skipped.append({"reason": "non-positive size", "title": title})
             continue
+        raw_outcome = str(raw.get("outcome") or "")
+        band_label, band_low, band_high, bounds_inclusive = _extract_band(raw_outcome)
         positions.append(
             Position(
                 market_id=market_id,
                 market_name=title or market_id,
-                side=_outcome_to_side(raw.get("outcome")),
+                side=_outcome_to_side(raw_outcome),
                 avg_price=_clamp_unit(_as_float(raw.get("avgPrice"))),
                 mark_price=_clamp_unit(_as_float(raw.get("curPrice"))),
                 shares=size,
                 current_value=max(0.0, _as_float(raw.get("currentValue"))),
                 pnl=_as_float(raw.get("cashPnl")),
                 thesis_bucket="",
+                band_label=band_label,
+                band_low=band_low,
+                band_high=band_high,
+                bounds_inclusive=bounds_inclusive,
             )
         )
 
@@ -346,15 +353,36 @@ def promote_balance(
     return updated, previous_cash
 
 
+_BINARY_OUTCOMES = frozenset({"yes", "no", "up", "down"})
+
+
+def _extract_band(
+    outcome_text: str,
+) -> tuple[str | None, float | None, float | None, bool | None]:
+    """Return (band_label, low, high, inclusive) for a non-binary outcome label.
+
+    For standard binary outcomes ("Yes"/"No"/"Up"/"Down") all four values are
+    None — those don't represent numeric bands. For any other outcome text,
+    band_label is set to the verbatim text and the numeric bounds are parsed.
+    """
+    t = outcome_text.strip()
+    if not t or t.lower() in _BINARY_OUTCOMES:
+        return None, None, None, None
+    bounds = parse_band_label(t)
+    return t, bounds.low, bounds.high, bounds.inclusive
+
+
 def _outcome_to_side(raw: object) -> str:
     text = str(raw or "").strip().lower()
     if text in ("yes", "up"):
         return "YES"
     if text in ("no", "down"):
         return "NO"
-    # Conservative default: treat unknown outcome labels as NO. The user can
-    # correct on review; logging the original label keeps the audit trail in
-    # the skipped channel is the caller's job if they care.
+    # Band/categorical outcome (e.g., "10-20", "Under 10"): in Polymarket's
+    # negative-risk structure, holding a band token is always the YES side for
+    # that specific outcome — there is no separately traded NO token per band.
+    if text:
+        return "YES"
     return "NO"
 
 

@@ -31,6 +31,15 @@ class AccountImportError(RuntimeError):
     pass
 
 
+class InvalidJsonResponseError(AccountImportError):
+    """HTTP request succeeded but the body is not JSON. Carries the raw text
+    for endpoints that legitimately return empty/plain-text bodies."""
+
+    def __init__(self, message: str, raw_text: str) -> None:
+        super().__init__(message)
+        self.raw_text = raw_text
+
+
 class ReadOnlyHttpClient:
     def __init__(self, base_url: str, opener: JsonOpener = urlopen, timeout: float = 30) -> None:
         self.base_url = base_url.rstrip("/")
@@ -76,7 +85,10 @@ class ReadOnlyHttpClient:
         try:
             return json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise AccountImportError(f"Invalid JSON response from {url}") from exc
+            raise InvalidJsonResponseError(
+                f"Invalid JSON response from {url}",
+                raw_text=raw.decode("utf-8", errors="replace"),
+            ) from exc
 
     def build_url(self, path: str, params: dict[str, Any] | None = None) -> str:
         if not path.startswith("/"):

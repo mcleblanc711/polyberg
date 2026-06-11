@@ -1,14 +1,23 @@
 # Read-Only Account Connection
 
-Goal: import portfolio, balances, and open orders into local context files without adding any
-trade-execution surface.
+Goal: import portfolio, balances, and open orders into local context files. The
+import/normalize stack adds no trade-execution surface; the only write path in the
+whole repo is the ladder manager's order **cancellation** (DELETE /order), which is
+isolated, opt-in, and human-confirmed per action — see
+[Ladder reconciliation (the one write path)](#ladder-reconciliation-the-one-write-path).
 
 ## Safety Boundary
 
-- No wallet private keys.
-- No order creation, modification, cancellation, close-position, bridge, deposit, or withdrawal calls.
+- No wallet private keys, ever.
+- No order **creation** (`place`), modification, close-position, bridge, deposit, or
+  withdrawal calls. Placements are surfaced as copy-paste lines for the human to enter
+  in the Polymarket UI; polyberg never sends them.
+- Order **cancellation** is the single deliberate exception (DELETE /order), confined to
+  `ladder/clob_cancel.py`'s `MutatingClobClient` and gated behind per-action human
+  confirmation. Everything else stays read-only.
 - No browser automation.
-- Authenticated code must allow only `GET` requests.
+- The import/normalize stack (`ReadOnlyHttpClient`) allows only `GET` requests; its
+  GET-only invariant is untouched by the cancel path, which uses a separate client class.
 - Imported account data remains advisory context and is still validated before packet generation.
 
 ## Data Sources
@@ -113,6 +122,62 @@ python -m polyberg.cli promote-orders
 It reads `POLYMARKET_US_API_KEY_ID` and `POLYMARKET_US_SECRET_KEY` from the environment and signs
 only GET requests.
 
+## Ladder reconciliation (the one write path)
+
+The ladder manager (`src/polyberg/ladder/`) reconciles a declared target order book
+(`live/target_ladders.yaml`, with a gitignored `live/target_ladders.local.yaml` overlay)
+against live CLOB open orders and emits a human-reviewable plan: which orders to cancel,
+which to place, which to keep. It is the only part of polyberg that mutates account state,
+and it does so for **cancels only**.
+
+- **Cancels** go over the wire via `ladder/clob_cancel.py` → `MutatingClobClient`, which
+  signs and sends exactly one kind of request: `DELETE /order` with body `{"orderID": ...}`.
+  The body is built once with `json.dumps` and reused for both the HMAC signature and the
+  payload so it stays byte-identical to py-clob-client's reference signing. Non-GET L2
+  headers come from `build_level_2_mutating_headers` (the read-only stack's GET-only
+  `build_level_2_headers` guard is left alone).
+- **Placements** are never sent. The executor prints the pipe-delimited paste line and asks
+  the human to confirm they placed it by hand; the action is logged as `manual_confirmed`.
+- Every attempted action (including declines) is appended to the gitignored append-only
+  log `live/order_log.jsonl`.
+
+### Pre-flight rule
+
+After any position is closed, the CLOB will reject new orders until the account's
+collateral allowance is refreshed. So **whenever a plan contains placements**, the plan
+prepends a pre-flight step: `GET /balance-allowance/update`. This is a cheap, idempotent
+GET (it works through the read-only stack); it is fired unconditionally when placing
+because closes can't be reliably detected. `ladder execute` fires it before the first
+action; the GUI exposes it as a "RUN PRE-FLIGHT" button.
+
+### Surfaces
+
+```bash
+# Diff target ladders vs live book; print a markdown reconciliation plan (+ paste block)
+python -m polyberg.cli ladder plan
+
+# Same, but emit machine-readable JSON (used by the GUI LADDER tab)
+python -m polyberg.cli ladder plan --json
+
+# Build a fresh plan, then walk it with per-action y/n confirmation
+#   (cancels via API; placements as manual paste lines)
+python -m polyberg.cli ladder execute
+
+# GUI-support one-shot subcommands (the GUI confirm modal is the human gate):
+python -m polyberg.cli ladder cancel --order-id <id>          # single API cancel + log
+python -m polyberg.cli ladder preflight                       # fire GET /balance-allowance/update
+python -m polyberg.cli ladder record-manual --market <id> \
+    --outcome YES|NO --side BUY|SELL --price <p> --shares <n>  # log a manual placement
+```
+
+The GUI **LADDER** tab (`gui/src/renderer/src/screens/ladder/LadderScreen.tsx`) renders
+the JSON plan as grouped CANCEL / PLACE / KEEP / UNMANAGED sections. Each cancel and each
+manual placement requires its own confirm modal — there is deliberately no bulk-approve
+control anywhere, mirroring the CLI's no-`--yes` design.
+
+`signature_type` for these requests is env-driven via `POLYMARKET_CLOB_SIGNATURE_TYPE`
+(default `1`, verified working for this proxy-wallet account).
+
 ## Remaining Implementation Steps
 
 1. Add pure normalization functions for:
@@ -126,5 +191,7 @@ only GET requests.
    - `context/live_state.yaml` account snapshot
 3. Keep the existing manual workflow as the default until imported data has been reviewed.
 
-Do not add commands named `place`, `create`, `cancel`, `modify`, `execute`, `wallet`, or
-`private-key`.
+Do not add commands named `place`, `create`, `modify`, `wallet`, or `private-key`, and do
+not add any write path beyond the one documented above. Order cancellation already exists
+as the single deliberate exception (`ladder cancel` / `ladder execute`, DELETE /order only);
+do not broaden it to order placement or any other mutating endpoint.
