@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 from polyberg.account_normalizer import NormalizerError
 from polyberg.adjudicator_builder import write_adjudicator_input
+from polyberg.books import run_fetch_books
 from polyberg.collectors.polymarket_account import (
     AccountImportError,
     write_authenticated_account_snapshot,
@@ -16,6 +18,7 @@ from polyberg.collectors.polymarket_clob_balance import write_clob_balance
 from polyberg.collectors.polymarket_clob_orders import write_clob_open_orders
 from polyberg.collectors.polymarket_gamma import GammaCollectorError
 from polyberg.config import load_repo_dotenv, repo_path
+from polyberg.loaders import LoaderError, load_yaml_file
 from polyberg.packet_builder import write_model_packets, write_packet
 from polyberg.packet_builder.api import TARGETS
 from polyberg.paste_import import PasteImportError, import_paste
@@ -225,6 +228,38 @@ def build_parser() -> argparse.ArgumentParser:
     snapshot.add_argument("--context-dir", type=Path, default=None)
     snapshot.set_defaults(func=command_snapshot_markets)
 
+    books = subparsers.add_parser(
+        "fetch-books",
+        help="Fetch live CLOB order book depth for registry markets (read-only).",
+    )
+    books.add_argument(
+        "--markets",
+        type=str,
+        default=None,
+        help="Comma-separated market_ids. Default: every market flagged fetch_orderbook.",
+    )
+    books.add_argument(
+        "--depth",
+        type=int,
+        default=10,
+        help="Ladder depth per side. Default: 10.",
+    )
+    books.add_argument(
+        "--output-json",
+        type=Path,
+        default=None,
+        dest="output_json",
+        help="Machine-readable output path. Default: live/order_books.json.",
+    )
+    books.add_argument(
+        "--output-md",
+        type=Path,
+        default=None,
+        dest="output_md",
+        help="Packet-ready markdown output path. Default: live/order_books.md.",
+    )
+    books.set_defaults(func=command_fetch_books)
+
     diff = subparsers.add_parser("diff-snapshots", help="Compare two market snapshots.")
     diff.add_argument("--old", type=Path, required=True)
     diff.add_argument("--new", type=Path, required=True)
@@ -309,7 +344,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     account_snapshot = subparsers.add_parser(
         "import-account-snapshot",
-        help="Import read-only authenticated account positions, balances, and open orders.",
+        help=(
+            "Import read-only account positions, balances, and open orders. "
+            "Uses Polymarket US keys (POLYMARKET_US_API_KEY_ID/SECRET_KEY) when "
+            "set; otherwise falls back to the international account path: "
+            "data-api positions by proxy wallet + CLOB open orders + CLOB "
+            "collateral balance (POLYMARKET_CLOB_* credentials)."
+        ),
     )
     account_snapshot.add_argument(
         "--output-dir",
@@ -598,6 +639,32 @@ def command_snapshot_markets(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_fetch_books(args: argparse.Namespace) -> int:
+    market_ids = None
+    if args.markets:
+        market_ids = [item.strip() for item in args.markets.split(",") if item.strip()]
+    try:
+        results, written = run_fetch_books(
+            market_ids=market_ids,
+            depth=args.depth,
+            json_path=args.output_json,
+            md_path=args.output_md,
+        )
+    except LoaderError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    unavailable = [r.market_id for r in results if r.status != "ok"]
+    for path in written:
+        print(f"Wrote {path}")
+    print(f"Books fetched: {len(results) - len(unavailable)}/{len(results)} markets")
+    if unavailable:
+        print(
+            "BOOK UNAVAILABLE — do not price orders: " + ", ".join(unavailable),
+            file=sys.stderr,
+        )
+    return 0
+
+
 def command_diff_snapshots(args: argparse.Namespace) -> int:
     print(diff_snapshots(args.old, args.new), end="")
     return 0
@@ -647,15 +714,94 @@ def command_import_clob_balance(args: argparse.Namespace) -> int:
     return 0
 
 
-def command_import_account_snapshot(args: argparse.Namespace) -> int:
+def _resolve_proxy_wallet() -> str:
+    """The proxy wallet that holds positions: env override first, then the
+    gitignored live_state.local.yaml overlay, then the tracked file."""
+    wallet = os.environ.get("POLYMARKET_PROXY_WALLET", "")
+    if wallet:
+        return wallet
+    for name in ("live_state.local.yaml", "live_state.yaml"):
+        path = repo_path("context", name)
+        if not path.exists():
+            continue
+        try:
+            data = load_yaml_file(path)
+        except LoaderError:
+            continue
+        value = data.get("proxy_wallet", "")
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
+
+def _import_international_account_snapshot(output_dir: Path) -> int:
+    """One-shot account refresh for international (polymarket.com) accounts.
+
+    Writes the same three artifacts the standalone import commands produce
+    (positions_data_api.json, open_orders_clob.json, usdc_balance.json), so
+    the GUI's ACCOUNT tab and the promote-* stages pick them up unchanged.
+    Exit 0 if at least one artifact was written; skipped parts go to stderr.
+    """
     try:
-        paths = write_authenticated_account_snapshot(args.output_dir)
+        creds = load_clob_credentials_from_env()
     except AccountImportError as exc:
-        print(str(exc), file=sys.stderr)
+        print(
+            "No Polymarket US API keys (POLYMARKET_US_API_KEY_ID) and the "
+            f"international CLOB fallback is missing credentials: {exc}",
+            file=sys.stderr,
+        )
         return 1
-    for path in paths:
-        print(f"Wrote authenticated account import to {path}")
-    return 0
+
+    failures: list[str] = []
+    wrote = 0
+
+    wallet = _resolve_proxy_wallet()
+    if wallet:
+        try:
+            path = write_public_positions(wallet, output_dir / "positions_data_api.json")
+            print(f"Wrote public positions import to {path}")
+            wrote += 1
+        except AccountImportError as exc:
+            failures.append(f"positions: {exc}")
+    else:
+        failures.append(
+            "positions: no proxy wallet — set proxy_wallet in "
+            "context/live_state.local.yaml or POLYMARKET_PROXY_WALLET"
+        )
+
+    try:
+        path = write_clob_open_orders(creds, output_dir / "open_orders_clob.json")
+        print(f"Wrote CLOB open orders to {path}")
+        wrote += 1
+    except AccountImportError as exc:
+        failures.append(f"open orders: {exc}")
+
+    try:
+        path = write_clob_balance(creds, output_dir / "usdc_balance.json")
+        print(f"Wrote CLOB collateral balance to {path}")
+        wrote += 1
+    except AccountImportError as exc:
+        failures.append(f"balance: {exc}")
+
+    for failure in failures:
+        print(f"[skip] {failure}", file=sys.stderr)
+    return 0 if wrote > 0 else 1
+
+
+def command_import_account_snapshot(args: argparse.Namespace) -> int:
+    # Polymarket runs two products with separate auth: the US exchange
+    # (api.polymarket.us, ed25519 keys) and the international CLOB
+    # (polymarket.com, L2 HMAC). Use whichever credentials are configured.
+    if os.environ.get("POLYMARKET_US_API_KEY_ID"):
+        try:
+            paths = write_authenticated_account_snapshot(args.output_dir)
+        except AccountImportError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        for path in paths:
+            print(f"Wrote authenticated account import to {path}")
+        return 0
+    return _import_international_account_snapshot(args.output_dir)
 
 
 def command_promote_positions(args: argparse.Namespace) -> int:

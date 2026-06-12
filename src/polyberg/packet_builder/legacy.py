@@ -15,6 +15,7 @@ from polyberg.loaders import (
     read_text_file,
 )
 from polyberg.models import LiveState, MarketRegistry, MarketSnapshot, OpenOrders, Portfolio
+from polyberg.packet_builder.collect_state import load_order_books
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,8 @@ def build_packet(
     recent_catalysts = normalize_inserted_markdown(
         read_text_file(context_path(context_dir, "recent_catalysts.md"))
     )
+    # Live books only for default-context builds, mirroring collect_packet_state.
+    _, order_books_md = load_order_books() if context_dir is None else (None, None)
 
     if now is None:
         now = datetime.now(get_timezone())
@@ -69,11 +72,20 @@ def build_packet(
         render_market_registry(registry),
         render_registry_thesis_summary(registry),
         render_snapshot_summary(snapshot) if snapshot else "### Market Snapshot\n_None provided._",
+        (
+            order_books_md.strip()
+            if order_books_md
+            else "## Live Order Books\n\n_Not fetched — run `polyberg fetch-books`. "
+            "No live book = no order._"
+        ),
         "## Trader Notes And Catalyst Watch",
         recent_catalysts.strip(),
         "## Unresolved/Missing Information",
-        "- Current live order book depth is not included unless manually added.",
-        "- Live API data is intentionally out of scope for this first pass.",
+        (
+            "- Live order book depth is in the Live Order Books section above."
+            if order_books_md
+            else "- Current live order book depth is not included — run `polyberg fetch-books`."
+        ),
         "- Model outputs are untrusted until validated against local schemas.",
     ]
     return "\n\n".join(sections).strip() + "\n"

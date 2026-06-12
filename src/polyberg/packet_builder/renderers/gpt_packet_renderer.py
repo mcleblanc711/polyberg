@@ -133,7 +133,9 @@ def render_gpt_packet(cp: CanonicalPacket) -> str:
         registry_table(cp.market_registry),
         "## 8. Market Snapshot",
         snapshot_table(cp.market_snapshot),
-        "## 9. Catalyst Watch",
+        "## 9. Live Order Books",
+        _render_order_books(cp),
+        "## 10. Catalyst Watch",
         catalyst_block(
             cp.catalysts,
             social_warning=(
@@ -141,17 +143,28 @@ def render_gpt_packet(cp: CanonicalPacket) -> str:
                 "evidence and NOT live verification."
             ),
         ),
-        "## 10. Trader Interpretation Notes",
+        "## 11. Trader Interpretation Notes",
         (
             bullet_list(cp.trader_notes, empty="_No trader interpretation notes._")
             + "\n\n_These are the human operator's hypotheses — opinions, not facts._"
         ),
-        "## 11. Recommended GPT Response Requirements For This Packet",
+        "## 12. Recommended GPT Response Requirements For This Packet",
         RESPONSE_REQUIREMENTS.strip(),
-        "## 12. Compact Machine-Readable State",
+        "## 13. Compact Machine-Readable State",
         "```json\n" + cp.compact_json() + "\n```",
     ]
     return "\n\n".join(sections).strip() + "\n"
+
+
+def _render_order_books(cp: CanonicalPacket) -> str:
+    if cp.order_books is None:
+        return (
+            "_Not fetched this session — run `polyberg fetch-books`._\n\n"
+            "**No live book = no order.** Without this section, withhold all "
+            "order pricing and flag the gap in your gate verdict."
+        )
+    markdown = str(cp.order_books.get("markdown") or "").strip()
+    return markdown or "_Order book artifact present but empty._"
 
 
 def _render_blocking_warnings(warnings: list[str]) -> str:

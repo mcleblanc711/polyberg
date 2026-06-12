@@ -3,6 +3,27 @@ import { fmtUsd } from '../../lib/format'
 import type { Market, Position } from '../../lib/types'
 import { colors as C, fonts as F } from '../../styles/tokens'
 
+const ChartPlaceholder = ({ w, h, hint }: { w: number; h: number; hint: string }) => (
+  <div
+    style={{
+      width: w,
+      height: h,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      border: `1px dashed ${C.line}`,
+      color: C.textMute,
+      fontFamily: F.mono,
+      fontSize: 9.5,
+      letterSpacing: 0.4,
+      textAlign: 'center',
+      boxSizing: 'border-box'
+    }}
+  >
+    {hint}
+  </div>
+)
+
 export const Spark = ({
   data,
   w = 120,
@@ -15,6 +36,7 @@ export const Spark = ({
   color?: string
 }) => {
   const gradId = useId()
+  if (data.length < 2) return <ChartPlaceholder w={w} h={h} hint="no history" />
   const max = Math.max(...data)
   const min = Math.min(...data)
   const dx = w / (data.length - 1)
@@ -39,6 +61,8 @@ export const Spark = ({
 export const PriceChart = ({ data, w, h }: { data: number[]; w: number; h: number }) => {
   const fillId = useId()
   const gridId = useId()
+  if (data.length < 2)
+    return <ChartPlaceholder w={w} h={h} hint="no price history — $ fetch-price-history" />
   const pad = { l: 36, r: 14, t: 16, b: 24 }
   const iw = w - pad.l - pad.r
   const ih = h - pad.t - pad.b

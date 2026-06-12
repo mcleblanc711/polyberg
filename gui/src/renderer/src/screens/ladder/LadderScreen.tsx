@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { clipCard, colors as C, fonts as F } from '../../styles/tokens'
 
 // Shape of the JSON emitted by `polyberg ladder plan --json` (see render.plan_to_dict).
@@ -50,7 +50,7 @@ interface LadderPlan {
 type PlanState =
   | { kind: 'idle' }
   | { kind: 'building' }
-  | { kind: 'ok'; plan: LadderPlan }
+  | { kind: 'ok'; plan: LadderPlan; builtAt: string }
   | { kind: 'fail'; messages: string[] }
   | { kind: 'error'; message: string }
 
@@ -74,14 +74,21 @@ const parseHardFails = (stderr: string): string[] =>
 export const LadderScreen = (): JSX.Element => {
   const [state, setState] = useState<PlanState>({ kind: 'idle' })
   const [rows, setRows] = useState<Record<string, RowStatus>>({})
+  // Successful cancels/manual placements since the plan was built — once > 0
+  // the plan no longer matches the live book and we surface a rebuild banner
+  // instead of silently rebuilding (which would wipe row statuses mid-review).
+  const [executedSinceBuild, setExecutedSinceBuild] = useState(0)
   const [confirm, setConfirm] = useState<Confirm>(null)
   const [busy, setBusy] = useState(false)
   const [preflight, setPreflight] = useState<'idle' | 'running' | 'ok' | 'error'>('idle')
   const [preflightMsg, setPreflightMsg] = useState('')
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const copyTimer = useRef<NodeJS.Timeout | null>(null)
 
   const buildPlan = async (): Promise<void> => {
     setState({ kind: 'building' })
     setRows({})
+    setExecutedSinceBuild(0)
     setPreflight('idle')
     setPreflightMsg('')
     const res = await window.pm.runStage('ladder', ['plan', '--json'])
@@ -100,11 +107,21 @@ export const LadderScreen = (): JSX.Element => {
         setState({ kind: 'error', message: 'Plan JSON missing or malformed' })
         return
       }
-      setState({ kind: 'ok', plan: parsed.plan })
+      setState({ kind: 'ok', plan: parsed.plan, builtAt: new Date().toLocaleTimeString() })
     } catch (e) {
       setState({ kind: 'error', message: `Could not parse plan JSON: ${String(e)}` })
     }
   }
+
+  // Build immediately on open — an empty screen with a button is one click of
+  // friction every session, and the plan is read-only to build.
+  useEffect(() => {
+    void buildPlan()
+    return () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const runPreflight = async (): Promise<void> => {
     setPreflight('running')
@@ -123,9 +140,9 @@ export const LadderScreen = (): JSX.Element => {
     setBusy(true)
     const res = await window.pm.runStage('ladder', ['cancel', '--order-id', row.order_id])
     setRows((r) => ({ ...r, [row.order_id]: res.ok ? 'executed' : 'error' }))
+    if (res.ok) setExecutedSinceBuild((n) => n + 1)
     setBusy(false)
     setConfirm(null)
-    if (res.ok) void buildPlan()
   }
 
   const doRecordManual = async (row: PlaceRow): Promise<void> => {
@@ -144,12 +161,16 @@ export const LadderScreen = (): JSX.Element => {
       String(row.shares)
     ])
     setRows((r) => ({ ...r, [`place:${row.idx}`]: res.ok ? 'executed' : 'error' }))
+    if (res.ok) setExecutedSinceBuild((n) => n + 1)
     setBusy(false)
     setConfirm(null)
   }
 
-  const copyPaste = (paste: string): void => {
+  const copyPaste = (key: string, paste: string): void => {
     void window.pm.writeClipboard(paste)
+    setCopiedKey(key)
+    if (copyTimer.current) clearTimeout(copyTimer.current)
+    copyTimer.current = setTimeout(() => setCopiedKey(null), 1500)
   }
 
   return (
@@ -164,14 +185,21 @@ export const LadderScreen = (): JSX.Element => {
           </div>
         </div>
         <button style={S.btnPrimary} onClick={() => void buildPlan()} disabled={state.kind === 'building'}>
-          {state.kind === 'building' ? 'BUILDING…' : 'BUILD PLAN ▸'}
+          {state.kind === 'building' ? 'BUILDING…' : 'REBUILD PLAN ▸'}
         </button>
       </div>
 
       {state.kind === 'idle' && (
         <div style={S.empty}>
-          No plan yet. Click <b>BUILD PLAN</b> to diff your target ladders against the live order
+          No plan yet. Click <b>REBUILD PLAN</b> to diff your target ladders against the live order
           book.
+        </div>
+      )}
+
+      {state.kind === 'building' && (
+        <div style={S.empty}>
+          <span style={{ color: C.amber }}>●</span> building plan — fetching live CLOB orders and
+          diffing against live/target_ladders.yaml…
         </div>
       )}
 
@@ -194,17 +222,32 @@ export const LadderScreen = (): JSX.Element => {
       )}
 
       {state.kind === 'ok' && (
-        <Plan
-          plan={state.plan}
-          rows={rows}
-          busy={busy}
-          preflight={preflight}
-          preflightMsg={preflightMsg}
-          onPreflight={() => void runPreflight()}
-          onCancel={(row) => setConfirm({ type: 'cancel', row })}
-          onMarkPlaced={(row) => setConfirm({ type: 'place', row })}
-          onCopy={copyPaste}
-        />
+        <>
+          {executedSinceBuild > 0 && (
+            <div style={S.staleBar}>
+              <span style={{ flex: 1 }}>
+                {executedSinceBuild} action{executedSinceBuild === 1 ? '' : 's'} executed since this
+                plan was built — the live book has moved.
+              </span>
+              <button style={S.btnAmber} onClick={() => void buildPlan()}>
+                REBUILD PLAN ▸
+              </button>
+            </div>
+          )}
+          <Plan
+            plan={state.plan}
+            builtAt={state.builtAt}
+            rows={rows}
+            busy={busy}
+            copiedKey={copiedKey}
+            preflight={preflight}
+            preflightMsg={preflightMsg}
+            onPreflight={() => void runPreflight()}
+            onCancel={(row) => setConfirm({ type: 'cancel', row })}
+            onMarkPlaced={(row) => setConfirm({ type: 'place', row })}
+            onCopy={copyPaste}
+          />
+        </>
       )}
 
       {confirm && (
@@ -223,8 +266,10 @@ export const LadderScreen = (): JSX.Element => {
 
 const Plan = ({
   plan,
+  builtAt,
   rows,
   busy,
+  copiedKey,
   preflight,
   preflightMsg,
   onPreflight,
@@ -233,16 +278,21 @@ const Plan = ({
   onCopy
 }: {
   plan: LadderPlan
+  builtAt: string
   rows: Record<string, RowStatus>
   busy: boolean
+  copiedKey: string | null
   preflight: 'idle' | 'running' | 'ok' | 'error'
   preflightMsg: string
   onPreflight: () => void
   onCancel: (row: CancelRow) => void
   onMarkPlaced: (row: PlaceRow) => void
-  onCopy: (paste: string) => void
+  onCopy: (key: string, paste: string) => void
 }): JSX.Element => {
   const s = plan.summary
+  const copyAllPlacements = (): void => {
+    onCopy('place:all', plan.place.map((r) => r.paste).join('\n'))
+  }
   return (
     <>
       {plan.warnings.length > 0 && (
@@ -257,11 +307,18 @@ const Plan = ({
       )}
 
       <div style={S.summary}>
-        <span style={S.pill}>{s.cancel} CANCEL</span>
-        <span style={S.pill}>{s.place} PLACE</span>
-        <span style={S.pill}>{s.keep} KEEP</span>
+        <span style={{ ...S.pill, ...(s.cancel > 0 ? { color: C.red, borderColor: C.red } : null) }}>
+          {s.cancel} CANCEL
+        </span>
+        <span
+          style={{ ...S.pill, ...(s.place > 0 ? { color: C.magenta, borderColor: C.magenta } : null) }}
+        >
+          {s.place} PLACE
+        </span>
+        <span style={{ ...S.pill, ...(s.keep > 0 ? { color: C.cyan } : null) }}>{s.keep} KEEP</span>
         <span style={S.pill}>{s.unmanaged} UNMANAGED</span>
         <span style={S.pill}>{s.unmapped} UNMAPPED</span>
+        <span style={S.builtAt}>plan built {builtAt}</span>
       </div>
 
       {plan.preflight.length > 0 && (
@@ -295,9 +352,10 @@ const Plan = ({
       )}
 
       {plan.cancel.length > 0 && (
-        <Section title="CANCEL">
+        <Section title={`CANCEL · ${plan.cancel.length}`}>
           {plan.cancel.map((row) => {
             const status = rows[row.order_id]
+            const copyKey = `cancel:${row.order_id}`
             return (
               <div key={row.order_id} style={S.row}>
                 <RowMeta
@@ -306,6 +364,7 @@ const Plan = ({
                   outcome={row.outcome}
                   price={row.price}
                   shares={row.shares}
+                  url={row.url}
                   note={
                     row.reason +
                     (row.replacement_price != null
@@ -314,8 +373,8 @@ const Plan = ({
                   }
                 />
                 <RowActions>
-                  <button style={S.btnGhost} onClick={() => onCopy(row.paste)}>
-                    COPY
+                  <button style={S.btnGhost} onClick={() => onCopy(copyKey, row.paste)}>
+                    {copiedKey === copyKey ? '✓ COPIED' : 'COPY'}
                   </button>
                   {status === 'executed' ? (
                     <span style={S.tagOk}>● CANCELLED</span>
@@ -334,7 +393,16 @@ const Plan = ({
       )}
 
       {plan.place.length > 0 && (
-        <Section title="PLACE (manual)">
+        <Section
+          title={`PLACE (manual) · ${plan.place.length}`}
+          action={
+            plan.place.length > 1 ? (
+              <button style={S.btnGhost} onClick={copyAllPlacements}>
+                {copiedKey === 'place:all' ? '✓ COPIED ALL' : `⎘ COPY ALL ${plan.place.length}`}
+              </button>
+            ) : null
+          }
+        >
           {plan.place.map((row) => {
             const key = `place:${row.idx}`
             const status = rows[key]
@@ -346,11 +414,12 @@ const Plan = ({
                   outcome={row.outcome}
                   price={row.price}
                   shares={row.shares}
+                  url={row.url}
                   note={row.purpose || ''}
                 />
                 <RowActions>
-                  <button style={S.btnGhost} onClick={() => onCopy(row.paste)}>
-                    COPY
+                  <button style={S.btnGhost} onClick={() => onCopy(key, row.paste)}>
+                    {copiedKey === key ? '✓ COPIED' : 'COPY'}
                   </button>
                   {status === 'executed' ? (
                     <span style={S.tagOk}>● PLACED</span>
@@ -369,7 +438,7 @@ const Plan = ({
       )}
 
       {plan.keep.length > 0 && (
-        <Section title="KEEP (already in book)">
+        <Section title={`KEEP (already in book) · ${plan.keep.length}`} collapsible>
           {plan.keep.map((row) => (
             <div key={`keep:${row.idx}`} style={S.row}>
               <RowMeta
@@ -378,6 +447,7 @@ const Plan = ({
                 outcome={row.outcome}
                 price={row.price}
                 shares={row.shares}
+                url={row.url}
                 note=""
               />
             </div>
@@ -386,7 +456,7 @@ const Plan = ({
       )}
 
       {plan.unmanaged.length > 0 && (
-        <Section title="UNMANAGED (not in target — untouched)">
+        <Section title={`UNMANAGED (not in target — untouched) · ${plan.unmanaged.length}`} collapsible>
           {plan.unmanaged.map((row) => (
             <div key={`un:${row.idx}`} style={S.row}>
               <RowMeta
@@ -395,6 +465,7 @@ const Plan = ({
                 outcome={row.outcome}
                 price={row.price}
                 shares={row.shares}
+                url={row.url}
                 note=""
               />
             </div>
@@ -416,12 +487,35 @@ const Plan = ({
   )
 }
 
-const Section = ({ title, children }: { title: string; children: ReactNode }): JSX.Element => (
-  <div style={S.section}>
-    <div style={S.sectionHdr}>{title}</div>
-    {children}
-  </div>
-)
+const Section = ({
+  title,
+  action,
+  collapsible,
+  children
+}: {
+  title: string
+  action?: ReactNode
+  collapsible?: boolean
+  children: ReactNode
+}): JSX.Element => {
+  const [open, setOpen] = useState(!collapsible)
+  return (
+    <div style={S.section}>
+      <div style={S.sectionHdr}>
+        {collapsible ? (
+          <button style={S.sectionToggle} onClick={() => setOpen((o) => !o)}>
+            {open ? '▾' : '▸'} {title}
+          </button>
+        ) : (
+          <span>{title}</span>
+        )}
+        <span style={{ flex: 1 }} />
+        {action}
+      </div>
+      {open ? children : null}
+    </div>
+  )
+}
 
 const RowMeta = ({
   action,
@@ -429,6 +523,7 @@ const RowMeta = ({
   outcome,
   price,
   shares,
+  url,
   note
 }: {
   action: string
@@ -436,11 +531,22 @@ const RowMeta = ({
   outcome: string
   price: number
   shares: number
+  url: string | null
   note: string
 }): JSX.Element => (
   <div style={S.rowMeta}>
     <span style={action === 'BUY' ? S.tagBuy : S.tagSell}>{action}</span>
-    <span style={S.rowMarket}>{market}</span>
+    {url ? (
+      <button
+        style={S.rowMarketLink}
+        title={`open ${url}`}
+        onClick={() => void window.pm.openExternal(url)}
+      >
+        {market} ↗
+      </button>
+    ) : (
+      <span style={S.rowMarket}>{market}</span>
+    )}
     <span style={outcome === 'YES' ? S.outYes : S.outNo}>{outcome}</span>
     <span style={S.rowNum}>@ {fmtPx(price)}</span>
     <span style={S.rowNum}>× {fmtSh(shares)}</span>
@@ -555,7 +661,20 @@ const S: Record<string, CSSProperties> = {
   },
   warnHdr: { fontFamily: F.mono, fontSize: 11, color: C.amber, marginBottom: 6 },
   warnLine: { fontFamily: F.mono, fontSize: 11, color: C.text, marginTop: 3 },
-  summary: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
+  staleBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 14,
+    border: `1px solid ${C.amber}`,
+    background: C.amberSft,
+    padding: '10px 14px',
+    clipPath: clipCard,
+    marginBottom: 14,
+    fontFamily: F.mono,
+    fontSize: 11.5,
+    color: C.amber
+  },
+  summary: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' },
   pill: {
     fontFamily: F.mono,
     fontSize: 11,
@@ -564,6 +683,7 @@ const S: Record<string, CSSProperties> = {
     padding: '4px 10px',
     background: C.bgPanel
   },
+  builtAt: { fontFamily: F.mono, fontSize: 10.5, color: C.textMute, marginLeft: 6 },
   preflightBox: {
     display: 'flex',
     alignItems: 'center',
@@ -578,6 +698,9 @@ const S: Record<string, CSSProperties> = {
   preflightLine: { fontFamily: F.mono, fontSize: 11, color: C.textDim, marginTop: 2 },
   section: { marginBottom: 20 },
   sectionHdr: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
     fontFamily: F.mono,
     fontSize: 12,
     color: C.magenta,
@@ -585,6 +708,17 @@ const S: Record<string, CSSProperties> = {
     marginBottom: 8,
     paddingBottom: 4,
     borderBottom: `1px solid ${C.line}`
+  },
+  sectionToggle: {
+    background: 'transparent',
+    border: 'none',
+    color: C.magenta,
+    fontFamily: F.mono,
+    fontSize: 12,
+    letterSpacing: 1,
+    padding: 0,
+    cursor: 'pointer',
+    outline: 'none'
   },
   row: {
     display: 'flex',
@@ -597,6 +731,18 @@ const S: Record<string, CSSProperties> = {
   },
   rowMeta: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flex: 1 },
   rowMarket: { fontFamily: F.mono, fontSize: 12, color: C.text },
+  rowMarketLink: {
+    fontFamily: F.mono,
+    fontSize: 12,
+    color: C.cyanText,
+    background: 'transparent',
+    border: 'none',
+    padding: 0,
+    cursor: 'pointer',
+    textDecoration: 'underline',
+    textDecorationColor: C.line,
+    outline: 'none'
+  },
   rowNum: { fontFamily: F.mono, fontSize: 12, color: C.textDim },
   rowNote: { fontFamily: F.mono, fontSize: 11, color: C.textMute },
   rowActions: { display: 'flex', alignItems: 'center', gap: 8 },

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { fmtPct, fmtUsd } from '../../lib/format'
+import { fmtUsd } from '../../lib/format'
 import { usePmData } from '../../lib/pmDataContext'
 import { colors as C, fonts as F } from '../../styles/tokens'
 
@@ -35,48 +35,50 @@ const BigMetric = ({
 
 export const MetricStrip = () => {
   const pmData = usePmData()
-  const dayPos = pmData.dayPnl >= 0
-  const dayPctDenom = pmData.equity || 1
+  const buys = pmData.openOrders.filter((o) => o.kind === 'BUY')
+  const committed = buys.reduce((a, o) => a + o.px * o.qty, 0)
   return (
     <div style={S.metricStrip}>
       <BigMetric k="EQUITY" v={fmtUsd(pmData.equity)} hint="cash + open positions" />
       <BigMetric
-        k="DAY P/L"
-        v={fmtUsd(pmData.dayPnl, true)}
-        sub={fmtPct((pmData.dayPnl / dayPctDenom) * 100, true)}
-        positive={dayPos}
+        k="OPEN P/L"
+        v={fmtUsd(pmData.totalPnl, true)}
+        positive={pmData.totalPnl >= 0}
+        hint="vs avg cost"
       />
-      <BigMetric k="OPEN P/L" v={fmtUsd(pmData.totalPnl, true)} positive={pmData.totalPnl >= 0} hint="vs avg cost" />
       <BigMetric k="CASH" v={fmtUsd(pmData.liveState.cash)} hint="available · USDC" />
-      <BigMetric k="POSITIONS" v={pmData.positions.length} hint={`${pmData.openOrders.length} open orders`} />
+      <BigMetric
+        k="COMMITTED"
+        v={fmtUsd(committed)}
+        hint={`${buys.length} open buy${buys.length === 1 ? '' : 's'}`}
+      />
+      <BigMetric
+        k="POSITIONS"
+        v={pmData.positions.length}
+        hint={`${pmData.openOrders.length} open orders`}
+      />
     </div>
   )
 }
 
+// Live preferred-side quotes from the latest fetch-books run. Hidden entirely
+// when no books have been fetched — no dead chrome.
 export const HeatStrip = () => {
   const pmData = usePmData()
+  if (pmData.heat.length === 0) return null
   return (
     <div style={S.heat}>
       {pmData.heat.map((h) => {
-        const intensity = Math.min(1, Math.abs(h.d) / 4)
-        const accent = h.d >= 0 ? C.cyan : C.red
-        const glowRgb = h.d >= 0 ? 'rgba(0,255,209,' : 'rgba(255,61,107,'
-        const bg = `${glowRgb}${0.04 + intensity * 0.18})`
-        const borderColor = `${glowRgb}${0.2 + intensity * 0.4})`
+        const accent = h.side === 'YES' ? C.cyan : C.magenta
         return (
-          <div key={h.id} style={{ ...S.heatCell, background: bg, borderColor }}>
-            <div style={S.heatId}>{h.id.replace(/_/g, ' ').slice(0, 18)}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ ...S.heatVal, color: accent, textShadow: `0 0 8px ${accent}88` }}>
-                {fmtPct(h.d, true)}
+          <div key={h.id} style={{ ...S.heatCell, borderColor: `${C.line}` }}>
+            <div style={S.heatId}>{h.id.replace(/_/g, ' ').slice(0, 22)}</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+              <div style={{ ...S.heatVal, color: accent, textShadow: `0 0 8px ${accent}55` }}>
+                {(h.px * 100).toFixed(1)}¢
               </div>
-              <svg width="32" height="12">
-                <path
-                  d={`M0 ${h.d >= 0 ? 10 : 2} L32 ${h.d >= 0 ? 2 : 10}`}
-                  stroke={accent}
-                  strokeWidth={1.5}
-                />
-              </svg>
+              <div style={S.heatSide}>{h.side}</div>
+              <div style={S.heatSpread}>±{(h.spread / 2).toFixed(1)}¢</div>
             </div>
           </div>
         )
@@ -104,10 +106,12 @@ const S: Record<string, CSSProperties> = {
     padding: '8px 20px',
     borderBottom: `1px solid ${C.line}`,
     background: C.bg,
-    flexShrink: 0
+    flexShrink: 0,
+    overflowX: 'auto'
   },
   heatCell: {
     flex: 1,
+    minWidth: 120,
     display: 'flex',
     flexDirection: 'column',
     gap: 3,
@@ -119,7 +123,12 @@ const S: Record<string, CSSProperties> = {
     color: C.textDim,
     fontFamily: F.mono,
     letterSpacing: 0.5,
-    textTransform: 'uppercase'
+    textTransform: 'uppercase',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
   },
-  heatVal: { fontSize: 12, fontWeight: 700, fontFamily: F.mono, letterSpacing: 0.4 }
+  heatVal: { fontSize: 12, fontWeight: 700, fontFamily: F.mono, letterSpacing: 0.4 },
+  heatSide: { fontSize: 9, color: C.textMute, fontFamily: F.mono, fontWeight: 700 },
+  heatSpread: { fontSize: 9, color: C.textMute, fontFamily: F.mono }
 }

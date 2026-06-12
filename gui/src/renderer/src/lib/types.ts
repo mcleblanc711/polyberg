@@ -2,6 +2,7 @@ export type {
   Side,
   OrderKind,
   OrderStatus,
+  BookStatus,
   RuleRisk,
   WorkflowState,
   FreshnessState,
@@ -31,6 +32,8 @@ export interface MarketSuggestion {
 }
 
 export interface PmData extends PmDataPayload {
+  // Wall-clock time the context was last read from disk (renderer-side).
+  loadedAt: string
   fmtUsd: (n: number, signed?: boolean) => string
   fmtPct: (n: number, signed?: boolean) => string
   fmtCents: (n: number) => string

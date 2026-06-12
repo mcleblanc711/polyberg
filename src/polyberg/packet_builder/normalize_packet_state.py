@@ -52,6 +52,10 @@ class CanonicalPacket:
     trader_notes: list[str]
     unresolved_missing_information: list[str]
     raw_notes: list[str] = field(default_factory=list)
+    # Live order book section from `polyberg fetch-books` (None when not run):
+    # generated_at, markets_with_live_books, unavailable_markets,
+    # fetched_at_by_market, and the packet-ready markdown body.
+    order_books: dict[str, object] | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -71,6 +75,7 @@ class CanonicalPacket:
             "catalysts": self.catalysts,
             "trader_notes": self.trader_notes,
             "unresolved_missing_information": self.unresolved_missing_information,
+            "order_books": self.order_books,
         }
 
     def compact_state(self) -> dict[str, object]:
@@ -131,6 +136,7 @@ def build_canonical_packet(
         )
 
     freshness_warnings = _compute_freshness_warnings(state)
+    freshness_warnings.extend(_book_freshness_warnings(state))
     registry_by_id = {m.market_id: m for m in state.registry.markets}
     exposure_summary, exposure_is_fallback, concentration_warnings = _build_exposure(
         state.portfolio, registry_by_id
@@ -148,6 +154,11 @@ def build_canonical_packet(
             # recent_catalysts.md carries no machine timestamp; entries are
             # individually dated in their text.
             "catalysts": None,
+            "order_books": (
+                str(state.order_books.get("generated_at"))
+                if state.order_books and state.order_books.get("generated_at")
+                else None
+            ),
         },
         freshness_warnings=freshness_warnings,
         missing_info=missing_info,
@@ -167,6 +178,7 @@ def build_canonical_packet(
         trader_notes=parsed.trader_notes,
         unresolved_missing_information=parsed.unresolved_missing_information,
         raw_notes=list(state.live_state.notes),
+        order_books=_build_order_books(state),
     )
 
 
@@ -191,6 +203,63 @@ def _compute_freshness_warnings(state: PacketState) -> list[str]:
     if age_hours < 0:
         warnings.append("one or more context timestamps are in the future")
     return warnings
+
+
+def _book_entries(state: PacketState) -> dict[str, dict]:
+    if not state.order_books:
+        return {}
+    markets = state.order_books.get("markets")
+    if not isinstance(markets, dict):
+        return {}
+    return {
+        market_id: entry for market_id, entry in markets.items() if isinstance(entry, dict)
+    }
+
+
+def _book_freshness_warnings(state: PacketState) -> list[str]:
+    """Per-book staleness: each market carries its own fetched_at timestamp."""
+    max_age = get_max_context_age_hours()
+    warnings: list[str] = []
+    for market_id, entry in sorted(_book_entries(state).items()):
+        raw = entry.get("fetched_at")
+        try:
+            fetched_at = datetime.fromisoformat(str(raw))
+        except (TypeError, ValueError):
+            warnings.append(f"order book for {market_id} has no parseable fetched_at")
+            continue
+        age_hours = (state.now - fetched_at.astimezone(state.now.tzinfo)).total_seconds() / 3600
+        if age_hours > max_age:
+            warnings.append(
+                f"order book for {market_id} is older than {max_age:g} hours"
+            )
+    return warnings
+
+
+def _build_order_books(state: PacketState) -> dict[str, object] | None:
+    if state.order_books is None and state.order_books_markdown is None:
+        return None
+    entries = _book_entries(state)
+    live = sorted(
+        market_id for market_id, entry in entries.items() if entry.get("status") == "ok"
+    )
+    unavailable = sorted(
+        market_id for market_id, entry in entries.items() if entry.get("status") != "ok"
+    )
+    markdown = state.order_books_markdown or ""
+    # The artifact carries its own "## Live Order Books" header; strip it so
+    # each renderer can place the body under its own section heading.
+    lines = markdown.strip().splitlines()
+    if lines and lines[0].strip() == "## Live Order Books":
+        markdown = "\n".join(lines[1:]).strip()
+    return {
+        "generated_at": state.order_books.get("generated_at") if state.order_books else None,
+        "markets_with_live_books": live,
+        "unavailable_markets": unavailable,
+        "fetched_at_by_market": {
+            market_id: entry.get("fetched_at") for market_id, entry in sorted(entries.items())
+        },
+        "markdown": markdown,
+    }
 
 
 def _build_constraints(state: PacketState) -> dict[str, object]:
@@ -381,6 +450,17 @@ def _build_missing_info(state: PacketState) -> list[str]:
     missing: list[str] = []
     if state.snapshot is None:
         missing.append("missing market snapshot")
+    if state.order_books is None:
+        missing.append(
+            "no live order books (run `polyberg fetch-books`) — "
+            "no live book = no order"
+        )
+    else:
+        for market_id, entry in sorted(_book_entries(state).items()):
+            if entry.get("status") != "ok":
+                missing.append(
+                    f"{market_id}: BOOK UNAVAILABLE — do not price orders"
+                )
     for market in state.registry.markets:
         if not market.yes_token_id:
             missing.append(f"{market.market_id}: missing YES token ID")

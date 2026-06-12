@@ -36,6 +36,7 @@ export const CONTEXT_DIR = resolve(REPO_ROOT, 'context')
 export const REPORTS_DIR = resolve(REPO_ROOT, 'reports', 'generated')
 export const SNAPSHOTS_DIR = resolve(REPO_ROOT, 'data', 'snapshots')
 export const SCHEMAS_DIR = resolve(REPO_ROOT, 'schemas')
+export const LIVE_DIR = resolve(REPO_ROOT, 'live')
 
 // Prefer the gitignored `<stem>.local.<ext>` overlay (real account state) when
 // present, falling back to the tracked sample file. Mirrors the Python

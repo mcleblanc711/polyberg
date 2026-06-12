@@ -1,7 +1,7 @@
 import chokidar, { type FSWatcher } from 'chokidar'
 import { relative } from 'path'
 import type { WebContents } from 'electron'
-import { CONTEXT_DIR, REPO_ROOT, REPORTS_DIR, SNAPSHOTS_DIR } from './repo'
+import { CONTEXT_DIR, LIVE_DIR, REPO_ROOT, REPORTS_DIR, SNAPSHOTS_DIR } from './repo'
 import { IPC, type ContextChangeEvent } from '../../shared/contract'
 
 const DEBOUNCE_MS = 300
@@ -26,7 +26,7 @@ export const startWatch = (webContents: WebContents): void => {
   const id = webContents.id
   if (subs.has(id)) return
 
-  const watcher = chokidar.watch([CONTEXT_DIR, REPORTS_DIR, SNAPSHOTS_DIR], {
+  const watcher = chokidar.watch([CONTEXT_DIR, REPORTS_DIR, SNAPSHOTS_DIR, LIVE_DIR], {
     ignoreInitial: true,
     awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 }
   })

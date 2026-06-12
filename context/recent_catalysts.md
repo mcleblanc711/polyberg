@@ -186,6 +186,17 @@ But the announcement alone reignites the oil panic, and any attempt to actually 
 6:14 PM · Jun 10, 2026
 - [2026-06-11 00:46Z] **hormuz_normal_jul31** · @officialrnintel (tweet) — 🇮🇷🇧🇭⚡️- BREAKING: Sirens in Bahrain, locals tell Rerum Novarum.
 6:31 PM · Jun 10, 2026
+- [2026-06-12 00:55Z] **hormuz_normal_jul31** · @EnglishFars (tweet) — An informed source told FNA Iran has not approved any draft agreement or initial memorandum with the US, contradicting President Donald Trump’s claim that Tehran agreed to a finalized text
+12:37 PM · Jun 11, 2026
+- [2026-06-12 00:53Z] **hormuz_normal_jul31** · @HormuzLetter (tweet) — BREAKING: Iran's Foreign Ministry directly rejects Trump's new claim that "everyone in Iran has approved the deal," including the Supreme Leader, saying no one has accepted it, and "no agreement has been reached," per Fars.
+Any agreement requires the US to "accept every demand" from Iran, including that it won't surrender enriched uranium or make nuclear concessions, that the Strait of Hormuz remains permanently under Iranian management, and the transfer of $24 billion in frozen funds. Iran adds "if it were to yield under pressure, it would have done so a year ago" rather than after sustained US bombing.
+The spokesperson also denied Trump's claim that the Strait of Hormuz would reopen on a deal signing, saying it "remains closed" under Iranian authority and "safe passage is not possible."
+3:35 PM · Jun 11, 2026
+- [2026-06-12 00:53Z] **hormuz_normal_jul31** · @AJENews (tweet) — BREAKING: Iranian forces did not allow a tanker to enter the Strait of Hormuz without coordination to pass, Iranian state media reported, shortly after sounds of explosions were heard near the port city of Bandar Abbas, reports Reuters.
+- [2026-06-12 00:53Z] **hormuz_normal_jul31** · @AJENews (tweet) — Square profile picture
+Al Jazeera Breaking News
+BREAKING: Sound of explosions reported as Iran's navy confronts vessel in Hormuz Strait
+- [2026-06-12 00:53Z] **hormuz_normal_jul31** · @AJENews (tweet) — US President Donald Trump claims Washington and Tehran have reached a ‘great settlement’ and are finalising documents for a deal that he says will prevent Iran from obtaining a nuclear weapon.
 
 ## Noisy Social-Media And Rumour Watch
 

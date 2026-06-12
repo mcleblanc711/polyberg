@@ -1,47 +1,68 @@
 import { useState, type CSSProperties } from 'react'
+import { StageRunnerModal } from '../../components/StageRunnerModal'
 import { usePmData } from '../../lib/pmDataContext'
 import { colors as C, fonts as F } from '../../styles/tokens'
-import type { SnapshotMeta } from '../../lib/types'
 
-const renderKv = (s: SnapshotMeta): string =>
-  `{
-  "ts":            "${s.ts}",
-  "markets":       ${s.markets},
-  "diffs":         ${s.diffsCount},
-  "missing_info":  ${s.missingInfo},
-  "generated_by":  "build-snapshot v0.4.1",
-  "fresh_minutes": ${s.freshMin}
-}`
-
-const DIFF_TEXT = `+ hormuz_normal_may15 · mark 0.76 → 0.78  (+2.0¢)
-+ hormuz_normal_may15 · liq +$2,140
-= cl_high_120_end_june · no change
-- trump_blockade_lifted_apr30 · mark 0.44 → 0.42  (-2.0¢)
-+ trump_blockade_lifted_apr30 · spread 3¢ → 4¢   widen`
+const fmtAge = (mins: number): string => {
+  if (mins < 60) return `${mins}m`
+  if (mins < 1440) return `${Math.round(mins / 60)}h`
+  return `${Math.round(mins / 1440)}d`
+}
 
 export const SnapshotsScreen = () => {
   const pmData = usePmData()
   const [active, setActive] = useState<string>(pmData.snapshots[0]?.ts ?? '')
+  const [runArgs, setRunArgs] = useState<{ stage: string; args?: string[] } | null>(null)
   const cur = pmData.snapshots.find((s) => s.ts === active) ?? pmData.snapshots[0]
+
+  const runner = runArgs && (
+    <StageRunnerModal stage={runArgs.stage} args={runArgs.args} onClose={() => setRunArgs(null)} />
+  )
+
   if (!cur) {
     return (
       <div style={S.root}>
+        {runner}
         <div style={S.header}>
           <div>
             <div style={S.h1}>SNAPSHOT HISTORY</div>
-            <div style={S.h1Sub}>// no snapshots in data/snapshots/ yet</div>
+            <div style={S.h1Sub}>// data/snapshots/ · price + book state captured per run</div>
+          </div>
+        </div>
+        <div style={S.emptyBig}>
+          <div>no snapshots in data/snapshots/ yet</div>
+          <button
+            style={S.btnPrimary}
+            onClick={() => setRunArgs({ stage: 'snapshot-markets' })}
+          >
+            $ snapshot-markets ▸
+          </button>
+          <div style={S.emptyHint}>
+            captures yes/no prices, best bid/ask and depth for every active registry market
           </div>
         </div>
       </div>
     )
   }
+
+  // The snapshot one slot older than the selected capture — the natural
+  // --old for diff-snapshots (the list is sorted newest-first).
+  const curIdx = pmData.snapshots.findIndex((s) => s.ts === cur.ts)
+  const prev = curIdx >= 0 ? pmData.snapshots[curIdx + 1] : undefined
+
   return (
     <div style={S.root}>
+      {runner}
       <div style={S.header}>
         <div>
           <div style={S.h1}>SNAPSHOT HISTORY</div>
-          <div style={S.h1Sub}>// snapshots/ · click row for KV grid + diff vs previous</div>
+          <div style={S.h1Sub}>
+            // data/snapshots/ · click a row to inspect · diff runs `diff-snapshots`
+          </div>
         </div>
+        <button style={S.btnGhost} onClick={() => setRunArgs({ stage: 'snapshot-markets' })}>
+          $ SNAPSHOT-MARKETS ▸
+        </button>
       </div>
       <div style={S.grid}>
         <div style={S.panel}>
@@ -51,13 +72,13 @@ export const SnapshotsScreen = () => {
               <tr>
                 <th style={S.th}>TIMESTAMP</th>
                 <th style={S.th}>MARKETS</th>
-                <th style={S.th}>DIFFS</th>
                 <th style={S.th}>MISSING</th>
+                <th style={S.th}>AGE</th>
               </tr>
             </thead>
             <tbody>
               {pmData.snapshots.map((s) => {
-                const on = s.ts === active
+                const on = s.ts === cur.ts
                 return (
                   <tr
                     key={s.ts}
@@ -80,19 +101,12 @@ export const SnapshotsScreen = () => {
                     <td
                       style={{
                         ...S.td,
-                        color: s.diffsCount > 3 ? C.amber : C.cyan
-                      }}
-                    >
-                      {s.diffsCount}
-                    </td>
-                    <td
-                      style={{
-                        ...S.td,
-                        color: s.missingInfo > 0 ? C.red : C.textMute
+                        color: s.missingInfo > 0 ? C.amber : C.textMute
                       }}
                     >
                       {s.missingInfo}
                     </td>
+                    <td style={{ ...S.td, color: C.textDim }}>{fmtAge(s.freshMin)}</td>
                   </tr>
                 )
               })}
@@ -100,15 +114,44 @@ export const SnapshotsScreen = () => {
           </table>
         </div>
         <div style={S.panel}>
-          <div style={S.panelHdr}>// {cur.file}</div>
-          <pre style={S.code}>{renderKv(cur)}</pre>
-          <div style={{ ...S.panelHdr, marginTop: 14 }}>// diff vs previous capture</div>
-          <pre style={S.code}>{DIFF_TEXT}</pre>
+          <div style={S.panelHdr}>
+            // {cur.file}
+            <span style={{ flex: 1 }} />
+            {prev ? (
+              <button
+                style={S.btnGhost}
+                onClick={() =>
+                  setRunArgs({
+                    stage: 'diff-snapshots',
+                    args: ['--old', prev.file, '--new', cur.file]
+                  })
+                }
+              >
+                DIFF VS {prev.ts.slice(-10)} ▸
+              </button>
+            ) : (
+              <span style={{ color: C.textMute, fontWeight: 400 }}>oldest capture — no diff base</span>
+            )}
+          </div>
+          <div style={S.metaRow}>
+            <Meta k="as_of" v={cur.asOf || '—'} />
+            <Meta k="markets" v={String(cur.markets)} />
+            <Meta k="missing info" v={String(cur.missingInfo)} warn={cur.missingInfo > 0} />
+            <Meta k="captured" v={`${fmtAge(cur.freshMin)} ago`} />
+          </div>
+          <pre style={S.code}>{cur.preview || '// empty or unreadable snapshot file'}</pre>
         </div>
       </div>
     </div>
   )
 }
+
+const Meta = ({ k, v, warn }: { k: string; v: string; warn?: boolean }): JSX.Element => (
+  <div style={S.metaCell}>
+    <div style={S.metaK}>{k}</div>
+    <div style={{ ...S.metaV, color: warn ? C.amber : C.text }}>{v}</div>
+  </div>
+)
 
 const S: Record<string, CSSProperties> = {
   root: {
@@ -139,6 +182,52 @@ const S: Record<string, CSSProperties> = {
     marginTop: 3,
     letterSpacing: 0.4
   },
+  emptyBig: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+    border: `1px dashed ${C.line}`,
+    background: C.bgPanel,
+    color: C.textDim,
+    fontFamily: F.body,
+    fontSize: 13
+  },
+  emptyHint: {
+    fontSize: 10.5,
+    color: C.textMute,
+    fontFamily: F.mono,
+    letterSpacing: 0.3
+  },
+  btnPrimary: {
+    background: C.magenta,
+    color: C.bg,
+    border: 'none',
+    padding: '8px 16px',
+    fontFamily: F.mono,
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.8,
+    cursor: 'pointer',
+    textTransform: 'uppercase',
+    boxShadow: `0 0 12px ${C.magenta}88`,
+    outline: 'none'
+  },
+  btnGhost: {
+    background: 'transparent',
+    border: `1px solid ${C.line}`,
+    color: C.text,
+    padding: '4px 10px',
+    fontFamily: F.mono,
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: 0.6,
+    cursor: 'pointer',
+    textTransform: 'uppercase',
+    outline: 'none'
+  },
   grid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
@@ -150,7 +239,10 @@ const S: Record<string, CSSProperties> = {
     background: C.bgPanel,
     border: `1px solid ${C.line}`,
     padding: 14,
-    overflow: 'auto'
+    overflow: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: 0
   },
   panelHdr: {
     fontSize: 10,
@@ -162,7 +254,8 @@ const S: Record<string, CSSProperties> = {
     textShadow: `0 0 4px ${C.magenta}66`,
     display: 'flex',
     alignItems: 'center',
-    gap: 14
+    gap: 14,
+    flexShrink: 0
   },
   table: {
     width: '100%',
@@ -184,15 +277,29 @@ const S: Record<string, CSSProperties> = {
     borderBottom: `1px solid ${C.line2}`,
     color: C.text
   },
+  metaRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: 6,
+    marginBottom: 10,
+    flexShrink: 0
+  },
+  metaCell: { background: C.bgRow, border: `1px solid ${C.line2}`, padding: '6px 10px' },
+  metaK: { fontSize: 9.5, color: C.textDim, letterSpacing: 1, fontFamily: F.mono, fontWeight: 600 },
+  metaV: { fontSize: 12, fontFamily: F.mono, marginTop: 3, fontWeight: 600 },
   code: {
     background: C.bgRow,
     border: `1px solid ${C.line2}`,
     padding: 12,
     fontFamily: F.mono,
-    fontSize: 11.5,
+    fontSize: 11,
     color: C.cyan,
-    lineHeight: 1.65,
+    lineHeight: 1.55,
     margin: 0,
-    whiteSpace: 'pre-wrap'
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    flex: 1,
+    minHeight: 0,
+    overflow: 'auto'
   }
 }

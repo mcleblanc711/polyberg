@@ -106,7 +106,7 @@ markets:
     data_collection:
       fetch_gamma: true
       fetch_clob: true
-      fetch_orderbook: true
+      fetch_orderbook: false
     rule_risk:
       oracle_type: pure_data
       ambiguity: low
@@ -140,7 +140,7 @@ markets:
     data_collection:
       fetch_gamma: true
       fetch_clob: true
-      fetch_orderbook: true
+      fetch_orderbook: false
     rule_risk:
       oracle_type: pure_data
       ambiguity: low
@@ -254,7 +254,7 @@ markets:
     data_collection:
       fetch_gamma: true
       fetch_clob: true
-      fetch_orderbook: true
+      fetch_orderbook: false
     rule_risk:
       oracle_type: official_statement_required
       ambiguity: medium
@@ -301,7 +301,7 @@ markets:
     data_collection:
       fetch_gamma: true
       fetch_clob: true
-      fetch_orderbook: true
+      fetch_orderbook: false
     rule_risk:
       oracle_type: official_statement_required
       ambiguity: medium
@@ -348,7 +348,7 @@ markets:
     data_collection:
       fetch_gamma: true
       fetch_clob: true
-      fetch_orderbook: true
+      fetch_orderbook: false
     rule_risk:
       oracle_type: official_statement_required
       ambiguity: medium
@@ -367,7 +367,7 @@ markets:
     risk_flags:
     - media fallback may matter
     - announcement-driven
-    resolution_date: 2026-05-31
+    resolution_date: 2026-06-30
     notes: "This market will resolve to “Yes” if Iran and the United states agree to\
       \ a permanent peace deal by the specified date, 11:59 PM ET. Otherwise, this market\
       \ will resolve to “No”. \n\nA permanent peace deal refers to any agreement which\
@@ -442,7 +442,7 @@ markets:
     data_collection:
       fetch_gamma: true
       fetch_clob: true
-      fetch_orderbook: true
+      fetch_orderbook: false
     rule_risk:
       oracle_type: official_statement_required
       ambiguity: medium
@@ -489,7 +489,7 @@ markets:
     data_collection:
       fetch_gamma: true
       fetch_clob: true
-      fetch_orderbook: true
+      fetch_orderbook: false
     rule_risk:
       oracle_type: official_statement_required
       ambiguity: medium
@@ -583,7 +583,7 @@ markets:
     data_collection:
       fetch_gamma: true
       fetch_clob: true
-      fetch_orderbook: true
+      fetch_orderbook: false
     rule_risk:
       oracle_type: official_statement_required
       ambiguity: medium
@@ -630,7 +630,7 @@ markets:
     data_collection:
       fetch_gamma: true
       fetch_clob: true
-      fetch_orderbook: true
+      fetch_orderbook: false
     rule_risk:
       oracle_type: official_statement_required
       ambiguity: medium
@@ -677,7 +677,7 @@ markets:
     data_collection:
       fetch_gamma: true
       fetch_clob: true
-      fetch_orderbook: true
+      fetch_orderbook: false
     rule_risk:
       oracle_type: official_statement_required
       ambiguity: medium
@@ -771,7 +771,7 @@ markets:
     data_collection:
       fetch_gamma: true
       fetch_clob: true
-      fetch_orderbook: true
+      fetch_orderbook: false
     rule_risk:
       oracle_type: official_statement_required
       ambiguity: medium
@@ -818,7 +818,7 @@ markets:
     data_collection:
       fetch_gamma: true
       fetch_clob: true
-      fetch_orderbook: true
+      fetch_orderbook: false
     rule_risk:
       oracle_type: official_statement_required
       ambiguity: medium
@@ -865,7 +865,7 @@ markets:
     data_collection:
       fetch_gamma: true
       fetch_clob: true
-      fetch_orderbook: true
+      fetch_orderbook: false
     rule_risk:
       oracle_type: official_statement_required
       ambiguity: medium

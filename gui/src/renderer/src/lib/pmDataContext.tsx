@@ -15,6 +15,7 @@ const PmDataRefreshContext = createContext<() => Promise<void>>(async () => unde
 
 const buildPmData = (payload: PmDataPayload): PmData => ({
   ...payload,
+  loadedAt: new Date().toLocaleTimeString(),
   fmtUsd,
   fmtPct,
   fmtCents,

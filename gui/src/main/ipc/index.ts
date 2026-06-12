@@ -1,4 +1,4 @@
-import { clipboard, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { clipboard, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import {
   IPC,
   type ArtifactName,
@@ -32,6 +32,13 @@ export const registerIpc = (): void => {
       throw new Error('writeClipboard expects a string')
     }
     clipboard.writeText(text)
+  })
+
+  ipcMain.handle(IPC.openExternal, (_evt, url: string) => {
+    if (typeof url !== 'string' || !/^https?:\/\//.test(url)) {
+      throw new Error('openExternal expects an http(s) URL')
+    }
+    return shell.openExternal(url)
   })
 
   ipcMain.handle(IPC.runStage, (_evt, name: string, args?: string[]) => runStage(name, args))

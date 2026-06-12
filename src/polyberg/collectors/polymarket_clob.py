@@ -72,6 +72,10 @@ def normalize_order_book(raw: dict) -> dict:
         "bids": raw.get("bids", []),
         "asks": raw.get("asks", []),
         "asset_id": raw.get("asset_id") or raw.get("token_id"),
+        "timestamp": raw.get("timestamp"),
+        "last_trade_price": raw.get("last_trade_price"),
+        "tick_size": raw.get("tick_size"),
+        "min_order_size": raw.get("min_order_size"),
     }
 
 

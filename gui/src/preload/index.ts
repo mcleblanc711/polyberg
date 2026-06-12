@@ -21,6 +21,8 @@ const pm: PmBridge = {
 
   writeClipboard: (text) => ipcRenderer.invoke(IPC.writeClipboard, text),
 
+  openExternal: (url) => ipcRenderer.invoke(IPC.openExternal, url),
+
   runStage: (name, args) => ipcRenderer.invoke(IPC.runStage, name, args),
 
   runStageStream: (name, args, onChunk) => {

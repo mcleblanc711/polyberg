@@ -106,6 +106,8 @@ def render_claude_packet(cp: CanonicalPacket) -> str:
             + snapshot_table(cp.market_snapshot)
             + "\n\n_Stable rules live in `polymarket_rules.md` (provided separately)._"
         ),
+        "## Live Order Books",
+        _render_order_books(cp),
         "## Catalyst Watch",
         catalyst_block(
             cp.catalysts,
@@ -124,6 +126,17 @@ def render_claude_packet(cp: CanonicalPacket) -> str:
         "```json\n" + cp.compact_json() + "\n```",
     ]
     return "\n\n".join(sections).strip() + "\n"
+
+
+def _render_order_books(cp: CanonicalPacket) -> str:
+    if cp.order_books is None:
+        return (
+            "_Not fetched this session — run `polyberg fetch-books`._\n\n"
+            "**No live book = no order.** Without this section, withhold all "
+            "order pricing."
+        )
+    markdown = str(cp.order_books.get("markdown") or "").strip()
+    return markdown or "_Order book artifact present but empty._"
 
 
 def _render_blocking_warnings(warnings: list[str]) -> str:

@@ -13,8 +13,10 @@ import {
   EMPTY_PRICE_WINDOWS,
   type AccountImport,
   type AccountImportFile,
+  type BookStatus,
   type FreshnessEntry,
   type FreshnessState,
+  type HeatEntry,
   type Market,
   type Mode,
   type OpenOrder,
@@ -39,6 +41,19 @@ const loadYaml = <T>(path: string): T | null => {
 
 const asString = (v: unknown, fallback = ''): string =>
   typeof v === 'string' ? v : fallback
+
+// js-yaml parses unquoted YAML dates (resolution_date: 2026-06-30) into Date
+// objects; normalize either representation to YYYY-MM-DD.
+const asDateString = (v: unknown): string => {
+  if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString().slice(0, 10)
+  return asString(v)
+}
+
+const isExpired = (resolutionDate: string): boolean => {
+  if (!resolutionDate) return false
+  const t = Date.parse(`${resolutionDate.slice(0, 10)}T23:59:59Z`)
+  return Number.isFinite(t) && t < Date.now()
+}
 
 const asNumber = (v: unknown, fallback = 0): number =>
   typeof v === 'number' && Number.isFinite(v) ? v : fallback
@@ -113,46 +128,78 @@ interface PriceHistoryFile {
   >
 }
 
+interface OrderBookSideFile {
+  best_bid?: number
+  best_ask?: number
+  midpoint?: number
+  spread?: number
+  bids?: Array<{ cum_notional?: number }>
+  asks?: Array<{ cum_notional?: number }>
+}
+
+interface OrderBooksFile {
+  generated_at?: string
+  markets?: Record<
+    string,
+    {
+      status?: string
+      fetched_at?: string
+      preferred_side?: string
+      sides?: Record<string, OrderBookSideFile>
+    }
+  >
+}
+
 const readMarkets = (): Market[] => {
   const data = loadYaml<RegistryFile>(resolve(CONTEXT_DIR, 'market_registry.yaml'))
   const rows = data?.markets ?? []
   return rows
     .filter((r) => typeof r.market_id === 'string' && r.market_id.length > 0)
-    .map((r) => ({
-      id: asString(r.market_id),
-      name: asString(r.name, asString(r.market_id)),
-      url: asString(r.polymarket_url),
-      category: asString(r.category),
-      ruleKey: asString(r.rule_key),
-      oracle: asString(r.oracle_type),
-      preferredSide: asSide(r.preferred_side),
-      resolutionDate: asString(r.resolution_date),
-      ruleRisk: asRuleRisk(r.rule_risk?.dispute_risk),
-      mark: 0,
-      bid: 0,
-      ask: 0,
-      spread: 0,
-      liq: 0,
-      hist: [],
-      windows: EMPTY_PRICE_WINDOWS,
-      windowsAsOf: '',
-      lastUpdate: '',
-      snapshotAge: 0,
-      ruleText: asString(r.notes),
-      ruleRiskNotes: Array.isArray(r.risk_flags) ? r.risk_flags.filter((s): s is string => typeof s === 'string') : [],
-      catalysts: []
-    }))
+    .map((r) => {
+      const resolutionDate = asDateString(r.resolution_date)
+      return {
+        id: asString(r.market_id),
+        name: asString(r.name, asString(r.market_id)),
+        url: asString(r.polymarket_url),
+        category: asString(r.category),
+        ruleKey: asString(r.rule_key),
+        oracle: asString(r.oracle_type),
+        preferredSide: asSide(r.preferred_side),
+        resolutionDate,
+        expired: isExpired(resolutionDate),
+        ruleRisk: asRuleRisk(r.rule_risk?.dispute_risk),
+        bookStatus: 'none' as BookStatus,
+        mark: 0,
+        bid: 0,
+        ask: 0,
+        spread: 0,
+        liq: 0,
+        hist: [],
+        windows: EMPTY_PRICE_WINDOWS,
+        windowsAsOf: '',
+        lastUpdate: '',
+        snapshotAge: 0,
+        ruleText: asString(r.notes),
+        ruleRiskNotes: Array.isArray(r.risk_flags) ? r.risk_flags.filter((s): s is string => typeof s === 'string') : [],
+        catalysts: []
+      }
+    })
 }
 
-const readPriceHistory = (): { asOf: string; windowsById: Map<string, PriceWindows> } => {
+const readPriceHistory = (): {
+  asOf: string
+  windowsById: Map<string, PriceWindows>
+  seriesById: Map<string, number[]>
+} => {
   let raw: PriceHistoryFile | null = null
   try {
     raw = JSON.parse(readFileSync(resolve(CONTEXT_DIR, 'price_history.json'), 'utf8'))
   } catch {
-    return { asOf: '', windowsById: new Map() }
+    return { asOf: '', windowsById: new Map(), seriesById: new Map() }
   }
   const asOf = asString(raw?.as_of)
   const windowsById = new Map<string, PriceWindows>()
+  const seriesById = new Map<string, number[]>()
   const markets = raw?.markets ?? {}
   for (const [marketId, entry] of Object.entries(markets)) {
     const w = entry?.windows ?? {}
@@ -161,8 +208,12 @@ const readPriceHistory = (): { asOf: string; windowsById: Map<string, PriceWindo
       return { high: asNumber(v?.high), low: asNumber(v?.low) }
     }
     windowsById.set(marketId, { d1: pick('d1'), w1: pick('w1'), m1: pick('m1') })
+    const series = (entry?.series ?? [])
+      .map((p) => asNumber(p?.p, NaN))
+      .filter((p) => Number.isFinite(p))
+    if (series.length > 1) seriesById.set(marketId, series)
   }
-  return { asOf, windowsById }
+  return { asOf, windowsById, seriesById }
 }
 
 const ACCOUNT_DIR = resolve(REPORTS_DIR, 'account')
@@ -219,11 +270,59 @@ const readAccountImport = (): AccountImport => ({
 })
 
 const applyPriceHistory = (markets: Market[]): Market[] => {
-  const { asOf, windowsById } = readPriceHistory()
-  if (windowsById.size === 0) return markets
+  const { asOf, windowsById, seriesById } = readPriceHistory()
+  if (windowsById.size === 0 && seriesById.size === 0) return markets
   return markets.map((m) => {
     const w = windowsById.get(m.id)
-    return w ? { ...m, windows: w, windowsAsOf: asOf } : m
+    const series = seriesById.get(m.id)
+    if (!w && !series) return m
+    return {
+      ...m,
+      windows: w ?? m.windows,
+      windowsAsOf: w ? asOf : m.windowsAsOf,
+      hist: series ?? m.hist
+    }
+  })
+}
+
+// Overlay live quotes from live/order_books.json (written by fetch-books) onto
+// the registry markets. Quotes are taken from the preferred-side book so they
+// line up with the side actually held/traded.
+const applyOrderBooks = (markets: Market[]): Market[] => {
+  let raw: OrderBooksFile | null = null
+  const path = resolve(REPO_ROOT, 'live', 'order_books.json')
+  try {
+    raw = JSON.parse(readFileSync(path, 'utf8'))
+  } catch {
+    return markets
+  }
+  const books = raw?.markets ?? {}
+  return markets.map((m) => {
+    const entry = books[m.id]
+    if (!entry) return m
+    if (entry.status !== 'ok') return { ...m, bookStatus: 'unavailable' as BookStatus }
+    const side = entry.sides?.[m.preferredSide] ?? entry.sides?.['YES']
+    if (!side) return { ...m, bookStatus: 'unavailable' as BookStatus }
+    const fetchedAt = asString(entry.fetched_at)
+    const fetchedMs = Date.parse(fetchedAt)
+    const ageMin = Number.isFinite(fetchedMs)
+      ? Math.max(0, Math.round((Date.now() - fetchedMs) / 60000))
+      : 0
+    const depthNotional = (rows?: Array<{ cum_notional?: number }>): number => {
+      if (!rows || rows.length === 0) return 0
+      return asNumber(rows[rows.length - 1]?.cum_notional)
+    }
+    return {
+      ...m,
+      bookStatus: 'ok' as BookStatus,
+      mark: asNumber(side.midpoint),
+      bid: asNumber(side.best_bid),
+      ask: asNumber(side.best_ask),
+      spread: Math.round(asNumber(side.spread) * 1000) / 10,
+      liq: depthNotional(side.bids) + depthNotional(side.asks),
+      lastUpdate: fetchedAt,
+      snapshotAge: ageMin
+    }
   })
 }
 
@@ -237,8 +336,7 @@ const readPositions = (markets: Market[]): Position[] => {
       side: asSide(p.side),
       shares: asNumber(p.shares),
       avg: asNumber(p.avg_price),
-      mark: asNumber(p.mark_price),
-      dayPnl: 0
+      mark: asNumber(p.mark_price)
     }))
 }
 
@@ -337,6 +435,13 @@ const readFreshness = (): FreshnessEntry[] =>
     return { file: f, age, state: freshnessFor(age) }
   })
 
+const PREVIEW_BYTES = 6000
+
+interface SnapshotFile {
+  as_of?: string
+  markets?: Array<{ missing_info?: unknown }>
+}
+
 const readSnapshots = (): SnapshotMeta[] => {
   let names: string[]
   try {
@@ -350,12 +455,37 @@ const readSnapshots = (): SnapshotMeta[] => {
       const file = `data/snapshots/${name}`
       const ts = name.replace(/\.json$/, '')
       const age = ageMinutes(resolve(SNAPSHOTS_DIR, name)) ?? 0
-      return { ts, file, markets: 0, diffsCount: 0, missingInfo: 0, freshMin: age }
+      let asOf = ''
+      let markets = 0
+      let missingInfo = 0
+      let preview = ''
+      try {
+        const raw = readFileSync(resolve(SNAPSHOTS_DIR, name), 'utf8')
+        preview =
+          raw.length > PREVIEW_BYTES ? raw.slice(0, PREVIEW_BYTES) + '\n… (truncated)' : raw
+        const parsed = JSON.parse(raw) as SnapshotFile
+        asOf = asString(parsed?.as_of)
+        const rows = Array.isArray(parsed?.markets) ? parsed.markets : []
+        markets = rows.length
+        missingInfo = rows.filter(
+          (r) => Array.isArray(r?.missing_info) && r.missing_info.length > 0
+        ).length
+      } catch {
+        // unreadable / malformed snapshot: keep zeroed meta, empty preview
+      }
+      return { ts, file, asOf, markets, missingInfo, freshMin: age, preview }
     })
 }
 
-const STAGE_OUTPUTS: { id: string; label: string; cli: string; files: string[] }[] = [
+const STAGE_OUTPUTS: { id: string; label: string; cli: string; files: string[]; dir?: string }[] = [
   { id: 'context', label: 'Update context', cli: 'edit context/', files: [] },
+  {
+    id: 'books',
+    label: 'Fetch order books',
+    cli: 'fetch-books',
+    files: ['order_books.md', 'order_books.json'],
+    dir: 'live'
+  },
   { id: 'packet', label: 'Build packet', cli: 'build-packet', files: ['packet.md', 'context_packet.md'] },
   {
     id: 'validate',
@@ -396,7 +526,7 @@ const fmtAgeTs = (age: number): string => {
 
 const readWorkflow = (freshness: FreshnessEntry[]): WorkflowStage[] => {
   const ctxStale = freshness.some((f) => f.state !== 'fresh')
-  return STAGE_OUTPUTS.map(({ id, label, cli, files }) => {
+  return STAGE_OUTPUTS.map(({ id, label, cli, files, dir }) => {
     if (id === 'context') {
       const state: WorkflowState = ctxStale ? 'stale' : 'ok'
       const youngest = freshness.reduce<number | null>(
@@ -406,7 +536,7 @@ const readWorkflow = (freshness: FreshnessEntry[]): WorkflowStage[] => {
       return { id, label, cli, state, ts: youngest === null ? '—' : fmtAgeTs(youngest) }
     }
     if (files.length === 0) return { id, label, cli, state: 'pending' as WorkflowState, ts: '—' }
-    const age = newestAge(files, REPORTS_DIR)
+    const age = newestAge(files, dir ? resolve(REPO_ROOT, dir) : REPORTS_DIR)
     if (age === null) return { id, label, cli, state: 'pending' as WorkflowState, ts: '—' }
     const state: WorkflowState = age < 1440 ? 'ok' : 'stale'
     return { id, label, cli, state, ts: fmtAgeTs(age) }
@@ -414,8 +544,7 @@ const readWorkflow = (freshness: FreshnessEntry[]): WorkflowStage[] => {
 }
 
 export const readContext = (): PmDataPayload => {
-  void REPO_ROOT
-  const markets = applyPriceHistory(readMarkets())
+  const markets = applyOrderBooks(applyPriceHistory(readMarkets()))
   const positions = readPositions(markets)
   const openOrders = readOpenOrders(markets)
   const liveState = readLiveState()
@@ -426,7 +555,10 @@ export const readContext = (): PmDataPayload => {
   const positionsValue = positions.reduce((a, p) => a + p.shares * p.mark, 0)
   const equity = liveState.cash + positionsValue
   const totalPnl = positions.reduce((a, p) => a + (p.mark - p.avg) * p.shares, 0)
-  const dayPnl = positions.reduce((a, p) => a + p.dayPnl, 0)
+
+  const heat: HeatEntry[] = markets
+    .filter((m) => !m.expired && m.bookStatus === 'ok' && m.mark > 0)
+    .map((m) => ({ id: m.id, px: m.mark, side: m.preferredSide, spread: m.spread }))
 
   return {
     markets,
@@ -436,9 +568,8 @@ export const readContext = (): PmDataPayload => {
     freshness,
     liveState,
     equity,
-    dayPnl,
     totalPnl,
-    heat: [],
+    heat,
     intake: [],
     snapshots,
     accountImport: readAccountImport()

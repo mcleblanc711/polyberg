@@ -27,6 +27,12 @@ context/*.local.md
 live/target_ladders.local.yaml
 live/order_log.jsonl
 
+# Live order book artifacts (my_resting flags reveal real resting orders)
+live/order_books.json
+live/order_books.md
+live/token_map.json
+live/session_starter.md
+
 # Electron GUI build artifacts
 gui/node_modules/
 gui/out/

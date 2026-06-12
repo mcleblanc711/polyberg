@@ -2,26 +2,72 @@ import { useState, type CSSProperties } from 'react'
 import { CatalystForm } from '../../components/CatalystForm'
 import { usePmData } from '../../lib/pmDataContext'
 import { colors as C, fonts as F } from '../../styles/tokens'
+import type { Market } from '../../lib/types'
 
 export const CatalystsScreen = () => {
   const pmData = usePmData()
-  const [mid, setMid] = useState<string>(pmData.markets[0]?.id ?? '')
+  const activeMarkets = pmData.markets.filter((m) => !m.expired)
+  const expiredMarkets = pmData.markets.filter((m) => m.expired)
+  const [mid, setMid] = useState<string>(activeMarkets[0]?.id ?? pmData.markets[0]?.id ?? '')
   const [adding, setAdding] = useState(false)
-  const m = pmData.marketById(mid) ?? pmData.markets[0]
+  const [showExpired, setShowExpired] = useState(false)
+  const m = pmData.marketById(mid) ?? activeMarkets[0] ?? pmData.markets[0]
   if (!m) {
     return (
       <div style={S.root}>
-        <div style={S.h1Sub}>// no markets in registry</div>
+        <div style={S.h1Sub}>// no markets in registry — add one on the MARKETS tab</div>
       </div>
     )
   }
+
+  const marketRow = (mm: Market, dimmed: boolean): JSX.Element => {
+    const on = mm.id === mid
+    return (
+      <div
+        key={mm.id}
+        onClick={() => setMid(mm.id)}
+        style={{
+          padding: '10px 10px',
+          cursor: 'pointer',
+          borderLeft: '2px solid',
+          borderLeftColor: on ? C.magenta : 'transparent',
+          background: on ? C.magentaDim : 'transparent',
+          marginBottom: 4,
+          opacity: dimmed && !on ? 0.55 : 1
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11.5,
+            fontFamily: F.display,
+            fontWeight: on ? 700 : 500,
+            color: on ? C.magenta : C.cyanText
+          }}
+        >
+          {mm.id}
+        </div>
+        <div
+          style={{
+            fontSize: 10,
+            color: mm.catalysts.length > 0 ? C.textDim : C.textMute,
+            fontFamily: F.mono,
+            marginTop: 2
+          }}
+        >
+          {mm.catalysts.length} entries
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={S.root}>
       <div style={S.header}>
         <div>
           <div style={S.h1}>CATALYST EDITOR</div>
           <div style={S.h1Sub}>
-            // recent_catalysts.md · per-market timeline · edit / delete / add
+            // recent_catalysts.md · per-market timeline · append here or via INTAKE — edit the file
+            directly to amend old entries
           </div>
         </div>
         <button style={S.btnGhost} onClick={() => setAdding((a) => !a)}>
@@ -33,50 +79,32 @@ export const CatalystsScreen = () => {
       ) : null}
       <div style={S.grid}>
         <div style={S.panel}>
-          <div style={S.panelHdr}>// markets</div>
-          {pmData.markets.map((mm) => {
-            const on = mm.id === mid
-            return (
-              <div
-                key={mm.id}
-                onClick={() => setMid(mm.id)}
-                style={{
-                  padding: '10px 10px',
-                  cursor: 'pointer',
-                  borderLeft: '2px solid',
-                  borderLeftColor: on ? C.magenta : 'transparent',
-                  background: on ? C.magentaDim : 'transparent',
-                  marginBottom: 4
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 11.5,
-                    fontFamily: F.display,
-                    fontWeight: on ? 700 : 500,
-                    color: on ? C.magenta : C.cyanText
-                  }}
-                >
-                  {mm.id}
-                </div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: C.textDim,
-                    fontFamily: F.mono,
-                    marginTop: 2
-                  }}
-                >
-                  {mm.catalysts.length} entries
-                </div>
-              </div>
-            )
-          })}
+          <div style={S.panelHdr}>// markets · {activeMarkets.length} active</div>
+          {activeMarkets.map((mm) => marketRow(mm, false))}
+          {expiredMarkets.length > 0 && (
+            <>
+              <button style={S.expiredToggle} onClick={() => setShowExpired((v) => !v)}>
+                {showExpired ? '▾' : '▸'} {expiredMarkets.length} expired
+              </button>
+              {showExpired && expiredMarkets.map((mm) => marketRow(mm, true))}
+            </>
+          )}
         </div>
         <div style={S.panel}>
           <div style={S.panelHdr}>
             // {m.id} · {m.catalysts.length} catalysts
           </div>
+          {m.catalysts.length === 0 && !adding && (
+            <div style={S.emptyPanel}>
+              <div>no catalysts recorded for this market yet</div>
+              <button style={{ ...S.btnGhost, marginTop: 12 }} onClick={() => setAdding(true)}>
+                + ADD CATALYST
+              </button>
+              <div style={S.emptyHint}>
+                or paste tweets/articles into the INTAKE tab to auto-tag them
+              </div>
+            </div>
+          )}
           {m.catalysts.map((c, i) => (
             <div
               key={i}
@@ -121,10 +149,6 @@ export const CatalystsScreen = () => {
                 }}
               >
                 {c.txt}
-              </div>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <button style={{ ...S.btnGhost, color: C.cyanText }}>EDIT</button>
-                <button style={{ ...S.btnGhost, color: C.red }}>DEL</button>
               </div>
             </div>
           ))}
@@ -187,6 +211,34 @@ const S: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: 14
+  },
+  expiredToggle: {
+    background: 'transparent',
+    border: 'none',
+    color: C.textMute,
+    fontFamily: F.mono,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    cursor: 'pointer',
+    padding: '10px 10px 6px',
+    outline: 'none',
+    display: 'block'
+  },
+  emptyPanel: {
+    border: `1px dashed ${C.line}`,
+    background: C.bgRow,
+    padding: 28,
+    textAlign: 'center',
+    color: C.textDim,
+    fontFamily: F.body,
+    fontSize: 12.5
+  },
+  emptyHint: {
+    marginTop: 12,
+    fontSize: 10.5,
+    color: C.textMute,
+    fontFamily: F.mono,
+    letterSpacing: 0.3
   },
   chip: {
     padding: '2px 7px',

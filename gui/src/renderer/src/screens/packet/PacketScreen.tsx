@@ -295,7 +295,7 @@ const computeWarnings = (
       warnings.push({
         severity: 'warn',
         text: 'no market snapshot in data/snapshots/',
-        hint: 'snapshot-markets is currently a stub — prices will be None; run anyway to populate the structure',
+        hint: 'capture prices and book state before building so models see current marks',
         run: { stage: 'snapshot-markets' },
         runLabel: '$ snapshot-markets'
       })
@@ -303,7 +303,7 @@ const computeWarnings = (
       warnings.push({
         severity: 'warn',
         text: `latest snapshot is ${fmtAge(snap.freshMin)} (${snap.ts})`,
-        hint: 'snapshot-markets is currently a stub — prices will be None',
+        hint: 'prices may have moved — recapture before building the packet',
         run: { stage: 'snapshot-markets' },
         runLabel: '$ snapshot-markets'
       })

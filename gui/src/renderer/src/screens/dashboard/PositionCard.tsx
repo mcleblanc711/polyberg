@@ -6,7 +6,7 @@ import type { Market, Position } from '../../lib/types'
 import { clipCard, colors as C, fonts as F } from '../../styles/tokens'
 import { PriceChart, Spark } from './charts'
 
-type ExpandedTab = 'rules' | 'catalysts' | 'snapshot' | 'orders' | 'draft'
+type ExpandedTab = 'rules' | 'catalysts' | 'book' | 'orders' | 'draft'
 
 export const PositionCard = ({
   p,
@@ -103,7 +103,7 @@ export const PositionCard = ({
             <div style={{ ...S.statSub, color: accent, opacity: 0.85 }}>{fmtPct(pnlPct, true)}</div>
           </div>
           <div style={{ ...S.statBlock, alignItems: 'flex-end' }}>
-            <div style={S.statK}>TREND · 13d</div>
+            <div style={S.statK}>TREND</div>
             <Spark data={m.hist} w={120} h={30} color={accent} />
           </div>
           <div style={{ ...S.chev, transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</div>
@@ -121,7 +121,7 @@ const ExpandedBody = ({ m, p }: { m: Market; p: Position }) => {
   const tabs: [ExpandedTab, string][] = [
     ['rules', 'RESOLUTION RULE'],
     ['catalysts', 'CATALYSTS'],
-    ['snapshot', 'SNAPSHOT'],
+    ['book', 'LIVE BOOK'],
     ['orders', `OPEN ORDERS · ${orders.length}`],
     ['draft', 'DRAFT ORDER']
   ]
@@ -130,26 +130,36 @@ const ExpandedBody = ({ m, p }: { m: Market; p: Position }) => {
       <div style={S.expGrid}>
         <div style={S.expPanel}>
           <div style={S.expPanelHdr}>
-            <span>// price · 13d</span>
+            <span>// price history</span>
             <span
               style={{
-                color: C.magenta,
+                color: m.bookStatus === 'ok' ? C.magenta : C.textMute,
                 fontFamily: F.mono,
                 fontSize: 12,
-                textShadow: `0 0 6px ${C.magenta}88`
+                textShadow: m.bookStatus === 'ok' ? `0 0 6px ${C.magenta}88` : 'none'
               }}
             >
-              {(m.mark * 100).toFixed(1)}¢ · LIVE
+              {m.bookStatus === 'ok'
+                ? `${(m.mark * 100).toFixed(1)}¢ · ${m.preferredSide} MID`
+                : 'no live book'}
             </span>
           </div>
           <PriceChart data={m.hist} w={500} h={170} />
-          <div style={S.miniGrid}>
-            <Mini k="BID" v={(m.bid * 100).toFixed(1) + '¢'} accent={C.cyan} />
-            <Mini k="ASK" v={(m.ask * 100).toFixed(1) + '¢'} accent={C.red} />
-            <Mini k="SPREAD" v={m.spread + '¢'} />
-            <Mini k="LIQ" v={fmtUsd(m.liq)} />
-            <Mini k="SNAP" v={m.snapshotAge + 'm old'} />
-          </div>
+          {m.bookStatus === 'ok' ? (
+            <div style={S.miniGrid}>
+              <Mini k={`${m.preferredSide} BID`} v={(m.bid * 100).toFixed(1) + '¢'} accent={C.cyan} />
+              <Mini k={`${m.preferredSide} ASK`} v={(m.ask * 100).toFixed(1) + '¢'} accent={C.red} />
+              <Mini k="SPREAD" v={m.spread + '¢'} />
+              <Mini k="DEPTH" v={fmtUsd(m.liq)} />
+              <Mini k="BOOK AGE" v={m.snapshotAge + 'm'} accent={m.snapshotAge > 120 ? C.amber : undefined} />
+            </div>
+          ) : (
+            <div style={S.noBookNote}>
+              {m.bookStatus === 'unavailable'
+                ? 'order book unavailable — market likely resolved'
+                : 'no order book fetched — run $ fetch-books'}
+            </div>
+          )}
           <HighLowRow m={m} />
         </div>
 
@@ -168,7 +178,7 @@ const ExpandedBody = ({ m, p }: { m: Market; p: Position }) => {
           <div style={S.tabBody}>
             {tab === 'rules' && <RulesPane m={m} />}
             {tab === 'catalysts' && <CatalystsPane m={m} />}
-            {tab === 'snapshot' && <SnapshotPane m={m} />}
+            {tab === 'book' && <BookPane m={m} />}
             {tab === 'orders' && <OrdersPane m={m} />}
             {tab === 'draft' && <DraftPane m={m} p={p} />}
           </div>
@@ -292,48 +302,35 @@ const CatalystsPane = ({ m }: { m: Market }) => {
   )
 }
 
-const SnapshotPane = ({ m }: { m: Market }) => {
-  const lastBefore = m.hist[m.hist.length - 3]!
-  const delta = (m.mark - lastBefore) * 100
+const BookPane = ({ m }: { m: Market }) => {
+  if (m.bookStatus !== 'ok') {
+    return (
+      <div style={S.noBookNote}>
+        {m.bookStatus === 'unavailable'
+          ? 'order book unavailable — market likely resolved or delisted'
+          : 'no order book fetched for this market — run $ fetch-books'}
+      </div>
+    )
+  }
   return (
     <div>
-      <div style={S.subhdr}>// snapshots/2026-05-08T13-24Z.json</div>
+      <div style={S.subhdr}>
+        // live/order_books.json · {m.preferredSide} side · fetched{' '}
+        {m.lastUpdate.replace('T', ' ').slice(0, 19)}
+      </div>
       <div style={S.snapGrid}>
-        <SnapKV k="MARK" v={m.mark.toFixed(3)} />
-        <SnapKV k="BID / ASK" v={`${m.bid.toFixed(3)} / ${m.ask.toFixed(3)}`} />
-        <SnapKV k="SPREAD" v={m.spread + ' ¢'} />
-        <SnapKV k="LIQUIDITY" v={fmtUsd(m.liq)} />
-        <SnapKV k="SNAP AGE" v={m.snapshotAge + ' min'} />
+        <SnapKV k="MID" v={(m.mark * 100).toFixed(1) + '¢'} />
+        <SnapKV k="BID / ASK" v={`${(m.bid * 100).toFixed(1)}¢ / ${(m.ask * 100).toFixed(1)}¢`} />
+        <SnapKV k="SPREAD" v={m.spread + '¢'} />
+        <SnapKV k="BOOK DEPTH" v={fmtUsd(m.liq)} />
+        <SnapKV k="BOOK AGE" v={m.snapshotAge + ' min'} />
         <SnapKV k="ORACLE" v={m.oracle} />
       </div>
-      <div style={S.subhdr}>// diff vs previous</div>
-      <div style={S.diffBlock}>
-        <div style={S.diffLine}>
-          <span style={S.diffPlus}>+</span>
-          <span>
-            mark · {lastBefore.toFixed(3)} → {m.mark.toFixed(3)}{' '}
-            <span style={{ color: C.cyan }}>(+{delta.toFixed(1)}¢)</span>
-          </span>
-        </div>
-        <div style={S.diffLine}>
-          <span style={S.diffEq}>=</span>
-          <span>
-            spread · {m.spread} ¢ <span style={{ color: C.textMute }}>no change</span>
-          </span>
-        </div>
-        <div style={S.diffLine}>
-          <span style={S.diffPlus}>+</span>
-          <span>
-            liquidity · <span style={{ color: C.cyan }}>+$2,140</span>
-          </span>
-        </div>
-        <div style={S.diffLine}>
-          <span style={S.diffEq}>=</span>
-          <span>
-            missing-info · <span style={{ color: C.cyan }}>clean</span>
-          </span>
-        </div>
-      </div>
+      {m.url && (
+        <button style={{ ...S.btnGhost, marginTop: 10 }} onClick={() => void window.pm.openExternal(m.url)}>
+          OPEN IN POLYMARKET ↗
+        </button>
+      )}
     </div>
   )
 }
@@ -765,16 +762,17 @@ const S: Record<string, CSSProperties> = {
     marginBottom: 6
   },
   snapCell: { background: C.bgRow, border: `1px solid ${C.line2}`, padding: '6px 10px' },
-  diffBlock: {
+  noBookNote: {
+    border: `1px dashed ${C.line}`,
     background: C.bgRow,
-    border: `1px solid ${C.line2}`,
-    padding: 12,
+    padding: 16,
+    marginTop: 12,
+    color: C.textMute,
     fontFamily: F.mono,
-    fontSize: 12
+    fontSize: 11,
+    letterSpacing: 0.3,
+    textAlign: 'center'
   },
-  diffLine: { display: 'flex', gap: 10, padding: '3px 0' },
-  diffPlus: { color: C.cyan, width: 14 },
-  diffEq: { color: C.textMute, width: 14 },
 
   ordCard: {
     display: 'flex',

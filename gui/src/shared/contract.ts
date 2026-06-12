@@ -31,6 +31,10 @@ export const EMPTY_PRICE_WINDOWS: PriceWindows = {
   m1: { high: 0, low: 0 }
 }
 
+// 'ok' = live book in live/order_books.json, 'unavailable' = fetch tried and
+// failed (typically a resolved market), 'none' = not fetched / not flagged.
+export type BookStatus = 'ok' | 'unavailable' | 'none'
+
 export interface Market {
   id: string
   name: string
@@ -40,7 +44,11 @@ export interface Market {
   oracle: string
   preferredSide: Side
   resolutionDate: string
+  expired: boolean
   ruleRisk: RuleRisk
+  // mark/bid/ask/spread are quotes for preferredSide from live/order_books.json;
+  // spread is in cents, liq is total resting notional on that side's book.
+  bookStatus: BookStatus
   mark: number
   bid: number
   ask: number
@@ -62,7 +70,6 @@ export interface Position {
   shares: number
   avg: number
   mark: number
-  dayPnl: number
 }
 
 export interface OpenOrder {
@@ -99,9 +106,12 @@ export interface LiveState {
   proxyWallet: string
 }
 
+// One cell of the dashboard price tape: live preferred-side quote per market.
 export interface HeatEntry {
   id: string
-  d: number
+  px: number
+  side: Side
+  spread: number
 }
 
 export interface IntakeItem {
@@ -119,10 +129,11 @@ export interface IntakeItem {
 export interface SnapshotMeta {
   ts: string
   file: string
+  asOf: string
   markets: number
-  diffsCount: number
   missingInfo: number
   freshMin: number
+  preview: string
 }
 
 export interface AccountImportFile {
@@ -149,7 +160,6 @@ export interface PmDataPayload {
   freshness: FreshnessEntry[]
   liveState: LiveState
   equity: number
-  dayPnl: number
   totalPnl: number
   heat: HeatEntry[]
   intake: IntakeItem[]
@@ -185,6 +195,7 @@ export type ResponseSlot = 'gpt' | 'claude' | 'adjudicator'
 export type SchemaName = 'model-trade-response' | 'adjudicator-output'
 
 export const ALLOWED_STAGES = [
+  'fetch-books',
   'build-packet',
   'packet',
   'validate-response',
@@ -218,6 +229,7 @@ export const IPC = {
   readArtifact: 'pm:readArtifact',
   readSchema: 'pm:readSchema',
   writeClipboard: 'pm:writeClipboard',
+  openExternal: 'pm:openExternal',
   runStage: 'pm:runStage',
   runStageStream: 'pm:runStageStream',
   runStageStreamChunk: 'pm:runStageStream:chunk',
@@ -257,6 +269,7 @@ export interface PmBridge {
   readArtifact: (name: ArtifactName) => Promise<ArtifactRead>
   readSchema: (name: SchemaName) => Promise<string>
   writeClipboard: (text: string) => Promise<void>
+  openExternal: (url: string) => Promise<void>
   runStage: (name: string, args?: string[]) => Promise<RunStageResult>
   runStageStream: (
     name: string,
