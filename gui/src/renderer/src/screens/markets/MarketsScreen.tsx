@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { usePmData } from '../../lib/pmDataContext'
+import { usePmData, usePmDataRefresh } from '../../lib/pmDataContext'
 import { colors as C, fonts as F } from '../../styles/tokens'
 import type { Market, RuleRisk } from '../../lib/types'
 import { AddMarketModal } from './AddMarketModal'
+import { DiscoverMarketsModal } from './DiscoverMarketsModal'
 import { EditMarketModal } from './EditMarketModal'
 
 const riskColor = (risk: RuleRisk): string =>
@@ -19,11 +20,33 @@ export const MarketsScreen = ({
   onClearHighlight?: () => void
 }) => {
   const pmData = usePmData()
+  const refresh = usePmDataRefresh()
   const [showAdd, setShowAdd] = useState(false)
+  const [showDiscover, setShowDiscover] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [showExpired, setShowExpired] = useState(false)
   const [flashId, setFlashId] = useState<string | null>(null)
+  const [fetchState, setFetchState] = useState<
+    { kind: 'idle' } | { kind: 'running' } | { kind: 'ok' } | { kind: 'error'; message: string }
+  >({ kind: 'idle' })
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
+
+  // Re-pull live order books for every active market via the fetch-books CLI,
+  // then re-read context so the MARK · MID column reflects fresh quotes.
+  const refreshMarkets = async (): Promise<void> => {
+    if (fetchState.kind === 'running') return
+    setFetchState({ kind: 'running' })
+    const result = await window.pm.runStage('fetch-books', [])
+    if (!result.ok) {
+      setFetchState({
+        kind: 'error',
+        message: (result.stderr || result.stdout || `exit ${result.code}`).slice(0, 200)
+      })
+      return
+    }
+    await refresh()
+    setFetchState({ kind: 'ok' })
+  }
 
   const active = pmData.markets.filter((m) => !m.expired)
   const expired = pmData.markets.filter((m) => m.expired)
@@ -110,6 +133,7 @@ export const MarketsScreen = ({
   return (
     <div style={S.root}>
       {showAdd && <AddMarketModal onClose={() => setShowAdd(false)} />}
+      {showDiscover && <DiscoverMarketsModal onClose={() => setShowDiscover(false)} />}
       {editId && <EditMarketModal marketId={editId} onClose={() => setEditId(null)} />}
       <div style={S.header}>
         <div>
@@ -119,9 +143,26 @@ export const MarketsScreen = ({
             {expired.length > 0 ? ` · ${expired.length} expired` : ''} · read/write
           </div>
         </div>
-        <button style={S.btnGhost} onClick={() => setShowAdd(true)}>
-          + ADD MARKET
-        </button>
+        <div style={S.headerActions}>
+          {fetchState.kind === 'ok' && <span style={S.fetchNoteOk}>● books refreshed</span>}
+          {fetchState.kind === 'error' && (
+            <span style={S.fetchNoteErr}>✕ {fetchState.message}</span>
+          )}
+          <button
+            style={S.btnGhost}
+            onClick={() => void refreshMarkets()}
+            disabled={fetchState.kind === 'running'}
+            title="run fetch-books for all active markets"
+          >
+            {fetchState.kind === 'running' ? '$ FETCHING…' : '↻ REFRESH MARKETS'}
+          </button>
+          <button style={S.btnGhost} onClick={() => setShowDiscover(true)}>
+            ⌕ DISCOVER
+          </button>
+          <button style={S.btnGhost} onClick={() => setShowAdd(true)}>
+            + ADD MARKET
+          </button>
+        </div>
       </div>
       <div style={S.panel}>
         <table style={S.table}>
@@ -171,6 +212,24 @@ const S: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'flex-start',
     justifyContent: 'space-between'
+  },
+  headerActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8
+  },
+  fetchNoteOk: {
+    fontFamily: F.mono,
+    fontSize: 10,
+    letterSpacing: 0.4,
+    color: C.cyan
+  },
+  fetchNoteErr: {
+    fontFamily: F.mono,
+    fontSize: 10,
+    letterSpacing: 0.4,
+    color: C.red,
+    maxWidth: 320
   },
   h1: {
     fontSize: 18,

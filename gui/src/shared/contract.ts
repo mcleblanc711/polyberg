@@ -40,8 +40,13 @@ export interface Market {
   name: string
   url: string
   category: string
+  thesisBucket: string
   ruleKey: string
   oracle: string
+  eventSlug: string
+  // True/false when the parent Polymarket event's neg-risk flag is recorded,
+  // null when unknown (registry entry predates the field). Gates hedge trust.
+  negRisk: boolean | null
   preferredSide: Side
   resolutionDate: string
   expired: boolean
@@ -203,6 +208,7 @@ export const ALLOWED_STAGES = [
   'build-adjudicator-input',
   'snapshot-markets',
   'diff-snapshots',
+  'hedge',
   'build-trade-ticket',
   'import-public-positions',
   'import-account-snapshot',
@@ -213,6 +219,7 @@ export const ALLOWED_STAGES = [
   'promote-orders',
   'promote-balance',
   'paste-import',
+  'search-markets',
   'registry-add',
   'registry-update',
   'registry-delete',

@@ -79,10 +79,13 @@ interface RegistryFile {
     name?: string
     polymarket_url?: string
     category?: string
+    thesis_bucket?: string
     rule_key?: string
     oracle_type?: string
     preferred_side?: string
     resolution_date?: string
+    event_slug?: string
+    neg_risk?: boolean
     notes?: string
     risk_flags?: string[]
     rule_risk?: { dispute_risk?: string }
@@ -162,9 +165,12 @@ const readMarkets = (): Market[] => {
         name: asString(r.name, asString(r.market_id)),
         url: asString(r.polymarket_url),
         category: asString(r.category),
+        thesisBucket: asString(r.thesis_bucket),
         ruleKey: asString(r.rule_key),
         oracle: asString(r.oracle_type),
         preferredSide: asSide(r.preferred_side),
+        eventSlug: asString(r.event_slug),
+        negRisk: typeof r.neg_risk === 'boolean' ? r.neg_risk : null,
         resolutionDate,
         expired: isExpired(resolutionDate),
         ruleRisk: asRuleRisk(r.rule_risk?.dispute_risk),
@@ -550,6 +556,17 @@ export const readContext = (): PmDataPayload => {
   const liveState = readLiveState()
   const freshness = readFreshness()
   const workflow = readWorkflow(freshness)
+  // The order-book artifact is a per-session packet input: when fetch-books
+  // refreshes live/order_books.json the packets (legacy AND model) must be
+  // rebuilt to carry the new books. Append it AFTER readWorkflow so it gates
+  // packet rebuilds (PacketScreen) without double-counting against the workflow's
+  // own 'books' stage / context staleness. Only when present — a never-fetched
+  // artifact is handled by the packet's own "run fetch-books" notice, not a
+  // staleness alarm here.
+  const booksAge = ageMinutes(resolve(REPO_ROOT, 'live', 'order_books.json'))
+  if (booksAge !== null) {
+    freshness.push({ file: 'order_books.json', age: booksAge, state: freshnessFor(booksAge) })
+  }
   const snapshots = readSnapshots()
 
   const positionsValue = positions.reduce((a, p) => a + p.shares * p.mark, 0)

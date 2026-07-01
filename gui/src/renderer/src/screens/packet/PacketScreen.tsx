@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { StageRunnerModal } from '../../components/StageRunnerModal'
 import { copyPacket } from '../../lib/copyPacket'
 import { usePmData } from '../../lib/pmDataContext'
@@ -59,10 +59,14 @@ const SPECS: ArtifactSpec[] = [
 // excludes market_registry.yaml: it's a stable catalog of tracked markets
 // (config, not market data), so its mtime going past 24h is a false staleness
 // alarm — same reasoning that kept live_state.yaml out of the freshness checks.
+// order_books.json IS an input: refreshing books via fetch-books must flag every
+// packet (model + legacy) for rebuild, or the model packets silently keep stale
+// books while only the manually-rebuilt one updates.
 const PACKET_INPUT_FILES = new Set([
   'portfolio_current.yaml',
   'open_orders.yaml',
-  'recent_catalysts.md'
+  'recent_catalysts.md',
+  'order_books.json'
 ])
 
 type Severity = 'info' | 'warn' | 'rebuild' | 'block'
@@ -104,13 +108,48 @@ const ageColor = (mins: number | null): string => {
   return C.red
 }
 
+type FilterDim = 'none' | 'category' | 'thesis_bucket' | 'rule_key'
+
+const DIM_FLAG: Record<Exclude<FilterDim, 'none'>, string> = {
+  category: '--category',
+  thesis_bucket: '--thesis-bucket',
+  rule_key: '--rule-key'
+}
+const DIM_FIELD: Record<Exclude<FilterDim, 'none'>, 'category' | 'thesisBucket' | 'ruleKey'> = {
+  category: 'category',
+  thesis_bucket: 'thesisBucket',
+  rule_key: 'ruleKey'
+}
+
 export const PacketScreen = () => {
+  const pmData = usePmData()
   const [runArgs, setRunArgs] = useState<RunArgs | null>(null)
+  const [filterDim, setFilterDim] = useState<FilterDim>('none')
+  const [filterValue, setFilterValue] = useState('')
   const [artifacts, setArtifacts] = useState<Partial<Record<ArtifactName, ArtifactRead | null>>>({
     packet: null,
     'packet-gpt': null,
     'packet-claude': null
   })
+
+  // Distinct values for the chosen dimension, drawn from the live registry so the
+  // dropdown only ever offers filters that match something.
+  const dimValues = useMemo(() => {
+    if (filterDim === 'none') return []
+    const field = DIM_FIELD[filterDim]
+    const vals = new Set<string>()
+    for (const m of pmData.markets) {
+      const v = m[field]
+      if (v) vals.add(v)
+    }
+    return [...vals].sort()
+  }, [pmData.markets, filterDim])
+
+  // Flags appended to every packet build while a filter is active.
+  const extraArgs = useMemo(() => {
+    if (filterDim === 'none' || !filterValue) return []
+    return [DIM_FLAG[filterDim], filterValue]
+  }, [filterDim, filterValue])
 
   const loadOne = useCallback(async (name: ArtifactName): Promise<void> => {
     const data = await window.pm.readArtifact(name)
@@ -138,6 +177,37 @@ export const PacketScreen = () => {
             // build → copy → paste into web LLM → save reply JSON → run next stage
           </div>
         </div>
+        <div style={S.filterBox}>
+          <span style={S.filterLabel}>FILTER</span>
+          <select
+            style={S.select}
+            value={filterDim}
+            onChange={(e) => {
+              setFilterDim(e.target.value as FilterDim)
+              setFilterValue('')
+            }}
+          >
+            <option value="none">all markets</option>
+            <option value="category">category</option>
+            <option value="thesis_bucket">thesis bucket</option>
+            <option value="rule_key">rule key</option>
+          </select>
+          {filterDim !== 'none' && (
+            <select
+              style={S.select}
+              value={filterValue}
+              onChange={(e) => setFilterValue(e.target.value)}
+            >
+              <option value="">choose value…</option>
+              {dimValues.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          )}
+          {extraArgs.length > 0 && <span style={S.filterActive}>● scoped</span>}
+        </div>
       </div>
       <div style={S.grid}>
         {SPECS.map((spec) => (
@@ -145,6 +215,7 @@ export const PacketScreen = () => {
             key={spec.name}
             spec={spec}
             artifact={artifacts[spec.name] ?? null}
+            extraArgs={extraArgs}
             onRun={(r) => setRunArgs(r)}
           />
         ))}
@@ -166,14 +237,17 @@ export const PacketScreen = () => {
 const ArtifactPanel = ({
   spec,
   artifact,
+  extraArgs,
   onRun
 }: {
   spec: ArtifactSpec
   artifact: ArtifactRead | null
+  extraArgs: string[]
   onRun: (r: RunArgs) => void
 }) => {
   const pmData = usePmData()
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
+  const buildArgs = [...(spec.buildArgs ?? []), ...extraArgs]
 
   useEffect(() => {
     if (copyState === 'idle') return
@@ -192,7 +266,7 @@ const ArtifactPanel = ({
 
   const exists = artifact?.exists ?? false
   const ageC = ageColor(artifact?.ageMin ?? null)
-  const warnings = computeWarnings(spec, artifact, pmData)
+  const warnings = computeWarnings(spec, artifact, pmData, buildArgs)
 
   return (
     <div style={S.panel}>
@@ -215,7 +289,7 @@ const ArtifactPanel = ({
       <div style={S.actions}>
         <button
           style={S.btnGhost}
-          onClick={() => onRun({ stage: spec.buildStage, args: spec.buildArgs })}
+          onClick={() => onRun({ stage: spec.buildStage, args: buildArgs })}
         >
           $ {spec.buildLabel}
         </button>
@@ -283,7 +357,8 @@ const ArtifactPanel = ({
 const computeWarnings = (
   spec: ArtifactSpec,
   artifact: ArtifactRead | null,
-  pmData: ReturnType<typeof usePmData>
+  pmData: ReturnType<typeof usePmData>,
+  buildArgs: string[]
 ): Warning[] => {
   const warnings: Warning[] = []
   const artifactAge = artifact?.exists ? artifact.ageMin : null
@@ -319,7 +394,7 @@ const computeWarnings = (
           severity: 'rebuild',
           text: `input changed since last build: ${names}`,
           hint: `packet was built ${fmtAge(artifactAge)}; inputs updated more recently`,
-          run: { stage: spec.buildStage, args: spec.buildArgs },
+          run: { stage: spec.buildStage, args: buildArgs },
           runLabel: `$ ${spec.buildLabel}`
         })
       }
@@ -386,6 +461,34 @@ const S: Record<string, CSSProperties> = {
     fontFamily: F.mono,
     marginTop: 3,
     letterSpacing: 0.4
+  },
+  filterBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8
+  },
+  filterLabel: {
+    fontSize: 9.5,
+    color: C.textMute,
+    fontFamily: F.mono,
+    letterSpacing: 0.8,
+    fontWeight: 700
+  },
+  select: {
+    background: C.bg,
+    color: C.text,
+    border: `1px solid ${C.line2}`,
+    padding: '5px 8px',
+    fontFamily: F.mono,
+    fontSize: 10.5,
+    outline: 'none'
+  },
+  filterActive: {
+    fontSize: 10,
+    color: C.magenta,
+    fontFamily: F.mono,
+    letterSpacing: 0.5,
+    textShadow: `0 0 4px ${C.magenta}66`
   },
   grid: {
     display: 'grid',

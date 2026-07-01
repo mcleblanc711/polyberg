@@ -13,6 +13,7 @@ import { PacketScreen } from './screens/packet/PacketScreen'
 import { DecisionScreen } from './screens/decision/DecisionScreen'
 import { SnapshotsScreen } from './screens/snapshots/SnapshotsScreen'
 import { LadderScreen } from './screens/ladder/LadderScreen'
+import { HedgeScreen } from './screens/hedge/HedgeScreen'
 import { colors as C, fonts as F } from './styles/tokens'
 
 type ScreenId =
@@ -23,6 +24,7 @@ type ScreenId =
   | 'packet'
   | 'decision'
   | 'ladder'
+  | 'hedge'
   | 'markets'
   | 'account'
 
@@ -69,6 +71,7 @@ const TopBar = ({
     { id: 'packet', label: 'PACKET' },
     { id: 'decision', label: 'DECISION' },
     { id: 'ladder', label: 'LADDER' },
+    { id: 'hedge', label: 'HEDGE' },
     { id: 'markets', label: 'MARKETS' },
     { id: 'account', label: 'ACCOUNT' }
   ]
@@ -300,6 +303,8 @@ export const App = () => {
         return <DecisionScreen />
       case 'ladder':
         return <LadderScreen />
+      case 'hedge':
+        return <HedgeScreen />
       case 'catalysts':
         return <CatalystsScreen />
       case 'snapshots':
