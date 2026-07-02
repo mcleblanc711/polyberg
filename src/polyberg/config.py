@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TIMEZONE = "America/Edmonton"
 DEFAULT_MAX_CONTEXT_AGE_HOURS = 36
+DEFAULT_CATALYST_WINDOW_HOURS = 48
 
 
 def repo_path(*parts: str) -> Path:
@@ -42,6 +43,23 @@ def get_max_context_age_hours() -> float:
     if value <= 0:
         raise ValueError(
             "Invalid POLYBERG_MAX_CONTEXT_AGE_HOURS. Set it to a positive number."
+        )
+    return value
+
+
+def get_catalyst_window_hours() -> float:
+    raw = os.environ.get("POLYBERG_CATALYST_WINDOW_HOURS")
+    if raw is None:
+        return DEFAULT_CATALYST_WINDOW_HOURS
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError(
+            "Invalid POLYBERG_CATALYST_WINDOW_HOURS. Set it to a positive number."
+        ) from exc
+    if value <= 0:
+        raise ValueError(
+            "Invalid POLYBERG_CATALYST_WINDOW_HOURS. Set it to a positive number."
         )
     return value
 

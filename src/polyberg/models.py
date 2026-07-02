@@ -7,6 +7,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Side = Literal["YES", "NO"]
+# Registry lifecycle. active/resolving render in the default packet; resolved and
+# archived are excluded unless --include-resolved. resolving = past close, awaiting
+# the oracle print (e.g. PortWatch resolves on the next Tuesday print); resolved =
+# outcome known; archived = retired. The stored value is authoritative — date-based
+# suggestion never auto-flips a market to resolved (see polyberg.lifecycle).
+Lifecycle = Literal["active", "resolving", "resolved", "archived"]
 MARKET_ID_RE = re.compile(r"^[a-z0-9_]+$")
 
 
@@ -37,11 +43,19 @@ class Market(StrictModel):
     preferred_side: Side
     risk_flags: list[str] = Field(default_factory=list)
     resolution_date: date
+    # Authoritative lifecycle. Defaults to "active" so existing registries stay
+    # valid under extra="forbid"; set explicitly to trim resolved/archived markets.
+    lifecycle: Lifecycle = "active"
     notes: str
     event_slug: str | None = None
     condition_id: str | None = None
     yes_token_id: str | None = None
     no_token_id: str | None = None
+    # True when the parent Polymarket event is neg-risk (exactly one outcome
+    # resolves YES — the markets are mutually exclusive). None when unknown
+    # (entries added before this field existed). Drives the hedge calculator's
+    # exclusivity trust, so it is never assumed True.
+    neg_risk: bool | None = None
     data_collection: DataCollection | None = None
     rule_risk: RuleRisk | None = None
     # Band fields for categorical/bracketed markets. band_label is the outcome

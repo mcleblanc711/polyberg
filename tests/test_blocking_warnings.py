@@ -268,18 +268,22 @@ def test_b_position_with_correct_band_label_produces_no_band_warning() -> None:
 
 
 # ---------------------------------------------------------------------------
-# (c) Empty thesis_bucket → blocking warning
+# (c) Empty thesis_bucket → INFO, not a blocker (exposure falls back to rule_key)
 # ---------------------------------------------------------------------------
 
 
-def test_c_empty_thesis_bucket_produces_blocking_warning() -> None:
-    """Positions with no thesis_bucket must appear in blocking_warnings."""
+def test_c_empty_thesis_bucket_is_info_not_blocking() -> None:
+    """Empty thesis_bucket is surfaced as INFO (missing_info), not a blocker —
+    exposure auto-falls-back to grouping by rule_key, so it self-resolves."""
     markets = [_stub_market("m_no_thesis", thesis_bucket="")]
     positions = [_stub_position("m_no_thesis", thesis_bucket="")]
     state = _make_packet_state(positions, markets)
     cp = build_canonical_packet(state=state)
 
-    assert any("THESIS BUCKET EMPTY" in w and "m_no_thesis" in w for w in cp.blocking_warnings)
+    assert not any("THESIS BUCKET EMPTY" in w for w in cp.blocking_warnings)
+    assert any(
+        "m_no_thesis" in item and "thesis_bucket empty" in item for item in cp.missing_info
+    )
 
 
 def test_c_non_empty_thesis_bucket_has_no_thesis_warning() -> None:
@@ -333,15 +337,21 @@ def test_blocking_warnings_appear_in_both_renderers() -> None:
     from polyberg.packet_builder.renderers.claude_packet_renderer import render_claude_packet
     from polyberg.packet_builder.renderers.gpt_packet_renderer import render_gpt_packet
 
-    markets = [_stub_market("m_no_thesis", thesis_bucket="")]
-    positions = [_stub_position("m_no_thesis", thesis_bucket="")]
+    # BAND UNRESOLVED is a real blocker (empty thesis_bucket is only INFO now).
+    markets = [
+        _stub_market(
+            "ships_10_20", band_label="10-20", band_low=10.0, band_high=20.0,
+            bounds_inclusive=True,
+        )
+    ]
+    positions = [_stub_position("ships_10_20", band_label=None)]
     state = _make_packet_state(positions, markets)
     cp = build_canonical_packet(state=state)
 
     assert cp.blocking_warnings  # sanity
     for packet in (render_claude_packet(cp), render_gpt_packet(cp)):
         assert "BLOCKING WARNINGS" in packet
-        assert "m_no_thesis" in packet
+        assert "ships_10_20" in packet
 
 
 def test_no_blocking_warnings_section_when_clean() -> None:

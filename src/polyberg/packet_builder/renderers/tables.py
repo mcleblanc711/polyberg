@@ -69,15 +69,15 @@ def registry_table(market_registry: list[dict]) -> str:
     if not market_registry:
         return "_Registry is empty._"
     lines = [
-        "| Market ID | Thesis | Name | Preferred side | Rule key | Oracle | "
+        "| Market ID | Lifecycle | Thesis | Name | Preferred side | Rule key | Oracle | "
         "Resolution | Rule risk | Risk flags |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for m in market_registry:
         flags = ", ".join(m["risk_flags"])
         lines.append(
-            f"| {m['market_id']} | {m['thesis_bucket']} | {m['name']} | "
-            f"{m['preferred_side']} | {m['rule_key']} | {m['oracle_type']} | "
+            f"| {m['market_id']} | {m.get('lifecycle', 'active')} | {m['thesis_bucket']} | "
+            f"{m['name']} | {m['preferred_side']} | {m['rule_key']} | {m['oracle_type']} | "
             f"{m['resolution_date']} | {m['rule_risk']} | {flags} |"
         )
     return "\n".join(lines)
@@ -85,12 +85,9 @@ def registry_table(market_registry: list[dict]) -> str:
 
 def snapshot_table(market_snapshot: list[dict] | None) -> str:
     if market_snapshot is None:
-        return (
-            "> **WARNING — no market snapshot provided.** There is no live "
-            "bid/ask/depth in this packet. Portfolio marks below are local "
-            "marks, not live order-book prices. Flag this gap before any trade "
-            "recommendation."
-        )
+        # Supplemental snapshots are optional; live order books are the priced
+        # source. Callers omit this section when absent, so this is a no-op guard.
+        return "_No supplemental snapshot provided; live order books are the priced source._"
     if not market_snapshot:
         return "_Snapshot present but contained no markets._"
     lines = [

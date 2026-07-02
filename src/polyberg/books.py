@@ -34,7 +34,8 @@ from polyberg.collectors.polymarket_clob import (
     fetch_order_book,
 )
 from polyberg.config import get_timezone, repo_path
-from polyberg.loaders import load_market_registry, load_open_orders
+from polyberg.lifecycle import DEFAULT_PACKET_LIFECYCLES
+from polyberg.loaders import LoaderError, load_market_registry, load_open_orders, load_portfolio
 from polyberg.models import Market, OpenOrders
 
 BOOK_DEPTH = 10
@@ -519,8 +520,11 @@ def fetch_all_books(
     sleep: SleepFn = time_module.sleep,
     now_fn: Callable[[], datetime] | None = None,
     depth: int = BOOK_DEPTH,
+    portfolio_path: Path | None = None,
 ) -> list[MarketBooks]:
-    """Fetch books for every registry market flagged data_collection.fetch_orderbook.
+    """Fetch books for the active set: registry markets flagged
+    data_collection.fetch_orderbook whose lifecycle is active/resolving, plus any
+    held position. An explicit ``market_ids`` list overrides the lifecycle gate.
 
     One market failing never kills the run: it comes back status="unavailable".
     """
@@ -534,10 +538,24 @@ def fetch_all_books(
     token_map = load_token_map(map_path)
     map_before = json.dumps(token_map, sort_keys=True)
 
+    # Held positions are always eligible regardless of registry lifecycle. Load
+    # without registry validation: a position naming a market outside this
+    # registry is harmless here (selection iterates the registry), and validating
+    # would couple an ad-hoc registry to the default portfolio.
+    try:
+        held = {p.market_id for p in load_portfolio(portfolio_path).positions}
+    except LoaderError:
+        held = set()
+
+    def _in_active_set(market: Market) -> bool:
+        if market_ids is not None:
+            return market.market_id in market_ids
+        return market.lifecycle in DEFAULT_PACKET_LIFECYCLES or market.market_id in held
+
     selected = [
         market
         for market in registry.markets
-        if (market_ids is None or market.market_id in market_ids)
+        if _in_active_set(market)
         and market.data_collection is not None
         and market.data_collection.fetch_orderbook
     ]
@@ -681,6 +699,27 @@ def render_books_markdown(results: list[MarketBooks], now: datetime) -> str:
                 block.extend(notes)
         sections.append("\n".join(block))
     return "\n\n".join(sections).strip() + "\n"
+
+
+def filter_books_markdown(markdown: str, allowed_ids: set[str]) -> str:
+    """Drop per-market book sections whose market_id is not in ``allowed_ids``.
+
+    A render-side guard so a stale ``order_books.json`` (fetched before a market
+    left the active set) cannot leak unheld/unwatched books into the packet. The
+    leading summary preamble (non-``###`` lines) is preserved; each ``### <id> …``
+    section is kept only when its id is allowed.
+    """
+    lines = markdown.splitlines()
+    out: list[str] = []
+    keep = True
+    for line in lines:
+        if line.startswith("### "):
+            header = line[4:].lstrip()
+            market_id = header.split(" ", 1)[0].strip()
+            keep = market_id in allowed_ids
+        if keep:
+            out.append(line)
+    return "\n".join(out).strip()
 
 
 def write_books_markdown(results: list[MarketBooks], path: Path, now: datetime) -> Path:

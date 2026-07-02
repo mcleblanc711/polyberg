@@ -18,6 +18,7 @@ from polyberg.books import (
     fetch_all_books,
     fetch_book_with_retry,
     fetch_market_books,
+    filter_books_markdown,
     load_token_map,
     render_books_markdown,
     write_books_json,
@@ -414,6 +415,79 @@ def test_one_market_failing_does_not_kill_the_run(tmp_path) -> None:
     assert by_id["m_bad"].status == "unavailable"
 
 
+def test_fetch_all_books_skips_resolved_markets_not_held(tmp_path) -> None:
+    """The active set drives fetching: a resolved, unheld market is skipped."""
+    registry = {
+        "markets": [
+            json.loads(_market(market_id="m_active", lifecycle="active").model_dump_json()),
+            json.loads(
+                _market(
+                    market_id="m_resolved",
+                    lifecycle="resolved",
+                    yes_token_id="333",
+                    no_token_id="444",
+                    condition_id=None,
+                ).model_dump_json()
+            ),
+        ]
+    }
+    registry_path = tmp_path / "market_registry.yaml"
+    registry_path.write_text(yaml.safe_dump(registry), encoding="utf-8")
+    orders_path = tmp_path / "open_orders.yaml"
+    orders_path.write_text(
+        yaml.safe_dump({"as_of": "2026-06-11T08:00:00+00:00", "buy_orders": [], "sell_orders": []}),
+        encoding="utf-8",
+    )
+    # Empty portfolio so the held set adds nothing.
+    portfolio_path = tmp_path / "portfolio.yaml"
+    portfolio_path.write_text(
+        yaml.safe_dump(
+            {
+                "as_of": "2026-06-11T08:00:00+00:00",
+                "portfolio_value": 10.0,
+                "cash_available": 10.0,
+                "positions": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    live = _book(bids=[(0.4, 5)], asks=[(0.6, 5)])
+    # Only two responses queued: enough for m_active's YES+NO. The resolved
+    # market must not be fetched, or the opener would be exhausted.
+    opener = ScriptedOpener([live, live])
+    http = ReadOnlyHttpClient("https://clob.local", opener=opener)
+
+    results = fetch_all_books(
+        registry_path=registry_path,
+        open_orders_path=orders_path,
+        token_map_path=tmp_path / "token_map.json",
+        portfolio_path=portfolio_path,
+        http=http,
+        sleep=_no_sleep,
+        now_fn=lambda: NOW,
+    )
+
+    assert [r.market_id for r in results] == ["m_active"]
+
+
+def test_filter_books_markdown_drops_out_of_set_sections() -> None:
+    md = (
+        "- Generated: now\n"
+        "- Markets with live books: a, b\n"
+        "### a — NO book · fetched_at t\n- ok a\n"
+        "### b — BOOK UNAVAILABLE\n- err b\n"
+        "### c — NO book · fetched_at t\n- ok c\n"
+    )
+    out = filter_books_markdown(md, {"a"})
+    assert "### a" in out
+    assert "ok a" in out
+    assert "### b" not in out
+    assert "### c" not in out
+    # Preamble (non-### lines) is preserved.
+    assert "Generated: now" in out
+
+
 # --- artifacts ----------------------------------------------------------------------
 
 
@@ -499,12 +573,17 @@ def test_canonical_packet_picks_up_books(tmp_path) -> None:
     )
 
     state = collect_packet_state(now=NOW, books_dir=books_dir)
-    canonical = build_canonical_packet(state=state)
+    # books_for="all" keeps the fake market ids (not in the real active set) so
+    # this test exercises the book-wiring path, not active-set filtering.
+    canonical = build_canonical_packet(state=state, books_for="all")
 
     assert canonical.order_books is not None
     assert canonical.order_books["markets_with_live_books"] == ["hormuz_test"]
+    # The unavailable book is surfaced in the order-book section. (Per-market
+    # priceability in missing_info is keyed on registry active-set markets; these
+    # fake ids aren't in the registry, so coverage of that path lives in
+    # test_blocking_warnings / the priceability tests instead.)
     assert canonical.order_books["unavailable_markets"] == ["hormuz_dead"]
     assert canonical.source_timestamps["order_books"] == NOW.isoformat()
-    assert any("hormuz_dead: BOOK UNAVAILABLE" in item for item in canonical.missing_info)
     # markdown body had its own header stripped for renderer embedding
     assert not canonical.order_books["markdown"].startswith("## Live Order Books")

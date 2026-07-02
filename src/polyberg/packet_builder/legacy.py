@@ -3,19 +3,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
-from polyberg.config import get_max_context_age_hours, get_timezone
-from polyberg.loaders import (
-    context_path,
-    load_live_state,
-    load_market_registry,
-    load_market_snapshot,
-    load_open_orders,
-    load_portfolio,
-    read_text_file,
-)
+from polyberg.books import filter_books_markdown
+from polyberg.config import get_catalyst_window_hours, get_max_context_age_hours, get_timezone
+from polyberg.lifecycle import MarketTypeFilter, packet_market_ids
+from polyberg.loaders import context_path, read_text_file
 from polyberg.models import LiveState, MarketRegistry, MarketSnapshot, OpenOrders, Portfolio
-from polyberg.packet_builder.collect_state import load_order_books
+from polyberg.packet_builder.catalysts import filter_catalysts, parse_catalysts
+from polyberg.packet_builder.collect_state import PacketState, collect_packet_state
+from polyberg.packet_builder.normalize_packet_state import CanonicalPacket
+from polyberg.packet_builder.session_writer import (
+    SessionArtifact,
+    SessionResult,
+    write_session,
+)
 
 
 @dataclass(frozen=True)
@@ -28,23 +30,42 @@ def build_packet(
     now: datetime | None = None,
     context_dir: Path | None = None,
     snapshot_path: Path | None = None,
+    state: PacketState | None = None,
+    *,
+    include_resolved: bool = False,
+    catalyst_window_hours: float | None = None,
+    books_for: str = "active",
+    type_filter: MarketTypeFilter | None = None,
 ) -> str:
-    registry = load_market_registry(context_path(context_dir, "market_registry.yaml"))
-    live_state = load_live_state(context_path(context_dir, "live_state.yaml"), registry=registry)
-    portfolio = load_portfolio(
-        context_path(context_dir, "portfolio_current.yaml"),
-        registry=registry,
-    )
-    open_orders = load_open_orders(context_path(context_dir, "open_orders.yaml"), registry=registry)
-    snapshot = load_market_snapshot(snapshot_path) if snapshot_path else None
-    recent_catalysts = normalize_inserted_markdown(
-        read_text_file(context_path(context_dir, "recent_catalysts.md"))
-    )
-    # Live books only for default-context builds, mirroring collect_packet_state.
-    _, order_books_md = load_order_books() if context_dir is None else (None, None)
+    if state is None:
+        state = collect_packet_state(
+            now=now, context_dir=context_dir, snapshot_path=snapshot_path
+        )
+    registry = state.registry
+    live_state = state.live_state
+    portfolio = state.portfolio
+    open_orders = state.open_orders
+    snapshot = state.snapshot
+    now = state.now
 
-    if now is None:
-        now = datetime.now(get_timezone())
+    if catalyst_window_hours is None:
+        catalyst_window_hours = get_catalyst_window_hours()
+
+    # Active set drives every trim: registry rows, books, and catalyst scope.
+    active_ids = packet_market_ids(
+        registry, portfolio, include_resolved=include_resolved, type_filter=type_filter
+    )
+
+    recent_catalysts = render_catalyst_watch(
+        state.catalysts_markdown,
+        now=now,
+        window_hours=catalyst_window_hours,
+        active_ids=active_ids,
+    )
+    order_books_md = state.order_books_markdown
+    book_ids = active_ids if books_for != "all" else None
+    if order_books_md and book_ids is not None:
+        order_books_md = filter_books_markdown(order_books_md, book_ids)
 
     freshness_warnings = _compute_freshness_warnings(
         live_state, portfolio, open_orders, snapshot, now
@@ -69,8 +90,8 @@ def build_packet(
         render_portfolio(portfolio),
         render_exposure_summary(portfolio),
         render_open_orders(open_orders),
-        render_market_registry(registry),
-        render_registry_thesis_summary(registry),
+        render_market_registry(registry, active_ids),
+        render_registry_thesis_summary(registry, active_ids),
         render_snapshot_summary(snapshot) if snapshot else "### Market Snapshot\n_None provided._",
         (
             order_books_md.strip()
@@ -91,9 +112,7 @@ def build_packet(
     return "\n\n".join(sections).strip() + "\n"
 
 
-def build_rules(context_dir: Path | None = None) -> str:
-    principles = read_text_file(context_path(context_dir, "trading_principles.md"))
-    stable_rules = read_text_file(context_path(context_dir, "stable_rules.md"))
+def render_rules(principles: str, stable_rules: str) -> str:
     sections = [
         "# Polymarket Rules Reference",
         "## Stable Trading Principles",
@@ -104,26 +123,125 @@ def build_rules(context_dir: Path | None = None) -> str:
     return "\n\n".join(sections).strip() + "\n"
 
 
+def build_rules(context_dir: Path | None = None) -> str:
+    principles = read_text_file(context_path(context_dir, "trading_principles.md"))
+    stable_rules = read_text_file(context_path(context_dir, "stable_rules.md"))
+    return render_rules(principles, stable_rules)
+
+
+def render_packet_from_session(
+    payload: dict[str, Any], state: PacketState, canonical: CanonicalPacket
+) -> str:
+    """Session-artifact renderer: trim flags come from the payload, not closures."""
+    params = payload["build_parameters"]
+    raw_filter = params["type_filter"]
+    type_filter = (
+        MarketTypeFilter(
+            category=raw_filter["category"],
+            thesis_bucket=raw_filter["thesis_bucket"],
+            rule_key=raw_filter["rule_key"],
+        )
+        if raw_filter
+        else None
+    )
+    return build_packet(
+        state=state,
+        include_resolved=params["include_resolved"],
+        catalyst_window_hours=params["catalyst_window_hours"],
+        books_for=params["books_for"],
+        type_filter=type_filter,
+    )
+
+
+def render_rules_from_session(
+    payload: dict[str, Any], state: PacketState, canonical: CanonicalPacket
+) -> str:
+    static = payload["static_reference"]
+    return render_rules(static["trading_principles"], static["stable_rules"])
+
+
 def write_packet(
     output_path: Path,
     context_dir: Path | None = None,
     snapshot_path: Path | None = None,
-) -> Path:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    now = datetime.now(get_timezone())
-    output_path.write_text(
-        build_packet(context_dir=context_dir, snapshot_path=snapshot_path, now=now),
-        encoding="utf-8",
+    *,
+    include_resolved: bool = False,
+    catalyst_window_hours: float | None = None,
+    books_for: str = "active",
+    type_filter: MarketTypeFilter | None = None,
+    sessions_root: Path | None = None,
+    latest_pointer: Path | None = None,
+) -> SessionResult:
+    """Build the legacy packet + rules through the session pipeline.
+
+    The session dir keeps canonical filenames (packet.md, polymarket_rules.md);
+    mirrors land at the caller's output path and its sibling, exactly as before.
+    """
+    artifacts = [
+        SessionArtifact(
+            key="packet_legacy",
+            filename="packet.md",
+            render=render_packet_from_session,
+            mirror_to=output_path,
+        ),
+        SessionArtifact(
+            key="rules",
+            filename="polymarket_rules.md",
+            render=render_rules_from_session,
+            mirror_to=output_path.parent / "polymarket_rules.md",
+        ),
+    ]
+    return write_session(
+        artifacts,
+        targets=["legacy"],
+        context_dir=context_dir,
+        snapshot_path=snapshot_path,
+        include_resolved=include_resolved,
+        catalyst_window_hours=catalyst_window_hours,
+        books_for=books_for,
+        type_filter=type_filter,
+        sessions_root=sessions_root,
+        latest_pointer=latest_pointer,
     )
-    rules_path = output_path.parent / "polymarket_rules.md"
-    rules_path.write_text(build_rules(context_dir=context_dir), encoding="utf-8")
-    return output_path
 
 
-def normalize_inserted_markdown(text: str) -> str:
-    lines = text.strip().splitlines()
-    if lines and lines[0].startswith("# "):
-        lines[0] = "### " + lines[0][2:].strip()
+def render_catalyst_watch(
+    markdown: str,
+    *,
+    now: datetime,
+    window_hours: float,
+    active_ids: set[str],
+) -> str:
+    """Render the catalyst watch, windowed + scoped to the active set.
+
+    The credible/noisy watch lists are limited to entries ingested within the
+    window and tagged to an active-set market, and deduplicated; trader notes and
+    unresolved/missing info pass through. Replaces the old verbatim dump of
+    recent_catalysts.md.
+    """
+    parsed = filter_catalysts(
+        parse_catalysts(markdown),
+        now=now,
+        window_hours=window_hours,
+        active_ids=active_ids,
+    )
+
+    def _bullets(items: list[str]) -> list[str]:
+        return [f"- {item}" for item in items] or ["- none in window/scope"]
+
+    lines = [
+        f"### Credible Reporting Watch (last {window_hours:g}h, active markets)",
+        *_bullets(parsed.credible_reporting_watch),
+        "",
+        f"### Noisy Social-Media And Rumour Watch (last {window_hours:g}h, active markets)",
+        *_bullets(parsed.noisy_social_media_watch),
+        "",
+        "### Trader Interpretation Notes",
+        *_bullets(parsed.trader_notes),
+        "",
+        "### Unresolved/Missing Information",
+        *_bullets(parsed.unresolved_missing_information),
+    ]
     return "\n".join(lines)
 
 
@@ -148,13 +266,14 @@ def _compute_freshness_warnings(
     now: datetime,
 ) -> list[str]:
     max_context_age_hours = get_max_context_age_hours()
+    # Ingest-time only: keyed on locally fetched context file as_of, never on the
+    # event dates inside catalyst content. The optional supplemental snapshot is
+    # not a freshness driver — live books carry their own per-book provenance.
     timestamps = [
         live_state.as_of,
         portfolio.as_of,
         open_orders.as_of,
     ]
-    if snapshot is not None:
-        timestamps.append(snapshot.as_of)
     oldest = min(timestamps)
     age_hours = (now - oldest.astimezone(now.tzinfo)).total_seconds() / 3600
     distinct_values = {ts.isoformat() for ts in timestamps}
@@ -332,14 +451,17 @@ def render_order_table(orders: list) -> str:
     return "\n".join(lines)
 
 
-def render_market_registry(registry: MarketRegistry) -> str:
+def render_market_registry(registry: MarketRegistry, active_ids: set[str]) -> str:
     lines = [
         "### Market Registry Summary",
-        "| Market ID | Thesis | Name | Preferred side | Rule key | Oracle | Resolution | "
-        "Rule risk | Risk flags |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Market ID | Lifecycle | Thesis | Name | Preferred side | Rule key | Oracle | "
+        "Resolution | Rule risk | Risk flags |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
-    sorted_markets = sorted(registry.markets, key=lambda m: (m.thesis_bucket, m.resolution_date))
+    sorted_markets = sorted(
+        (m for m in registry.markets if m.market_id in active_ids),
+        key=lambda m: (m.thesis_bucket, m.resolution_date),
+    )
     for market in sorted_markets:
         flags = ", ".join(market.risk_flags)
         rule_risk = "not specified"
@@ -351,7 +473,7 @@ def render_market_registry(registry: MarketRegistry) -> str:
                 f"dispute={market.rule_risk.dispute_risk}"
             )
         lines.append(
-            f"| {market.market_id} | {market.thesis_bucket} | {market.name} | "
+            f"| {market.market_id} | {market.lifecycle} | {market.thesis_bucket} | {market.name} | "
             f"{market.preferred_side} | "
             f"{market.rule_key} | {market.oracle_type} | {market.resolution_date.isoformat()} | "
             f"{rule_risk} | {flags} |"
@@ -359,9 +481,11 @@ def render_market_registry(registry: MarketRegistry) -> str:
     return "\n".join(lines)
 
 
-def render_registry_thesis_summary(registry: MarketRegistry) -> str:
+def render_registry_thesis_summary(registry: MarketRegistry, active_ids: set[str]) -> str:
     bucket_counts: dict[str, int] = {}
     for market in registry.markets:
+        if market.market_id not in active_ids:
+            continue
         bucket = market.thesis_bucket or "(unassigned)"
         bucket_counts[bucket] = bucket_counts.get(bucket, 0) + 1
     lines = [
@@ -390,23 +514,18 @@ def render_missing_info_and_warnings(
         lines.append("- Safety constraint warnings: none from local constraints")
 
     missing = []
-    if snapshot is None:
-        missing.append("missing market snapshot")
     for market in registry.markets:
         if not market.yes_token_id:
             missing.append(f"{market.market_id}: missing YES token ID")
         if not market.no_token_id:
             missing.append(f"{market.market_id}: missing NO token ID")
-    if snapshot is not None:
-        by_id = {item.market_id: item for item in snapshot.markets}
-        for position in portfolio.positions:
-            item = by_id.get(position.market_id)
-            if item is None or item.yes_price is None:
-                missing.append(f"{position.market_id}: missing current mark in snapshot")
-            if item is None or item.orderbook_depth_top is None:
-                missing.append(f"{position.market_id}: missing order book depth")
-            if item is not None:
-                missing.extend(f"{position.market_id}: {info}" for info in item.missing_info)
+    # Empty thesis_bucket is INFO, not a blocker — exposure groups by rule_key.
+    for position in portfolio.positions:
+        if not position.thesis_bucket:
+            missing.append(
+                f"{position.market_id}: thesis_bucket empty (INFO — exposure grouped by "
+                f"rule_key fallback)"
+            )
     local_timestamps = {
         live_state.as_of.isoformat(),
         portfolio.as_of.isoformat(),

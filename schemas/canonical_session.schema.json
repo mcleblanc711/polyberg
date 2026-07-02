@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/polyberg/canonical_session.schema.json",
+  "title": "CanonicalSession",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "generated_at",
+    "mode",
+    "execution_allowed",
+    "operating_constraints",
+    "source_timestamps",
+    "fresh_context",
+    "static_reference",
+    "portfolio",
+    "open_orders",
+    "market_registry",
+    "order_books",
+    "market_snapshot",
+    "catalysts",
+    "freshness_audit",
+    "completeness_audit",
+    "gate_status",
+    "exposure_summary",
+    "build_parameters"
+  ],
+  "properties": {
+    "schema_version": {"const": "polyberg_session_v1"},
+    "session_id": {
+      "type": "string",
+      "pattern": "^session_\\d{4}-\\d{2}-\\d{2}_\\d{6}(_\\d+)?$"
+    },
+    "generated_at": {"type": "string", "format": "date-time"},
+    "mode": {"const": "research_only"},
+    "execution_allowed": {"const": false},
+    "operating_constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "no_market_orders",
+        "use_sell_ladders",
+        "avoid_99c_dispute_tax",
+        "automated_execution",
+        "human_review_required"
+      ],
+      "properties": {
+        "no_market_orders": {"type": "boolean"},
+        "use_sell_ladders": {"type": "boolean"},
+        "avoid_99c_dispute_tax": {"type": "boolean"},
+        "automated_execution": {"const": false},
+        "human_review_required": {"const": true}
+      }
+    },
+    "source_timestamps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "portfolio_current",
+        "open_orders",
+        "market_snapshot",
+        "catalysts",
+        "order_books",
+        "static_reference"
+      ],
+      "properties": {
+        "portfolio_current": {"$ref": "#/$defs/nullable_string"},
+        "open_orders": {"$ref": "#/$defs/nullable_string"},
+        "market_snapshot": {"$ref": "#/$defs/nullable_string"},
+        "catalysts": {"$ref": "#/$defs/nullable_string"},
+        "order_books": {"$ref": "#/$defs/nullable_string"},
+        "static_reference": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/nullable_string"}
+        }
+      }
+    },
+    "fresh_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["live_state"],
+      "properties": {
+        "live_state": {"type": "object"}
+      }
+    },
+    "static_reference": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "portfolio": {"type": "object"},
+    "open_orders": {"type": "object"},
+    "market_registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["markets"],
+      "properties": {
+        "markets": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "order_books": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw", "markdown"],
+      "properties": {
+        "raw": {"anyOf": [{"type": "object"}, {"type": "null"}]},
+        "markdown": {"$ref": "#/$defs/nullable_string"}
+      }
+    },
+    "market_snapshot": {"type": "object"},
+    "catalysts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["markdown"],
+      "properties": {
+        "markdown": {"type": "string"}
+      }
+    },
+    "freshness_audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["warnings", "live_state_as_of"],
+      "properties": {
+        "warnings": {"$ref": "#/$defs/string_array"},
+        "live_state_as_of": {"type": "string", "format": "date-time"}
+      }
+    },
+    "completeness_audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "missing_info",
+        "blocking_warnings",
+        "priceable_markets",
+        "unpriceable_markets"
+      ],
+      "properties": {
+        "missing_info": {"$ref": "#/$defs/string_array"},
+        "blocking_warnings": {"$ref": "#/$defs/string_array"},
+        "priceable_markets": {"$ref": "#/$defs/string_array"},
+        "unpriceable_markets": {"$ref": "#/$defs/string_array"}
+      }
+    },
+    "gate_status": {"type": "object"},
+    "exposure_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by_thesis_bucket", "is_fallback", "concentration_warnings"],
+      "properties": {
+        "by_thesis_bucket": {"type": "array", "items": {"type": "object"}},
+        "is_fallback": {"type": "boolean"},
+        "concentration_warnings": {"$ref": "#/$defs/string_array"}
+      }
+    },
+    "build_parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "targets",
+        "include_resolved",
+        "catalyst_window_hours",
+        "books_for",
+        "type_filter",
+        "max_context_age_hours",
+        "context_dir",
+        "snapshot_path"
+      ],
+      "properties": {
+        "targets": {"$ref": "#/$defs/string_array"},
+        "include_resolved": {"type": "boolean"},
+        "catalyst_window_hours": {"type": "number"},
+        "books_for": {"enum": ["active", "all"]},
+        "type_filter": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["category", "thesis_bucket", "rule_key"],
+              "properties": {
+                "category": {"$ref": "#/$defs/nullable_string"},
+                "thesis_bucket": {"$ref": "#/$defs/nullable_string"},
+                "rule_key": {"$ref": "#/$defs/nullable_string"}
+              }
+            },
+            {"type": "null"}
+          ]
+        },
+        "max_context_age_hours": {"type": "number"},
+        "context_dir": {"$ref": "#/$defs/nullable_string"},
+        "snapshot_path": {"$ref": "#/$defs/nullable_string"}
+      }
+    }
+  },
+  "$defs": {
+    "nullable_string": {
+      "anyOf": [
+        {"type": "string"},
+        {"type": "null"}
+      ]
+    },
+    "string_array": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}
