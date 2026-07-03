@@ -331,6 +331,27 @@ def test_per_market_priceability_and_no_snapshot_gate() -> None:
     assert "missing market snapshot" not in joined
 
 
+def test_token_warnings_scoped_to_active_set() -> None:
+    active = _market("m_active", lifecycle="active")
+    active["yes_token_id"] = None
+    resolved = _market("m_resolved", lifecycle="resolved")
+    resolved["yes_token_id"] = None
+    resolved["no_token_id"] = None
+    state = _state(markets=[active, resolved], positions=[_position("m_active")])
+
+    cp = build_canonical_packet(state=state)
+    joined = "\n".join(cp.missing_info)
+    # The active market's gap still fires; the trimmed-out market stays silent.
+    assert "m_active: missing YES token ID" in joined
+    assert "m_resolved" not in joined
+
+    # Widening the packet to resolved markets widens the token checks with it.
+    cp_all = build_canonical_packet(state=state, include_resolved=True)
+    joined_all = "\n".join(cp_all.missing_info)
+    assert "m_resolved: missing YES token ID" in joined_all
+    assert "m_resolved: missing NO token ID" in joined_all
+
+
 def test_book_unavailable_404_stays_not_priceable() -> None:
     markets = [_market("m_404")]
     order_books = {

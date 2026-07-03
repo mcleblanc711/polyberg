@@ -175,7 +175,7 @@ def build_canonical_packet(
     )
     blocking_warnings = _build_blocking_warnings(state.portfolio, registry_by_id)
     priceable, unpriceable = _build_priceability(state, active_ids)
-    missing_info = _build_missing_info(state, unpriceable)
+    missing_info = _build_missing_info(state, unpriceable, active_ids)
     parsed = filter_catalysts(
         parse_catalysts(state.catalysts_markdown),
         now=state.now,
@@ -545,7 +545,7 @@ def _build_snapshot(snapshot: MarketSnapshot | None) -> list[dict[str, object]] 
 
 
 def _build_missing_info(
-    state: PacketState, unpriceable: list[tuple[str, str]]
+    state: PacketState, unpriceable: list[tuple[str, str]], active_ids: set[str]
 ) -> list[str]:
     missing: list[str] = []
     # Per-market live-data coverage, derived from order books (the live source).
@@ -559,7 +559,11 @@ def _build_missing_info(
     else:
         for market_id, reason in unpriceable:
             missing.append(f"{market_id}: not priceable — {reason}")
+    # Token checks cover only the active set: warning about a market the
+    # lifecycle/type filters already excluded would be noise.
     for market in state.registry.markets:
+        if market.market_id not in active_ids:
+            continue
         if not market.yes_token_id:
             missing.append(f"{market.market_id}: missing YES token ID")
         if not market.no_token_id:
