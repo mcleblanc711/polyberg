@@ -11,15 +11,36 @@ from polyberg.packet_builder.api import (
     resolve_targets,
     write_model_packets,
 )
-from polyberg.packet_builder.legacy import build_packet, build_rules, write_packet
+from polyberg.packet_builder.legacy import (
+    build_packet,
+    build_rules,
+    render_rules,
+    write_packet,
+)
 from polyberg.packet_builder.normalize_packet_state import (
     CanonicalPacket,
     build_canonical_packet,
+)
+from polyberg.packet_builder.session import (
+    SCHEMA_VERSION,
+    SESSION_ID_RE,
+    CanonicalSession,
+    SessionBuildParameters,
+    build_canonical_session,
+    canonical_packet_from_session,
+    new_session_id,
+    packet_state_from_session,
+)
+from polyberg.packet_builder.session_writer import (
+    SessionArtifact,
+    SessionResult,
+    write_session,
 )
 
 __all__ = [
     "build_packet",
     "build_rules",
+    "render_rules",
     "write_packet",
     "build_canonical_packet",
     "CanonicalPacket",
@@ -29,4 +50,15 @@ __all__ = [
     "resolve_targets",
     "PACKET_FILENAMES",
     "TARGETS",
+    "SCHEMA_VERSION",
+    "SESSION_ID_RE",
+    "CanonicalSession",
+    "SessionBuildParameters",
+    "build_canonical_session",
+    "canonical_packet_from_session",
+    "new_session_id",
+    "packet_state_from_session",
+    "SessionArtifact",
+    "SessionResult",
+    "write_session",
 ]

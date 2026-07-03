@@ -13,56 +13,6 @@ from polyberg.packet_builder.renderers.tables import (
     snapshot_table,
 )
 
-# --- Static instruction layer (the GPT "template") --------------------------
-# Verbose by design: GPT performs better when state, rules, trader notes, and
-# model interpretation are explicitly separated and the freshness/completeness
-# gate is stated as a hard requirement.
-
-HOW_TO_USE = """\
-This document is **current-session state**, not stable project instructions.
-The stable trading rules and principles live in `polymarket_rules.md`, which is
-provided separately — do not infer rules from this packet alone.
-
-Treat the following as four distinct layers and never collapse them:
-
-1. **Factual source data** — portfolio, open orders, registry, snapshot. These
-   are locally timestamped facts, not live market data.
-2. **Market rules** — provided separately in `polymarket_rules.md`.
-3. **Trader interpretation notes** — the human operator's working hypotheses.
-   These are opinions, not facts.
-4. **Your model interpretation** — your own analysis, clearly labelled as such.
-
-Hard rules for using this source:
-
-- Portfolio marks are **local marks, not live bid/ask/depth**. Do not treat a
-  mark as a price you can transact at.
-- Social-media / tweet items are **catalyst-only**. They are never resolution
-  evidence and never independent verification.
-- Do **not** recommend market orders or automated execution. Limit orders and
-  sell ladders only; a human reviews every action.
-- Distinguish the **oracle event** (what actually resolves the market) from the
-  **world event** (what happened in reality). They are not the same.
-"""
-
-RESPONSE_REQUIREMENTS = """\
-Before producing any trade recommendation, you must:
-
-1. Pass the freshness/completeness gate in Section 1. If any blocking gap
-   exists, say so and **withhold trade recommendations** until it is resolved.
-2. Explicitly flag every one of these if absent, before recommending anything:
-   - missing market snapshot,
-   - order-book depth,
-   - exact market resolution rules,
-   - IMF Portwatch data,
-   - live news verification.
-3. For each candidate trade, state whether it beats simply holding cash, and why.
-4. Keep social-media items as catalyst-only; never cite them as verification.
-5. Recommend **limit orders / sell ladders only** — never market orders, never
-   automated execution. Assume human review is required.
-6. Label each statement as one of: source-fact, market-rule, trader-note, or
-   model-interpretation.
-"""
-
 
 def _yaml_block(data: dict) -> str:
     return yaml.safe_dump(data, sort_keys=False, default_flow_style=False).strip()
@@ -89,8 +39,6 @@ def render_gpt_packet(cp: CanonicalPacket) -> str:
     if cp.blocking_warnings:
         sections.append(_render_blocking_warnings(cp.blocking_warnings))
     sections += [
-        "## 0. How GPT Should Use This Source",
-        HOW_TO_USE.strip(),
         "## 1. Freshness And Completeness Warnings",
         _render_gate(cp),
         "## 2. Packet Metadata",
@@ -130,12 +78,18 @@ def render_gpt_packet(cp: CanonicalPacket) -> str:
         "## 6. Active Thesis Notes",
         bullet_list(cp.raw_notes, empty="_No active thesis notes._"),
         "## 7. Market Registry Summary",
-        registry_table(cp.market_registry),
-        "## 8. Market Snapshot",
-        snapshot_table(cp.market_snapshot),
-        "## 9. Live Order Books",
+        (
+            registry_table(cp.market_registry)
+            + (
+                "\n\n**Market snapshot (supplemental)**\n\n"
+                + snapshot_table(cp.market_snapshot)
+                if cp.market_snapshot is not None
+                else ""
+            )
+        ),
+        "## 8. Live Order Books",
         _render_order_books(cp),
-        "## 10. Catalyst Watch",
+        "## 9. Catalyst Watch",
         catalyst_block(
             cp.catalysts,
             social_warning=(
@@ -143,14 +97,12 @@ def render_gpt_packet(cp: CanonicalPacket) -> str:
                 "evidence and NOT live verification."
             ),
         ),
-        "## 11. Trader Interpretation Notes",
+        "## 10. Trader Interpretation Notes",
         (
             bullet_list(cp.trader_notes, empty="_No trader interpretation notes._")
             + "\n\n_These are the human operator's hypotheses — opinions, not facts._"
         ),
-        "## 12. Recommended GPT Response Requirements For This Packet",
-        RESPONSE_REQUIREMENTS.strip(),
-        "## 13. Compact Machine-Readable State",
+        "## 11. Compact Machine-Readable State",
         "```json\n" + cp.compact_json() + "\n```",
     ]
     return "\n\n".join(sections).strip() + "\n"

@@ -142,6 +142,7 @@ def build_market(
         condition_id=market["condition_id"],
         yes_token_id=market["yes_token_id"],
         no_token_id=market["no_token_id"],
+        neg_risk=candidate.get("neg_risk"),
         data_collection=DataCollection(
             fetch_gamma=True, fetch_clob=True, fetch_orderbook=True
         ),

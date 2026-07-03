@@ -15,6 +15,12 @@ data/snapshots/**
 reports/generated/**
 !reports/generated/.gitkeep
 
+# Canonical session artifacts (contain .local overlay data — real portfolio,
+# proxy_wallet); one dir per packet run under reports/sessions/<session_id>/
+reports/sessions/**
+!reports/sessions/.gitkeep
+reports/latest_session.txt
+
 # Local Claude Code workspace settings
 .claude/
 

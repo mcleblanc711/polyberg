@@ -66,13 +66,27 @@ def test_gpt_packet_has_compact_machine_readable_json(canonical) -> None:
     assert state["constraints"]["no_market_orders"] is True
 
 
-def test_claude_packet_has_adversarial_critique_instructions(canonical) -> None:
+def test_model_role_instructions_live_in_prompts_not_the_packet(canonical) -> None:
+    """Adversarial/output-format framing belongs in the per-model prompt files,
+    not the shared data artifact."""
+    from pathlib import Path
+
     claude = render_claude_packet(canonical)
-    assert "Adversarial Critique Instructions" in claude
-    assert "attack this book" in claude.lower()
-    assert "oracle event" in claude.lower()
-    assert "world event" in claude.lower()
-    assert "beats holding cash" in claude.lower() or "beat cash" in claude.lower()
+    gpt = render_gpt_packet(canonical)
+
+    # The instruction blocks are gone from both packets.
+    assert "Adversarial Critique Instructions" not in claude
+    assert "Required Output Format" not in claude
+    assert "attack this book" not in claude.lower()
+    assert "How GPT Should Use" not in gpt
+    assert "Response Requirements For This Packet" not in gpt
+
+    # …and the text now lives in the prompt files instead.
+    repo = Path(__file__).resolve().parents[1]
+    claude_prompt = (repo / "prompts" / "claude_trader_prompt.md").read_text(encoding="utf-8")
+    gpt_prompt = (repo / "prompts" / "chatgpt_risk_prompt.md").read_text(encoding="utf-8")
+    assert "attack this book" in claude_prompt.lower()
+    assert "response requirements" in gpt_prompt.lower()
 
 
 def test_empty_buy_orders_render_as_none_not_broken_table(canonical) -> None:
@@ -91,8 +105,10 @@ def test_empty_buy_orders_render_as_none_not_broken_table(canonical) -> None:
         assert order_table_header not in packet
 
 
-def test_missing_market_snapshot_renders_clear_warning() -> None:
+def test_no_market_snapshot_gate_when_books_are_the_live_source() -> None:
     # The default real build has no snapshot path, so market_snapshot is None.
+    # Books carry provenance and ARE the live data, so there is no global
+    # market_snapshot gate and no "no live bid/ask/depth" framing.
     canonical = build_canonical_packet()
     assert canonical.market_snapshot is None
 
@@ -100,8 +116,10 @@ def test_missing_market_snapshot_renders_clear_warning() -> None:
     claude = render_claude_packet(canonical)
 
     for packet in (gpt, claude):
-        assert "no market snapshot" in packet.lower()
-        assert "missing market snapshot" in packet.lower()
+        low = packet.lower()
+        assert "missing market snapshot" not in low
+        assert "no live bid/ask/depth" not in low
+        assert "market snapshot: missing" not in low
 
 
 def test_no_market_orders_are_suggested_in_either_template(canonical) -> None:
@@ -121,26 +139,38 @@ def test_no_market_orders_are_suggested_in_either_template(canonical) -> None:
         collapsed = re.sub(r"\s+", " ", low)
         for phrase in suggestive:
             assert phrase not in collapsed, f"suggestive phrase leaked into packet: {phrase}"
-        # The prohibition is present and the constraint is set.
+        # The constraint is set in the data layer (the prohibition prose now
+        # lives in the per-model prompt files, not the packet).
         assert "no_market_orders" in low
-        assert "never market orders" in collapsed or "no market orders" in collapsed
 
 
 def test_write_model_packets_creates_both_files(tmp_path) -> None:
     out = tmp_path / "packets"
-    paths = write_model_packets(target="all", output_dir=out)
+    result = write_model_packets(
+        target="all",
+        output_dir=out,
+        sessions_root=tmp_path / "sessions",
+        latest_pointer=tmp_path / "latest_session.txt",
+    )
 
-    names = {p.name for p in paths}
-    assert names == set(PACKET_FILENAMES.values())
-    for p in paths:
+    names = {p.name for p in result.mirrored}
+    assert names == set(PACKET_FILENAMES.values()) | {"polymarket_rules.md"}
+    for p in result.mirrored:
         assert p.exists()
+        assert p.parent == out
         assert p.read_text(encoding="utf-8").strip()
-    # rules layer is emitted alongside the packets
-    assert (out / "polymarket_rules.md").exists()
+    # the canonical session backs the run
+    assert result.canonical_path.exists()
 
 
 def test_write_model_packets_single_target(tmp_path) -> None:
     out = tmp_path / "packets"
-    paths = write_model_packets(target="gpt", output_dir=out)
-    assert [p.name for p in paths] == [PACKET_FILENAMES["gpt"]]
+    result = write_model_packets(
+        target="gpt",
+        output_dir=out,
+        sessions_root=tmp_path / "sessions",
+        latest_pointer=tmp_path / "latest_session.txt",
+    )
+    packet_mirrors = [p for p in result.mirrored if p.name != "polymarket_rules.md"]
+    assert [p.name for p in packet_mirrors] == [PACKET_FILENAMES["gpt"]]
     assert not (out / PACKET_FILENAMES["claude"]).exists()

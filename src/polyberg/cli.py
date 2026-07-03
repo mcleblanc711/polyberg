@@ -32,6 +32,50 @@ from polyberg.validators import (
 )
 
 
+def _add_packet_trim_flags(parser: argparse.ArgumentParser) -> None:
+    """Shared packet-trim flags for build-packet and packet build."""
+    parser.add_argument(
+        "--catalyst-window",
+        type=float,
+        default=None,
+        dest="catalyst_window",
+        help="Catalyst ingest window in hours (default: 48, or "
+        "POLYBERG_CATALYST_WINDOW_HOURS).",
+    )
+    parser.add_argument(
+        "--include-resolved",
+        action="store_true",
+        help="Include resolved/archived markets (default: active + resolving only).",
+    )
+    parser.add_argument(
+        "--books-for",
+        choices=["active", "all"],
+        default="active",
+        dest="books_for",
+        help="Which markets render order books: the active set (default) or all "
+        "present in the artifact.",
+    )
+    # Market-type filters: narrow the packet to one slice of the registry. Held
+    # positions are always kept regardless, so risk context never disappears.
+    parser.add_argument(
+        "--category",
+        default=None,
+        help="Only include registry markets with this category (held positions kept).",
+    )
+    parser.add_argument(
+        "--thesis-bucket",
+        default=None,
+        dest="thesis_bucket",
+        help="Only include registry markets with this thesis_bucket (held positions kept).",
+    )
+    parser.add_argument(
+        "--rule-key",
+        default=None,
+        dest="rule_key",
+        help="Only include registry markets with this rule_key (held positions kept).",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="polyberg")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -172,6 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     packet.add_argument("--context-dir", type=Path, default=None)
     packet.add_argument("--snapshot", type=Path, default=None)
+    _add_packet_trim_flags(packet)
     packet.set_defaults(func=command_build_packet)
 
     packet_group = subparsers.add_parser(
@@ -195,6 +240,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     packet_build.add_argument("--context-dir", type=Path, default=None)
     packet_build.add_argument("--snapshot", type=Path, default=None)
+    _add_packet_trim_flags(packet_build)
     packet_build.set_defaults(func=command_packet_build)
 
     validate_response = subparsers.add_parser(
@@ -495,6 +541,31 @@ def build_parser() -> argparse.ArgumentParser:
     price_history.add_argument("--context-dir", type=Path, default=None)
     price_history.set_defaults(func=command_fetch_price_history)
 
+    search_markets = subparsers.add_parser(
+        "search-markets",
+        help="Search Polymarket for events to add (keyword via Gamma public-search, "
+        "or browse a tag by 24h volume). Prints JSON annotated against the registry.",
+    )
+    search_markets.add_argument("--query", help="Keyword search (Gamma public-search).")
+    search_markets.add_argument(
+        "--tag",
+        help="Browse a Gamma tag slug (e.g. iran) ordered by 24h volume. Ignored when "
+        "--query is given.",
+    )
+    search_markets.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Max events to return (clamped to 100). Default: 20.",
+    )
+    search_markets.add_argument(
+        "--include-closed",
+        action="store_true",
+        help="Include closed/resolved events (default: active only).",
+    )
+    search_markets.add_argument("--context-dir", type=Path, default=None)
+    search_markets.set_defaults(func=command_search_markets)
+
     registry_add = subparsers.add_parser(
         "registry-add",
         help="Add a market to the registry from a Polymarket URL/slug (auto-fills IDs from Gamma).",
@@ -577,24 +648,105 @@ def build_parser() -> argparse.ArgumentParser:
     registry_delete.add_argument("--context-dir", type=Path, default=None)
     registry_delete.set_defaults(func=command_registry_delete)
 
+    hedge = subparsers.add_parser(
+        "hedge",
+        help="Payoff/return calculator across mutually-exclusive (neg-risk) positions.",
+    )
+    hedge.add_argument(
+        "--leg",
+        action="append",
+        dest="legs",
+        default=[],
+        help="What-if leg market_id:SIDE:price:shares (repeatable).",
+    )
+    hedge.add_argument(
+        "--no-holdings",
+        action="store_true",
+        dest="no_holdings",
+        help="Ignore held positions; evaluate only --leg what-ifs.",
+    )
+    hedge.add_argument(
+        "--event",
+        default=None,
+        help="Restrict to one event_slug group (keeps single-leg groups).",
+    )
+    hedge.add_argument(
+        "--all-groups",
+        action="store_true",
+        dest="all_groups",
+        help="Include single-leg groups too (default: multi-leg only).",
+    )
+    hedge.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit machine-readable JSON (for the GUI) instead of markdown.",
+    )
+    hedge.add_argument("--context-dir", type=Path, default=None)
+    hedge.set_defaults(func=command_hedge)
+
     return parser
 
 
+def _type_filter_from_args(args: argparse.Namespace):
+    """Build a MarketTypeFilter from packet-trim args, warning on values that
+    match nothing in the registry (a likely typo that would silently produce a
+    held-positions-only packet). The filter is still applied either way."""
+    from polyberg.lifecycle import MarketTypeFilter
+    from polyberg.loaders import LoaderError, load_market_registry
+
+    type_filter = MarketTypeFilter(
+        category=args.category,
+        thesis_bucket=args.thesis_bucket,
+        rule_key=args.rule_key,
+    )
+    if not type_filter.is_active:
+        return None
+    try:
+        registry = load_market_registry(
+            (args.context_dir / "market_registry.yaml") if args.context_dir else None
+        )
+    except LoaderError:
+        return type_filter
+    if not any(type_filter.matches(m) for m in registry.markets):
+        print(
+            "WARNING: no registry markets match the requested "
+            "category/thesis_bucket/rule_key filter — packet will only contain "
+            "held positions.",
+            file=sys.stderr,
+        )
+    return type_filter
+
+
 def command_build_packet(args: argparse.Namespace) -> int:
-    path = write_packet(args.output, context_dir=args.context_dir, snapshot_path=args.snapshot)
-    print(f"Wrote packet to {path}")
+    result = write_packet(
+        args.output,
+        context_dir=args.context_dir,
+        snapshot_path=args.snapshot,
+        include_resolved=args.include_resolved,
+        catalyst_window_hours=args.catalyst_window,
+        books_for=args.books_for,
+        type_filter=_type_filter_from_args(args),
+    )
+    print(f"Wrote packet to {result.mirrored[0]}")
+    print(f"Wrote canonical session {result.canonical_path}")
     return 0
 
 
 def command_packet_build(args: argparse.Namespace) -> int:
-    paths = write_model_packets(
+    result = write_model_packets(
         target=args.target,
         output_dir=args.output_dir,
         context_dir=args.context_dir,
         snapshot_path=args.snapshot,
+        include_resolved=args.include_resolved,
+        catalyst_window_hours=args.catalyst_window,
+        books_for=args.books_for,
+        type_filter=_type_filter_from_args(args),
     )
-    for path in paths:
+    for path in result.mirrored:
         print(f"Wrote {path}")
+    print(f"Wrote canonical session {result.canonical_path}")
     return 0
 
 
@@ -1033,6 +1185,29 @@ def _load_registry_for_suggest(path: Path):
     return MarketRegistry(**(_yaml.safe_load(path.read_text(encoding="utf-8")) or {}))
 
 
+def command_search_markets(args: argparse.Namespace) -> int:
+    import json as _json
+
+    from polyberg.registry_discover import discover_events
+    from polyberg.registry_editor import registry_path
+
+    target = registry_path(args.context_dir)
+    registry = _load_registry_for_suggest(target)
+    try:
+        results = discover_events(
+            registry,
+            query=args.query,
+            tag=args.tag,
+            limit=args.limit,
+            include_closed=args.include_closed,
+        )
+    except GammaCollectorError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(_json.dumps({"results": results}, indent=2))
+    return 0
+
+
 def command_registry_add(args: argparse.Namespace) -> int:
     import json as _json
 
@@ -1273,6 +1448,51 @@ def command_registry_update(args: argparse.Namespace) -> int:
         print(f"Could not update registry entry: {exc}", file=sys.stderr)
         return 1
     print(f"Updated market {args.market_id} in {out}")
+    return 0
+
+
+def command_hedge(args: argparse.Namespace) -> int:
+    import json as _json
+
+    from polyberg.hedge import (
+        HedgeError,
+        build_hedge_groups,
+        groups_to_dict,
+        render_markdown,
+    )
+    from polyberg.loaders import (
+        LoaderError,
+        context_path,
+        load_market_registry,
+        load_portfolio,
+    )
+
+    try:
+        registry = load_market_registry(context_path(args.context_dir, "market_registry.yaml"))
+        portfolio = load_portfolio(
+            context_path(args.context_dir, "portfolio_current.yaml"), registry=registry
+        )
+    except LoaderError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    try:
+        groups = build_hedge_groups(
+            registry,
+            portfolio,
+            what_if_specs=args.legs,
+            from_holdings=not args.no_holdings,
+            event=args.event,
+            include_singletons=args.all_groups,
+        )
+    except HedgeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if args.as_json:
+        print(_json.dumps(groups_to_dict(groups), indent=2))
+    else:
+        print(render_markdown(groups), end="")
     return 0
 
 

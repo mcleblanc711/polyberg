@@ -5,7 +5,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from polyberg.config import get_max_context_age_hours
+from polyberg.books import filter_books_markdown
+from polyberg.config import get_catalyst_window_hours, get_max_context_age_hours
+from polyberg.lifecycle import MarketTypeFilter, packet_market_ids
 from polyberg.models import (
     Market,
     MarketRegistry,
@@ -14,7 +16,7 @@ from polyberg.models import (
     Order,
     Portfolio,
 )
-from polyberg.packet_builder.catalysts import parse_catalysts
+from polyberg.packet_builder.catalysts import filter_catalysts, parse_catalysts
 from polyberg.packet_builder.collect_state import PacketState, collect_packet_state
 
 # Constraint keys that must hold for every research session, regardless of what
@@ -51,6 +53,11 @@ class CanonicalPacket:
     catalysts: dict[str, list[str]]
     trader_notes: list[str]
     unresolved_missing_information: list[str]
+    # Per-market live-data coverage over the active set: a market is priceable iff
+    # it has an order book present with status ok and a fresh fetched_at. Books
+    # carry provenance — they ARE the live data; there is no separate snapshot gate.
+    priceable_markets: list[str] = field(default_factory=list)
+    unpriceable_markets: list[str] = field(default_factory=list)
     raw_notes: list[str] = field(default_factory=list)
     # Live order book section from `polyberg fetch-books` (None when not run):
     # generated_at, markets_with_live_books, unavailable_markets,
@@ -75,6 +82,8 @@ class CanonicalPacket:
             "catalysts": self.catalysts,
             "trader_notes": self.trader_notes,
             "unresolved_missing_information": self.unresolved_missing_information,
+            "priceable_markets": self.priceable_markets,
+            "unpriceable_markets": self.unpriceable_markets,
             "order_books": self.order_books,
         }
 
@@ -117,7 +126,8 @@ class CanonicalPacket:
                 "buys": self.open_orders["buys"],
                 "sells": self.open_orders["sells"],
             },
-            "market_snapshot_present": self.market_snapshot is not None,
+            "priceable_markets": self.priceable_markets,
+            "unpriceable_markets": self.unpriceable_markets,
         }
 
     def compact_json(self) -> str:
@@ -129,21 +139,49 @@ def build_canonical_packet(
     context_dir: Path | None = None,
     snapshot_path: Path | None = None,
     state: PacketState | None = None,
+    *,
+    include_resolved: bool = False,
+    catalyst_window_hours: float | None = None,
+    books_for: str = "active",
+    type_filter: MarketTypeFilter | None = None,
 ) -> CanonicalPacket:
     if state is None:
         state = collect_packet_state(
             now=now, context_dir=context_dir, snapshot_path=snapshot_path
         )
+    if catalyst_window_hours is None:
+        catalyst_window_hours = get_catalyst_window_hours()
+
+    # The active set drives every trim: which markets render, which books show,
+    # which catalysts are in scope, and which markets we evaluate for pricing.
+    active_ids = packet_market_ids(
+        state.registry,
+        state.portfolio,
+        include_resolved=include_resolved,
+        type_filter=type_filter,
+    )
+    # Books render for the active set unless the caller asked for all.
+    book_ids = (
+        {market_id for market_id in _book_entries(state)}
+        if books_for == "all"
+        else active_ids
+    )
 
     freshness_warnings = _compute_freshness_warnings(state)
-    freshness_warnings.extend(_book_freshness_warnings(state))
+    freshness_warnings.extend(_book_freshness_warnings(state, book_ids))
     registry_by_id = {m.market_id: m for m in state.registry.markets}
     exposure_summary, exposure_is_fallback, concentration_warnings = _build_exposure(
         state.portfolio, registry_by_id
     )
     blocking_warnings = _build_blocking_warnings(state.portfolio, registry_by_id)
-    missing_info = _build_missing_info(state)
-    parsed = parse_catalysts(state.catalysts_markdown)
+    priceable, unpriceable = _build_priceability(state, active_ids)
+    missing_info = _build_missing_info(state, unpriceable, active_ids)
+    parsed = filter_catalysts(
+        parse_catalysts(state.catalysts_markdown),
+        now=state.now,
+        window_hours=catalyst_window_hours,
+        active_ids=active_ids,
+    )
 
     return CanonicalPacket(
         packet_generated_at=state.now.isoformat(),
@@ -169,7 +207,7 @@ def build_canonical_packet(
         exposure_is_fallback=exposure_is_fallback,
         concentration_warnings=concentration_warnings,
         open_orders=_build_open_orders(state.open_orders),
-        market_registry=_build_registry(state.registry),
+        market_registry=_build_registry(state.registry, active_ids),
         market_snapshot=_build_snapshot(state.snapshot),
         catalysts={
             "credible_reporting_watch": parsed.credible_reporting_watch,
@@ -177,20 +215,24 @@ def build_canonical_packet(
         },
         trader_notes=parsed.trader_notes,
         unresolved_missing_information=parsed.unresolved_missing_information,
+        priceable_markets=priceable,
+        unpriceable_markets=[market_id for market_id, _ in unpriceable],
         raw_notes=list(state.live_state.notes),
-        order_books=_build_order_books(state),
+        order_books=_build_order_books(state, book_ids),
     )
 
 
 def _compute_freshness_warnings(state: PacketState) -> list[str]:
     max_age = get_max_context_age_hours()
+    # Freshness is an INGEST-time check: it keys only on the as_of of locally
+    # fetched context files (live_state/portfolio/open_orders). It deliberately
+    # never reads the event dates inside catalyst content — a weeks-old headline
+    # ingested minutes ago is fresh. Order-book freshness is handled per-book.
     timestamps = [
         state.live_state.as_of,
         state.portfolio.as_of,
         state.open_orders.as_of,
     ]
-    if state.snapshot is not None:
-        timestamps.append(state.snapshot.as_of)
     oldest = min(timestamps)
     age_hours = (state.now - oldest.astimezone(state.now.tzinfo)).total_seconds() / 3600
     distinct = {ts.isoformat() for ts in timestamps}
@@ -216,11 +258,13 @@ def _book_entries(state: PacketState) -> dict[str, dict]:
     }
 
 
-def _book_freshness_warnings(state: PacketState) -> list[str]:
+def _book_freshness_warnings(state: PacketState, book_ids: set[str]) -> list[str]:
     """Per-book staleness: each market carries its own fetched_at timestamp."""
     max_age = get_max_context_age_hours()
     warnings: list[str] = []
     for market_id, entry in sorted(_book_entries(state).items()):
+        if market_id not in book_ids:
+            continue
         raw = entry.get("fetched_at")
         try:
             fetched_at = datetime.fromisoformat(str(raw))
@@ -235,10 +279,16 @@ def _book_freshness_warnings(state: PacketState) -> list[str]:
     return warnings
 
 
-def _build_order_books(state: PacketState) -> dict[str, object] | None:
+def _build_order_books(state: PacketState, book_ids: set[str]) -> dict[str, object] | None:
     if state.order_books is None and state.order_books_markdown is None:
         return None
-    entries = _book_entries(state)
+    # Only render books for markets in scope (active set, or all when --books-for
+    # all). A stale artifact may still carry markets that have since left the set.
+    entries = {
+        market_id: entry
+        for market_id, entry in _book_entries(state).items()
+        if market_id in book_ids
+    }
     live = sorted(
         market_id for market_id, entry in entries.items() if entry.get("status") == "ok"
     )
@@ -251,6 +301,7 @@ def _build_order_books(state: PacketState) -> dict[str, object] | None:
     lines = markdown.strip().splitlines()
     if lines and lines[0].strip() == "## Live Order Books":
         markdown = "\n".join(lines[1:]).strip()
+    markdown = filter_books_markdown(markdown, book_ids)
     return {
         "generated_at": state.order_books.get("generated_at") if state.order_books else None,
         "markets_with_live_books": live,
@@ -355,10 +406,13 @@ def _build_blocking_warnings(
 ) -> list[str]:
     """Enumerate gate failures that must be resolved before recommendations.
 
-    Two failure kinds are checked:
+    One failure kind is checked:
     - BAND UNRESOLVED: position is on a banded market (registry has band_label
       set) but the position itself carries no band_label.
-    - THESIS BUCKET EMPTY: position.thesis_bucket is blank.
+
+    Empty thesis_bucket is NOT a blocker — exposure auto-falls-back to grouping
+    by rule_key, so the condition self-resolves. It is surfaced as INFO in
+    missing_info instead (see _build_missing_info).
     """
     warnings: list[str] = []
     for position in portfolio.positions:
@@ -369,12 +423,52 @@ def _build_blocking_warnings(
                 f"{market.band_label!r} but position carries none; re-ingest from data-api "
                 f"or CLOB to populate band_label"
             )
-        if not position.thesis_bucket:
-            warnings.append(
-                f"THESIS BUCKET EMPTY: {position.market_id} — assign a thesis_bucket in "
-                f"the registry or portfolio before this position can be risk-analysed"
-            )
     return sorted(set(warnings))
+
+
+def _build_priceability(
+    state: PacketState, active_ids: set[str]
+) -> tuple[list[str], list[tuple[str, str]]]:
+    """Per-market live-data coverage over the active set.
+
+    A market is priceable iff it has an order book present with status ``ok`` and
+    a ``fetched_at`` within the freshness window. Books carry provenance — they
+    ARE the live data, so there is no separate snapshot gate. We only evaluate
+    markets we'd actually fetch a book for: those flagged for orderbook
+    collection or currently held. Returns (priceable, [(market_id, reason)]).
+    """
+    max_age = get_max_context_age_hours()
+    held = {position.market_id for position in state.portfolio.positions}
+    entries = _book_entries(state)
+    priceable: list[str] = []
+    unpriceable: list[tuple[str, str]] = []
+    for market in sorted(state.registry.markets, key=lambda m: m.market_id):
+        if market.market_id not in active_ids:
+            continue
+        wants_book = (
+            market.data_collection is not None and market.data_collection.fetch_orderbook
+        ) or market.market_id in held
+        if not wants_book:
+            continue
+        entry = entries.get(market.market_id)
+        if entry is None:
+            unpriceable.append((market.market_id, "no live book"))
+            continue
+        if entry.get("status") != "ok":
+            unpriceable.append((market.market_id, "BOOK UNAVAILABLE"))
+            continue
+        raw = entry.get("fetched_at")
+        try:
+            fetched_at = datetime.fromisoformat(str(raw))
+        except (TypeError, ValueError):
+            unpriceable.append((market.market_id, "book has no parseable fetched_at"))
+            continue
+        age_hours = (state.now - fetched_at.astimezone(state.now.tzinfo)).total_seconds() / 3600
+        if age_hours > max_age or age_hours < 0:
+            unpriceable.append((market.market_id, "stale book"))
+            continue
+        priceable.append(market.market_id)
+    return priceable, unpriceable
 
 
 def _order_to_dict(order: Order) -> dict[str, object]:
@@ -396,10 +490,13 @@ def _build_open_orders(open_orders: OpenOrders) -> dict[str, object]:
     }
 
 
-def _build_registry(registry: MarketRegistry) -> list[dict[str, object]]:
+def _build_registry(
+    registry: MarketRegistry, active_ids: set[str]
+) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     sorted_markets = sorted(
-        registry.markets, key=lambda m: (m.thesis_bucket, m.resolution_date)
+        (m for m in registry.markets if m.market_id in active_ids),
+        key=lambda m: (m.thesis_bucket, m.resolution_date),
     )
     for market in sorted_markets:
         rule_risk = "not specified"
@@ -414,6 +511,7 @@ def _build_registry(registry: MarketRegistry) -> list[dict[str, object]]:
         rows.append(
             {
                 "market_id": market.market_id,
+                "lifecycle": market.lifecycle,
                 "thesis_bucket": market.thesis_bucket or "(unassigned)",
                 "name": market.name,
                 "preferred_side": market.preferred_side,
@@ -446,36 +544,38 @@ def _build_snapshot(snapshot: MarketSnapshot | None) -> list[dict[str, object]] 
     ]
 
 
-def _build_missing_info(state: PacketState) -> list[str]:
+def _build_missing_info(
+    state: PacketState, unpriceable: list[tuple[str, str]], active_ids: set[str]
+) -> list[str]:
     missing: list[str] = []
-    if state.snapshot is None:
-        missing.append("missing market snapshot")
+    # Per-market live-data coverage, derived from order books (the live source).
+    # A market with no fresh ok book is not priceable; this replaces the old
+    # global "missing market snapshot" gate.
     if state.order_books is None:
         missing.append(
             "no live order books (run `polyberg fetch-books`) — "
             "no live book = no order"
         )
     else:
-        for market_id, entry in sorted(_book_entries(state).items()):
-            if entry.get("status") != "ok":
-                missing.append(
-                    f"{market_id}: BOOK UNAVAILABLE — do not price orders"
-                )
+        for market_id, reason in unpriceable:
+            missing.append(f"{market_id}: not priceable — {reason}")
+    # Token checks cover only the active set: warning about a market the
+    # lifecycle/type filters already excluded would be noise.
     for market in state.registry.markets:
+        if market.market_id not in active_ids:
+            continue
         if not market.yes_token_id:
             missing.append(f"{market.market_id}: missing YES token ID")
         if not market.no_token_id:
             missing.append(f"{market.market_id}: missing NO token ID")
-    if state.snapshot is not None:
-        by_id = {item.market_id: item for item in state.snapshot.markets}
-        for position in state.portfolio.positions:
-            item = by_id.get(position.market_id)
-            if item is None or item.yes_price is None:
-                missing.append(f"{position.market_id}: missing current mark in snapshot")
-            if item is None or item.orderbook_depth_top is None:
-                missing.append(f"{position.market_id}: missing order book depth")
-            if item is not None:
-                missing.extend(f"{position.market_id}: {info}" for info in item.missing_info)
+    # Empty thesis_bucket is INFO, not a blocker: exposure already falls back to
+    # grouping by rule_key, so the condition auto-resolves.
+    for position in state.portfolio.positions:
+        if not position.thesis_bucket:
+            missing.append(
+                f"{position.market_id}: thesis_bucket empty (INFO — exposure grouped "
+                f"by rule_key fallback)"
+            )
 
     local_timestamps = {
         state.live_state.as_of.isoformat(),

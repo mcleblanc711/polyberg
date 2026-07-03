@@ -11,7 +11,8 @@ def test_build_packet_contains_required_sections() -> None:
 
     assert "Cash available" in packet
     assert "hormuz_normal_end_june" in packet
-    assert "Recent Catalysts" in packet
+    assert "Catalyst Watch" in packet
+    assert "Credible Reporting Watch" in packet
     assert "Factual Source Data" in packet
     assert "Unresolved/Missing Information" in packet
     assert "Context Freshness Audit" in packet

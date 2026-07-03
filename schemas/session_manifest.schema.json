@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/polyberg/session_manifest.schema.json",
+  "title": "SessionManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["session_id", "created_at", "files"],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "pattern": "^session_\\d{4}-\\d{2}-\\d{2}_\\d{6}(_\\d+)?$"
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "files": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    }
+  }
+}

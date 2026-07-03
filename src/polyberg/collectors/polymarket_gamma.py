@@ -46,6 +46,90 @@ def fetch_event_by_slug(slug: str, http: ReadOnlyHttpClient | None = None) -> di
     return event
 
 
+GAMMA_SEARCH_LIMIT_DEFAULT = 20
+GAMMA_SEARCH_LIMIT_MAX = 100
+
+
+def search_events(
+    query: str | None = None,
+    tag_slug: str | None = None,
+    limit: int = GAMMA_SEARCH_LIMIT_DEFAULT,
+    include_closed: bool = False,
+    http: ReadOnlyHttpClient | None = None,
+) -> list[dict]:
+    """Search Polymarket Gamma for events to add to the registry.
+
+    A keyword ``query`` goes through ``/public-search`` (the relevance-ranked
+    search behind the Polymarket search bar). With no keyword we browse
+    ``/events`` ordered by 24h volume, optionally narrowed to one ``tag_slug``
+    (e.g. ``iran``). Read-only: returns the raw event dicts in upstream order;
+    callers normalize and annotate against the local registry.
+    """
+    client = http or ReadOnlyHttpClient(GAMMA_API_BASE_URL)
+    limit = max(1, min(int(limit), GAMMA_SEARCH_LIMIT_MAX))
+
+    if query and query.strip():
+        params: dict[str, object] = {"q": query.strip(), "limit_per_type": limit}
+        if not include_closed:
+            params["events_status"] = "active"
+        try:
+            raw = client.get_json("/public-search", params=params, headers=_GAMMA_HEADERS)
+        except AccountImportError as exc:
+            raise GammaCollectorError(str(exc)) from exc
+        events = raw.get("events") if isinstance(raw, dict) else None
+        if not isinstance(events, list):
+            return []
+        return [event for event in events if isinstance(event, dict)]
+
+    # No keyword: browse by volume, optionally within one tag. Bool params are
+    # sent as lowercase strings — Gamma rejects Python's "True"/"False" casing.
+    params = {"limit": limit, "order": "volume24hr", "ascending": "false", "archived": "false"}
+    if not include_closed:
+        params["closed"] = "false"
+        params["active"] = "true"
+    if tag_slug and tag_slug.strip():
+        params["tag_slug"] = tag_slug.strip()
+    try:
+        raw = client.get_json("/events", params=params, headers=_GAMMA_HEADERS)
+    except AccountImportError as exc:
+        raise GammaCollectorError(str(exc)) from exc
+    if not isinstance(raw, list):
+        return []
+    return [event for event in raw if isinstance(event, dict)]
+
+
+def _as_float(value: object) -> float | None:
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
+def normalize_event_summary(event: dict) -> dict:
+    """Map a Gamma event to the summary fields the discovery list needs.
+
+    Carries enough to render a result row (title, volume, close date, bracket
+    count, tags) plus the per-market ``condition_id`` list so the caller can flag
+    which brackets are already in the registry without a second fetch.
+    """
+    slug = event.get("slug")
+    markets = [m for m in (event.get("markets") or []) if isinstance(m, dict)]
+    condition_ids = [str(m["conditionId"]) for m in markets if m.get("conditionId")]
+    return {
+        "event_slug": slug,
+        "name": event.get("title"),
+        "polymarket_url": f"https://polymarket.com/event/{slug}" if slug else None,
+        "volume": _as_float(event.get("volume")),
+        "volume_24hr": _as_float(event.get("volume24hr")),
+        "liquidity": _as_float(event.get("liquidity")),
+        "end_date": _date_part(event.get("endDate")),
+        "closed": bool(event.get("closed")),
+        "num_markets": len(markets),
+        "tags": _tag_labels(event),
+        "condition_ids": condition_ids,
+    }
+
+
 def fetch_market_by_slug(slug: str, http: ReadOnlyHttpClient | None = None) -> dict:
     """Fetch a single Polymarket Gamma market by its slug."""
     if not slug:
@@ -155,6 +239,9 @@ def normalize_gamma_event(event: dict) -> dict:
         "polymarket_url": f"https://polymarket.com/event/{event_slug}" if event_slug else None,
         "resolution_source": event.get("resolutionSource") or None,
         "tags": _tag_labels(event),
+        # Neg-risk events resolve exactly one outcome YES (mutually exclusive
+        # bands). Carried so registry-add can record it for the hedge calculator.
+        "neg_risk": bool(event.get("negRisk")),
         "markets": markets,
     }
 

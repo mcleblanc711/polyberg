@@ -39,14 +39,33 @@ def load_schema(path: Path) -> dict[str, Any]:
     return schema
 
 
-def validate_json_file(json_path: Path, schema_path: Path) -> None:
-    payload = load_json(json_path)
+def validate_payload(payload: dict[str, Any], schema_path: Path, source: str) -> None:
+    """Validate an in-memory payload; source names it in error messages."""
     schema = load_schema(schema_path)
     validator = Draft202012Validator(schema, format_checker=FormatChecker())
     errors = sorted(validator.iter_errors(payload), key=lambda err: list(err.absolute_path))
     if errors:
         details = "\n".join(format_error(error) for error in errors)
-        raise ResponseValidationError(f"Validation failed for {json_path}:\n{details}")
+        raise ResponseValidationError(f"Validation failed for {source}:\n{details}")
+
+
+def validate_json_file(json_path: Path, schema_path: Path) -> None:
+    payload = load_json(json_path)
+    validate_payload(payload, schema_path, str(json_path))
+
+
+def validate_canonical_session_payload(
+    payload: dict[str, Any], source: str = "canonical_session payload"
+) -> None:
+    """In-memory contract check, run BEFORE any session file or dir is written."""
+    validate_payload(payload, repo_path("schemas", "canonical_session.schema.json"), source)
+
+
+def validate_canonical_session(json_path: Path) -> None:
+    payload = load_json(json_path)
+    validate_payload(
+        payload, repo_path("schemas", "canonical_session.schema.json"), str(json_path)
+    )
 
 
 def validate_model_response(json_path: Path) -> None:

@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import UTC, datetime
+
+from polyberg.models import MARKET_ID_RE
 
 # Section headings used in context/recent_catalysts.md. The packet builder reads
 # this human-curated markdown file; here we split it into the structured buckets
@@ -10,6 +15,23 @@ CREDIBLE_HEADINGS = ("credible reporting watch",)
 NOISY_HEADINGS = ("noisy social-media and rumour watch", "noisy social media and rumour watch")
 TRADER_NOTE_HEADINGS = ("trader interpretation notes",)
 UNRESOLVED_HEADINGS = ("unresolved/missing information", "unresolved missing information")
+
+# Leading ingest stamp on a catalyst bullet, e.g. "[2026-06-04 01:04Z] …".
+# This is when the entry was recorded (ingest time), not the event date inside
+# the text — windowing keys on this and never on event-time content.
+_TIMESTAMP_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2})[ T](\d{1,2}:\d{2})Z\]")
+# Bold-wrapped market tag, e.g. "**hormuz_normal_jul31**". Validated against
+# MARKET_ID_RE so bold prose (e.g. "**BREAKING:**") is not mistaken for a tag.
+_BOLD_RE = re.compile(r"\*\*([^*]+)\*\*")
+
+
+@dataclass(frozen=True)
+class CatalystEntry:
+    """A single catalyst bullet decomposed for windowing and scoping."""
+
+    text: str
+    ingested_at: datetime | None
+    market_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -33,6 +55,94 @@ def parse_catalysts(markdown: str) -> ParsedCatalysts:
         noisy_social_media_watch=_bullets_for(sections, NOISY_HEADINGS),
         trader_notes=_bullets_for(sections, TRADER_NOTE_HEADINGS),
         unresolved_missing_information=_bullets_for(sections, UNRESOLVED_HEADINGS),
+    )
+
+
+def parse_catalyst_entry(text: str) -> CatalystEntry:
+    """Decompose a single bullet into ingest time + tagged market ids."""
+    ingested_at: datetime | None = None
+    match = _TIMESTAMP_RE.match(text.strip())
+    if match:
+        day, hm = match.group(1), match.group(2)
+        try:
+            hour, minute = (int(part) for part in hm.split(":"))
+            year, month, dom = (int(part) for part in day.split("-"))
+            ingested_at = datetime(year, month, dom, hour, minute, tzinfo=UTC)
+        except ValueError:
+            ingested_at = None
+    market_ids = tuple(
+        token
+        for token in (m.strip() for m in _BOLD_RE.findall(text))
+        if MARKET_ID_RE.fullmatch(token)
+    )
+    return CatalystEntry(text=text, ingested_at=ingested_at, market_ids=market_ids)
+
+
+def _dedup_key(text: str) -> str:
+    """Normalize a bullet for near-identical dedup: drop the leading ingest
+    stamp, collapse whitespace, lowercase. Re-ingests of the same item under a
+    new timestamp collapse to one entry."""
+    without_stamp = _TIMESTAMP_RE.sub("", text.strip())
+    return " ".join(without_stamp.split()).lower()
+
+
+def _filter_watch_list(
+    entries: list[str],
+    *,
+    now: datetime,
+    window_hours: float,
+    active_ids: Iterable[str],
+) -> list[str]:
+    """Keep a watch bullet iff it was ingested within the window AND tags a
+    market in the active set; then drop near-identical duplicates."""
+    active = set(active_ids)
+    kept: list[str] = []
+    seen: set[str] = set()
+    for text in entries:
+        entry = parse_catalyst_entry(text)
+        if entry.ingested_at is None:
+            continue
+        age_hours = (now - entry.ingested_at.astimezone(now.tzinfo)).total_seconds() / 3600
+        if age_hours > window_hours or age_hours < 0:
+            continue
+        if not any(market_id in active for market_id in entry.market_ids):
+            continue
+        key = _dedup_key(text)
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(text)
+    return kept
+
+
+def filter_catalysts(
+    parsed: ParsedCatalysts,
+    *,
+    now: datetime,
+    window_hours: float,
+    active_ids: Iterable[str],
+) -> ParsedCatalysts:
+    """Window + scope + dedup the credible/noisy watch lists.
+
+    Trader notes and unresolved/missing information are operator notes, not
+    timestamped market catalysts, so they pass through unfiltered.
+    """
+    active = set(active_ids)
+    return ParsedCatalysts(
+        credible_reporting_watch=_filter_watch_list(
+            parsed.credible_reporting_watch,
+            now=now,
+            window_hours=window_hours,
+            active_ids=active,
+        ),
+        noisy_social_media_watch=_filter_watch_list(
+            parsed.noisy_social_media_watch,
+            now=now,
+            window_hours=window_hours,
+            active_ids=active,
+        ),
+        trader_notes=list(parsed.trader_notes),
+        unresolved_missing_information=list(parsed.unresolved_missing_information),
     )
 
 
