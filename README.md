@@ -1,388 +1,298 @@
-# Polyberg
+<h1 align="center">Polyberg</h1>
 
-A local-first research workbench for Polymarket. You keep your rules, thesis,
-portfolio state, prompts, and schemas in versioned files. Polyberg builds a
-deterministic packet from them, runs it through an LLM trader prompt + a risk
-prompt + an adjudicator, validates every JSON artifact against a schema, and
-renders a human-readable trade ticket. You place the trade yourself —
-Polyberg never touches the exchange.
+<p align="center">
+  <strong>A local-first research and decision-support workbench for Polymarket.</strong>
+</p>
 
-Built and iterated on with Claude Code and Codex. The file-based design is
-deliberate: it makes those agents (and humans) effective at editing the
-project predictably.
+<p align="center">
+  Polyberg turns versioned market context into reproducible model briefs, validates
+  structured responses, and keeps a human in control of every exchange action.
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
-![Platform](https://img.shields.io/badge/platform-Ubuntu%20%7C%20Windows-lightgrey.svg)
+<p align="center">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-f2c94c"></a>
+  <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white">
+  <img alt="Electron and React" src="https://img.shields.io/badge/Desktop-Electron%20%2B%20React-47848F?logo=electron&logoColor=white">
+  <img alt="Research only" src="https://img.shields.io/badge/mode-research--only-ff35d3">
+</p>
 
----
+> [!IMPORTANT]
+> Polyberg is research software, not financial advice or an autonomous trading
+> system. It never submits orders. Its only exchange-side mutation is an
+> isolated single-order cancellation path; the interactive and GUI workflows
+> gate it per action.
 
-## Why the file-based design
+## Overview
 
-Mash your whole trading context into one giant prompt and you can't tell
-where a bad call came from later. Polyberg splits everything into small
-versioned files: stable resolution rules in one place, your thesis in
-another, the catalyst log somewhere else, the market registry alongside.
-Each LLM stage takes a deterministic packet built from those files, returns
-structured JSON, and gets validated against a local schema before the next
-stage runs.
+Prediction-market research gets difficult to audit when rules, headlines,
+portfolio state, and model conversations live in one long prompt. Polyberg keeps
+those inputs in small, versioned files and builds a validated
+`canonical_session.json` before rendering any model-specific packet.
 
-What that buys you:
+That design provides:
 
-- You can diff context between runs and trace any model decision back to
-  its inputs.
-- A model can't smuggle a free-form opinion past the pipeline — it has to
-  pass a schema or it gets rejected.
-- An adjudicator stage compares two model outputs against the same packet,
-  so a human reviews a structured disagreement instead of two raw opinions.
-- The Python CLI and the Electron GUI call the same builders, so the
-  workflow is identical whether you live in a terminal or want a desk app.
+- **Reproducible research** — GPT, Claude, and legacy packet views are rendered
+  from the same validated session state.
+- **Traceable model hand-offs** — model responses, adjudication, and trade
+  tickets have explicit JSON schemas and validation steps.
+- **Local-first privacy** — the repository carries sample data while real
+  portfolio and order state lives in gitignored local overlays.
+- **Freshness and completeness checks** — stale context, missing pricing, and
+  incomplete market metadata are surfaced before review.
+- **Two working surfaces** — a Python CLI for automation and an Electron/React
+  desktop application for day-to-day use.
+- **A narrow action boundary** — order placements remain manual; interactive and
+  GUI cancellation workflows present a separate confirmation for every order.
 
-## Daily workflow
+The project is intentionally model-provider agnostic. Polyberg prepares and
+validates the artifacts; the user chooses how and where to run the external
+models.
 
-This is the loop the tool is built around. Polyberg owns the deterministic
-middle (intake → packet); you and the models own the judgement at the ends.
+## Product tour
 
-1. **Pull signal.** Find the relevant tweets and headlines. Paste them into the
-   **Intake** tab — each goes in as a *catalyst* tagged to a `market_id`, and
-   the X-format auto-parser splits a raw paste into author + text for you (see
-   [Tweet & catalyst intake](#tweet--catalyst-intake)). Intake appends to
-   `context/recent_catalysts.md`.
-2. **Refresh account state.** Pull balances, positions, and open orders into the
-   gitignored `*.local.yaml` overlays (GUI **PROMOTE** / account import, or the
-   `promote-*` and `paste-import` CLI commands).
-3. **Build the packet.** `build-packet` assembles one deterministic artifact:
-   live state, portfolio, open orders, market registry, the latest snapshot, the
-   recent catalysts, and the trading rules.
-4. **Brief both models.** Paste `packet.md` into the **Claude Project** (the
-   aggressive trader, `prompts/claude_trader_prompt.md`) and into the **GPT
-   Project** (the resolution-rules risk critic — same packet, instructions
-   refined for GPT, `prompts/chatgpt_risk_prompt.md`).
-5. **Ask Claude for a move.** Prompt Claude for position suggestions on a
-   specific market — sizing, entries, or moving limit orders.
-6. **Steelman with GPT.** Hand Claude's reasoning to GPT as a context dump and
-   have it stress-test and steelman the call: poke holes, surface the opposing
-   case, flag overconfidence and resolution-rule traps.
-7. **Round-trip back to Claude.** Feed GPT's critique back to Claude for the
-   final suggested move and the concrete implementation (orders to place or
-   adjust). The `adjudicator` stage (`prompts/adjudicator_prompt.md`) is the
-   structured version of this hand-off when you want it on rails.
-8. **Place it yourself.** Read the trade ticket, decide, and place the order on
-   Polymarket by hand. Polyberg never touches the exchange.
+### Research dashboard
 
-The two-model loop is deliberate: Claude proposes and implements, GPT
-adversarially reviews, and the packet keeps both reading from the same source of
-truth so a disagreement is about the trade, not about who saw what.
+Positions, exposure, account state, context freshness, and the current research
+stage are visible in one workspace.
 
-### Tweet & catalyst intake
+![Polyberg research dashboard with private portfolio details redacted](design/screenshots/01-dashboard-redacted.png)
 
-Catalysts are the one place raw outside signal enters the system, so intake is
-kept uniform. Every item — whether a tweet, an article, or a note — is the same
-shape: a timestamp, a source, and the text, tagged to a `market_id` from
-`context/market_registry.yaml` and filed into `context/recent_catalysts.md`
-under **Credible Reporting Watch** (or the rumour watch for noisy social chatter).
+### Catalyst intake
 
-- **Three kinds, one record.** `tweet` / `article` / `note` differ only by how
-  they're labelled; they share the catalyst record and the same routing.
-- **Tweet auto-parser.** Pasting a raw X copy (display name, `@handle`,
-  `·`/relative timestamp, body, trailing `Source:` line) auto-fills the author
-  as `@handle` and the text as the tweet body with the metadata and source lines
-  stripped. It falls back to manual entry if the paste doesn't parse.
-- **Always non-authoritative.** Twitter/X items are catalyst signals only, never
-  resolution evidence — the packet carries them tagged as such.
+Tweets, articles, and notes enter through a review queue. Tweet-shaped pastes
+are parsed into a source and body, then tagged to a registered market before any
+context file is updated.
 
-## Screens
+![Polyberg catalyst intake screen with private catalyst details redacted](design/screenshots/02-intake-redacted.png)
 
-**Dashboard** — positions, freshness audit, research workflow, account rail.
+### Packet review
 
-![Dashboard](design/screenshots/01-dashboard.png)
+The packet screen exposes prerequisites, freshness warnings, generated model
+context, and the next adjudication step without hiding the on-disk artifacts.
 
-**Intake / context rebuilder** — paste tweets, articles, notes; auto-tag to
-market; diff before any file is written.
+![Polyberg packet review screen](design/screenshots/05-packet.png)
 
-![Intake](design/screenshots/02-intake.png)
+<sub>Private account, position, thesis, and catalyst details are blurred in the
+portfolio-facing captures. The original UI composition and resolution are
+preserved.</sub>
 
-**Packet review** — generated `packet.md` next to adjudicator status and
-next stage.
+## How it works
 
-![Packet](design/screenshots/05-packet.png)
+```mermaid
+flowchart LR
+    A[Rules, registry, catalysts] --> D[Validated canonical session]
+    B[Portfolio and open orders] --> D
+    C[Public market and account reads] --> D
+    D --> E[Claude packet]
+    D --> F[GPT packet]
+    E --> G[External model responses]
+    F --> G
+    G --> H[Schema validation and adjudication]
+    H --> I[Human-reviewed trade ticket]
+    I -. manual placement .-> J[Polymarket UI]
+    I -. per-order confirmation .-> K[Cancel-only CLOB client]
+```
 
----
+Every packet-producing run writes a self-contained session:
 
-## Safety boundary — read before configuring credentials
+```text
+reports/sessions/<session_id>/
+├── canonical_session.json
+├── packet artifacts
+└── manifest.json
+```
 
-| Capability                | Status               |
-|---------------------------|----------------------|
-| Read Polymarket public API| ✅ supported         |
-| Read CLOB balances/orders | ✅ via L2 HMAC (GET) |
-| Place / cancel orders     | ❌ never             |
-| Hold wallet private keys  | ❌ never             |
-| Auto-execute model output | ❌ never             |
-| Browser automation        | ❌ never             |
-| Scrape websites           | ❌ never             |
+The canonical payload is validated before anything is written. Packet artifacts
+are then rendered from that payload, and `manifest.json` is written last to mark
+the session complete. See the
+[interface contract](docs/INTERFACE_CONTRACT.md) for the schema and failure
+semantics.
 
-Authenticated reads use a pre-minted `(api_key, secret, passphrase)` triple
-plus the signer EOA address. You mint that triple **once**, using
-`py-clob-client` from a scratch directory outside this repo, and paste the
-result into `.env`. Polyberg never sees your wallet's private key. There's
-also an optional Polymarket US API key/secret pair for that tenant — both
-paths are GET-only. Full credential model is in
-[`docs/account_connection.md`](docs/account_connection.md).
+## Quick start
 
-If you want to verify: grep the codebase for `eth_account`,
-`web3.eth.account`, or anything that signs an L1 transaction. You won't
-find it.
+### Requirements
 
-## Known gaps (so you're not surprised)
+- Python 3.11 or newer
+- Node.js and npm for the desktop application
+- Linux or Windows
 
-- `snapshot-markets` emits the snapshot schema with placeholder prices.
-  `build_market_snapshot` in `src/polyberg/snapshots.py` needs to be wired
-  to the existing collectors in `src/polyberg/collectors/polymarket_clob.py`
-  (`fetch_order_book`, `fetch_midpoint`, `fetch_spread`). Until then every
-  price field in the packet is `None`.
-- Three registry entries are missing token IDs (`condition_id`,
-  `yes_token_id`, `no_token_id`): `hormuz_normal_may15`,
-  `trump_blockade_lifted_apr30`, `cl_high_120_end_june`. The CLOB
-  collectors skip them silently. Populate from Polymarket Gamma once you
-  have the slugs.
-- `thesis_bucket` is never populated — every position carries
-  `thesis_bucket: ''` because no builder or import command sets it yet.
-  Needs either a manual field in the registry or an assignment rule in the
-  portfolio importer.
-- The Python CLI doesn't apply `*.local.yaml` overlays. Only the GUI does,
-  and only for `live_state.yaml`. See *Local-only overlays* below.
-- The generic stage-runner button in the GUI doesn't pass per-stage args,
-  so commands like `validate-response` and `build-adjudicator-input` need
-  to be run from the CLI for now.
-
-## Install — Ubuntu / Linux
-
-Ubuntu is the primary runtime target, so this path is the most exercised.
+### Install the Python workspace
 
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-pip install -e ".[dev]"
-pytest
+python -m pip install -e ".[dev]"
 ```
 
-The editable install isn't cosmetic — it's the reason package-relative
-defaults (`context/`, `schemas/`, `reports/generated/`) resolve to this
-repo at runtime instead of wherever pip decided to drop the package.
-
-## Install — Windows PowerShell
+On Windows PowerShell, activate the environment with:
 
 ```powershell
-py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -e ".[dev]"
-pytest
 ```
 
-Windows works for local editing and testing, but Linux gets more soak
-time. If something behaves weirdly on Windows, file an issue.
-
-## Configure credentials
+No credentials are required to work with the tracked sample data. To enable
+optional live reads, copy the environment template and add only the credentials
+you need:
 
 ```bash
 cp .env.example .env
 ```
 
-Everything in `.env` is optional. Polyberg degrades gracefully — missing a
-CLOB key just means the authenticated import commands won't work; the rest
-of the workflow keeps running on local files. The CLI auto-loads `.env`
-from the repo root on every invocation (including the stages the Electron
-GUI spawns). Real shell-env values always win over `.env`, so a CI/systemd
-setup that injects credentials differently is unaffected.
+Build model-specific research packets from the local context:
 
-## Local-only overlays — the most common footgun
+```bash
+python -m polyberg.cli packet build --target all
+```
 
-The tracked files in `context/` ship with **sample data** because this
-repo is public. Your real portfolio, your real wallet, and your real
-catalyst log should never get committed.
+The command writes GPT and Claude packet views plus a validated canonical
+session. Generated sessions and packet outputs are gitignored.
 
-The pattern: drop your real data into gitignored sibling files.
-
-| Sample (tracked)              | Real data (gitignored)              |
-|-------------------------------|-------------------------------------|
-| `context/live_state.yaml`     | `context/live_state.local.yaml`     |
-| `context/portfolio_current.yaml` | `context/portfolio_current.local.yaml` |
-| `context/open_orders.yaml`    | `context/open_orders.local.yaml`    |
-| `context/recent_catalysts.md` | `context/recent_catalysts.local.md` |
-
-Only `live_state.local.yaml` is auto-merged, and only by the GUI. The
-Python CLI reads the tracked files directly — overlays aren't wired in
-yet. So for the rest, the `.local.*` files are your **private reference
-copy**. To actually run a packet against your real data from the CLI,
-either:
-
-1. Restore the real content into the tracked files locally and run
-   `git update-index --skip-worktree context/portfolio_current.yaml
-   context/open_orders.yaml context/recent_catalysts.md` so git stops
-   showing them as modified, or
-2. Use the GUI's import / promote flow, which writes directly to the
-   tracked files — then make sure not to commit those writes.
-
-Don't paste real positions into the tracked files and then `git add .`.
-
-## Running the GUI
+### Run the desktop application
 
 ```bash
 cd gui
-npm install
+npm ci
 npm run dev
 ```
 
-Build a distributable:
+Build a desktop distribution with `npm run dist`.
 
-```bash
-cd gui
-npm run build
+## Typical research loop
+
+1. **Curate context.** Add or update resolution rules, market metadata, thesis
+   notes, and catalysts.
+2. **Refresh state.** Optionally import public positions, CLOB balances, open
+   orders, price history, and order books through the read-only collectors.
+3. **Build a session.** Polyberg validates local inputs, records one canonical
+   state artifact, and renders model-specific packets.
+4. **Run external reviews.** Give the same factual session to a trader prompt
+   and a risk prompt, then save their structured responses.
+5. **Validate and adjudicate.** Reject malformed output before it reaches the
+   adjudicator or trade-ticket builder.
+6. **Decide manually.** Review the final ticket and place any order yourself.
+   The ladder tool can prepare a reconciliation plan; its interactive and GUI
+   workflows confirm cancellations one at a time.
+
+## Selected CLI commands
+
+Run `python -m polyberg.cli --help` for the complete command surface.
+
+| Task | Command |
+|---|---|
+| Build GPT and Claude packets | `python -m polyberg.cli packet build --target all` |
+| Build the legacy combined packet | `python -m polyberg.cli build-packet` |
+| Fetch read-only order books | `python -m polyberg.cli fetch-books` |
+| Snapshot registered markets | `python -m polyberg.cli snapshot-markets` |
+| Discover markets | `python -m polyberg.cli search-markets --query "..."` |
+| Register a market | `python -m polyberg.cli registry-add --url <polymarket-url>` |
+| Import read-only account state | `python -m polyberg.cli import-account-snapshot` |
+| Validate a model response | `python -m polyberg.cli validate-response <response.json>` |
+| Build adjudicator context | `python -m polyberg.cli build-adjudicator-input ...` |
+| Render a trade ticket | `python -m polyberg.cli build-trade-ticket ...` |
+| Preview ladder reconciliation | `python -m polyberg.cli ladder plan` |
+| Evaluate event-level payoff | `python -m polyberg.cli hedge` |
+
+## Safety model
+
+| Capability | Support |
+|---|---|
+| Read public market data | Yes |
+| Read positions, balances, and open orders | Yes, with optional credentials |
+| Generate and validate research artifacts | Yes |
+| Submit or amend orders | **No** |
+| Cancel an open order | Isolated path; interactive and GUI workflows confirm per order |
+| Store or use wallet private keys | **No** |
+| Auto-execute model output | **No** |
+| Browser automation | **No** |
+
+The canonical session pins `mode: "research_only"` and
+`execution_allowed: false` through Pydantic literals, JSON Schema constants, and
+construction-time invariants. The cancel-only client is separate from the
+GET-only account client and cannot place an order. The detailed credential and
+request model is documented in
+[Read-Only Account Connection](docs/account_connection.md).
+
+## Local data and privacy
+
+Tracked context files contain sample data so a fresh clone is usable. Promotion
+commands write real positions and orders to gitignored siblings:
+
+| Tracked sample | Private local overlay |
+|---|---|
+| `context/portfolio_current.yaml` | `context/portfolio_current.local.yaml` |
+| `context/open_orders.yaml` | `context/open_orders.local.yaml` |
+| `live/target_ladders.yaml` | `live/target_ladders.local.yaml` |
+
+Credentials belong in `.env`, which is also gitignored. Canonical sessions,
+generated reports, live order books, and the append-only order log are excluded
+from version control because they can reveal account activity.
+
+Use the import and promotion commands instead of copying real account data into
+the tracked sample files. See
+[Read-Only Account Connection](docs/account_connection.md) for setup details.
+
+## Project structure
+
+```text
+src/polyberg/
+├── packet_builder/   # canonical session collection and packet renderers
+├── collectors/       # public and authenticated read-only data clients
+├── ladder/           # reconciliation, validation, and cancel-only execution
+├── cli.py            # Python command surface
+└── validators.py     # JSON Schema and cross-field validation
+
+gui/                  # Electron, React, and TypeScript desktop application
+context/              # rules, catalysts, registry, and sample state
+prompts/               # trader, risk, and adjudicator prompt contracts
+schemas/              # versioned JSON Schema contracts
+tests/                # Python unit and integration-style tests
+docs/                 # interface and account-connection documentation
+design/               # design notes and screenshots
 ```
 
-## CLI workflow
-
-The Makefile covers the common path:
+## Development
 
 ```bash
-make install
+# Python
 make test
 make lint
-make packet
-make clean
+
+# Desktop application
+cd gui
+npm run typecheck
+npm test
 ```
 
-Plain Python equivalents work on Bash and PowerShell:
+The Python tests use injected HTTP fakes for collectors and ladder actions; they
+do not place real orders. GUI tests run with Vitest.
 
-```bash
-python -m pip install -e ".[dev]"
-pytest
-ruff check src tests
-```
+## Improvement blueprint
 
-### Full pipeline, stage by stage
+The highest-value next steps are deliberately weighted toward reliability and
+portfolio readiness before adding more surface area:
 
-Each stage is deliberately separated — you can stop, inspect the
-artifact on disk, and resume:
+1. **Establish a green CI quality gate.** Run the Python suite, Ruff, TypeScript
+   checks, Vitest, and production builds on every pull request; add an opt-in
+   smoke test for live market snapshots.
+2. **Create a deterministic demo mode.** Ship a synthetic research session and
+   automate privacy-safe screenshot capture so product documentation never
+   depends on personal portfolio data.
+3. **Unify private-overlay handling.** Route every private context type through
+   one resolver and add a repository check that rejects accidental wallet,
+   position, or generated-session data.
+4. **Harden the external contracts.** Reconcile the documented cancel exception,
+   add contract tests around CLOB request signing, and version any future schema
+   changes with migrations.
+5. **Improve research measurement.** Archive aged catalysts automatically,
+   capture the market price at intake time, and backtest signal accuracy and
+   source quality after resolution.
+6. **Add release engineering.** Provide a first-class `polyberg` CLI entry point,
+   versioned changelogs, and reproducible Electron installers for supported
+   platforms.
 
-```bash
-# 1. (Optional) Snapshot the markets you care about.
-# Reminder: see "Known gaps" — this emits placeholder prices today.
-python -m polyberg.cli snapshot-markets \
-  --output data/snapshots/markets_YYYY-MM-DD_HHMM.json
-
-# 2. (Optional) Pull read-only account data.
-python -m polyberg.cli import-public-positions --address 0x... \
-  --output reports/generated/account_positions_raw.json
-python -m polyberg.cli import-clob-orders \
-  --output reports/generated/account/open_orders_raw.json
-python -m polyberg.cli import-clob-balance \
-  --output reports/generated/account/balance.json
-python -m polyberg.cli import-account-snapshot \
-  --output-dir reports/generated/account
-
-# 3. Build the packet from local context + (optional) snapshot.
-python -m polyberg.cli build-packet \
-  --snapshot data/snapshots/markets_YYYY-MM-DD_HHMM.json \
-  --output reports/generated/packet.md
-
-# 4. Paste packet.md into your trader prompt, save model JSON to
-#    reports/generated/claude_output.json. Repeat for the risk prompt
-#    -> reports/generated/chatgpt_output.json.
-
-# 5. Validate both model outputs against the trade-response schema.
-python -m polyberg.cli validate-response reports/generated/claude_output.json
-python -m polyberg.cli validate-response reports/generated/chatgpt_output.json
-
-# 6. Build the adjudicator input: packet + both model outputs.
-python -m polyberg.cli build-adjudicator-input \
-  --packet reports/generated/packet.md \
-  --model-output-a reports/generated/claude_output.json \
-  --model-output-b reports/generated/chatgpt_output.json \
-  --output reports/generated/adjudicator_input.md
-
-# 7. Paste that into the adjudicator model; save JSON to
-#    reports/generated/adjudicator_output.json, then validate.
-python -m polyberg.cli validate-adjudicator reports/generated/adjudicator_output.json
-
-# 8. Render the human-readable trade ticket.
-python -m polyberg.cli build-trade-ticket \
-  --adjudicator-output reports/generated/adjudicator_output.json \
-  --output reports/generated/trade_ticket.md
-```
-
-Read the trade ticket. Decide. Place the trade on Polymarket yourself.
-
-## Repository layout
-
-```
-context/        # editable inputs: rules, principles, catalysts, registry, state
-prompts/        # LLM prompt templates
-schemas/        # JSON schemas — outputs are untrusted until they pass these
-src/polyberg/   # Python CLI + collectors + builders + validators
-gui/            # Electron desktop GUI (TypeScript / React)
-docs/           # account-connection docs
-data/snapshots/ # generated market snapshots (gitignored)
-reports/        # generated packets, adjudicator I/O, trade tickets (gitignored)
-tests/          # pytest suite (108 tests)
-```
-
-The naming conventions exist to help humans (and now AIs) find things
-predictably. `context/` is the only directory you should edit by hand
-during normal use.
-
-## Context files
-
-`context/stable_rules.md` covers durable resolution-rule notes —
-explanations for each `rule_key` referenced in the registry.
-`context/trading_principles.md` holds standing trading discipline that
-the model has to acknowledge (no market orders, sell ladders, that kind
-of thing). `context/recent_catalysts.md` is a manually curated log of
-catalysts you want the model to see — feed it via the GUI's Intake tab
-or edit it directly. `context/live_state.yaml` carries current mode,
-constraints, watchlist, and account snapshot. `context/portfolio_current.yaml`
-and `context/open_orders.yaml` are exactly what they sound like.
-`context/market_registry.yaml` is the stable list of markets you trade,
-with rule keys, oracle types, and resolution risk flags — the model uses
-those to decide how seriously to take a given headline. Sample entries
-reference example markets like `hormuz_normal_may15` so you can see the
-file shape without setting up real data.
-
-## Prompts and schemas
-
-`prompts/claude_trader_prompt.md` is the aggressive idea generator.
-`prompts/chatgpt_risk_prompt.md` is the resolution-rules critic.
-`prompts/adjudicator_prompt.md` compares the two against the packet.
-Schemas under `schemas/` validate every JSON artifact in the pipeline —
-model output, adjudicator output, market snapshots. The
-`twitter_sentiment_response.schema.json` schema is reserved for a future
-Grok/Twitter integration; nothing implements it today, and if it lands
-it'll be catalyst-only and non-authoritative.
-
-## Things worth knowing
-
-- **Linux first, Windows second.** Both work; Linux gets more soak time.
-- **All paths use `pathlib`.** Timestamps are Windows-safe
-  (`2026-04-26_0900` — no colons).
-- **Schema validation is non-negotiable.** Model outputs are untrusted
-  until they pass `jsonschema` + `rfc3339-validator`, with extra Python
-  checks that require timezone-aware `as_of` fields.
-- **Twitter/X sentiment is catalyst-only.** Never resolution evidence.
-- **Override the timezone with `POLYBERG_TIMEZONE`** (default
-  `America/Edmonton`).
-- **Override the freshness warning with `POLYBERG_MAX_CONTEXT_AGE_HOURS`**
-  (default 36).
-- **Every order recommendation needs human review.** Not a soft rule.
-
-## Out of scope
-
-Automated trading. Live order placement. MCP. Wallet private-key handling.
-Browser automation. Scraping. Treating Twitter/X as fact. Polyberg
-prepares clean context and enforces structured outputs — it's research
-infrastructure, not an execution system.
+The working backlog and implementation notes live in [TODO.md](TODO.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Polyberg is available under the [MIT License](LICENSE).
