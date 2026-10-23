@@ -43,12 +43,15 @@ def test_both_packets_include_core_state(canonical) -> None:
 
     pv = f"{canonical.portfolio['portfolio_value']:.2f}"
     cash = f"{canonical.portfolio['cash_available']:.2f}"
-    position_id = canonical.portfolio["positions"][0]["market_id"]
+    # The default context prefers the real *.local.yaml overlay, which can be a
+    # flat account; check the first position only when one is held.
+    position_ids = [p["market_id"] for p in canonical.portfolio["positions"][:1]]
 
     for packet in (gpt, claude):
         assert pv in packet
         assert cash in packet
-        assert position_id in packet
+        for position_id in position_ids:
+            assert position_id in packet
         # open orders section
         assert "Open Orders" in packet or "Open Orders".lower() in packet.lower()
         # missing info + freshness warnings surfaced

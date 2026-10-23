@@ -11,6 +11,10 @@ from polyberg.validators import (
     validate_model_response,
 )
 
+# Registry ids from the tracked context/market_registry.yaml.
+HORMUZ_NORMAL_OCT31 = "strait_hormuz_traffic_returns_normal_october_31_20260810151043583"
+HORMUZ_NORMAL_NOV30 = "strait_hormuz_traffic_returns_normal_november_30_20260810151158765"
+
 
 def good_model_response() -> dict:
     return {
@@ -18,8 +22,8 @@ def good_model_response() -> dict:
         "agent_role": "aggressive_trader",
         "candidate_trades": [
             {
-                "market_id": "hormuz_normal_jul31",
-                "market_name": "Hormuz normal by July 31 2026",
+                "market_id": HORMUZ_NORMAL_NOV30,
+                "market_name": "Strait of Hormuz traffic returns to normal by November 30?",
                 "side": "NO",
                 "current_mark": 0.915,
                 "recommendation": "hold_and_sell_ladder",
@@ -173,7 +177,7 @@ def test_adjudicator_schema_requires_human_review_true(tmp_path) -> None:
         "rejected_trades": [],
         "final_order_list": [
             {
-                "market_id": "hormuz_normal_jul31",
+                "market_id": HORMUZ_NORMAL_NOV30,
                 "side": "NO",
                 "action": "sell_ladder",
                 "price": 0.94,
@@ -201,7 +205,7 @@ def test_adjudicator_schema_requires_human_review_present(tmp_path) -> None:
         "rejected_trades": [],
         "final_order_list": [
             {
-                "market_id": "hormuz_normal_jul31",
+                "market_id": HORMUZ_NORMAL_NOV30,
                 "side": "NO",
                 "action": "hold",
                 "price": 0.94,
@@ -228,7 +232,7 @@ def test_adjudicator_schema_rejects_negative_share_final_order(tmp_path) -> None
         "rejected_trades": [],
         "final_order_list": [
             {
-                "market_id": "hormuz_normal_jul31",
+                "market_id": HORMUZ_NORMAL_NOV30,
                 "side": "NO",
                 "action": "sell_ladder",
                 "price": 0.94,
@@ -283,7 +287,7 @@ def test_market_snapshot_validation(tmp_path) -> None:
             "as_of": "2026-04-26T09:00:00-06:00",
             "markets": [
                 {
-                    "market_id": "hormuz_normal_end_june",
+                    "market_id": HORMUZ_NORMAL_OCT31,
                     "yes_price": 0,
                     "no_price": 1,
                     "best_bid_yes": None,

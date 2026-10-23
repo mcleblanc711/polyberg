@@ -11,6 +11,11 @@ from polyberg.loaders import (
 )
 from polyberg.models import LiveState, OpenOrders
 
+# Registry ids from the tracked context/market_registry.yaml.
+HORMUZ_NORMAL_OCT31 = "strait_hormuz_traffic_returns_normal_october_31_20260810151043583"
+HORMUZ_NORMAL_NOV30 = "strait_hormuz_traffic_returns_normal_november_30_20260810151158765"
+HORMUZ_40_ANY_DAY_OCT31 = "ships_transit_strait_hormuz_october_31_40"
+
 
 def test_load_yaml_context_files() -> None:
     registry = load_market_registry()
@@ -19,7 +24,7 @@ def test_load_yaml_context_files() -> None:
     live_state = load_live_state(registry=registry)
 
     market_ids = {m.market_id for m in registry.markets}
-    expected = {"hormuz_normal_end_june", "hormuz_normal_jul31", "hormuz_60_ships_any_day_jun30"}
+    expected = {HORMUZ_NORMAL_OCT31, HORMUZ_NORMAL_NOV30, HORMUZ_40_ANY_DAY_OCT31}
     assert expected <= market_ids
     assert portfolio.cash_available >= 0
     assert isinstance(open_orders.buy_orders, list)

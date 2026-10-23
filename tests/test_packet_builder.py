@@ -10,7 +10,7 @@ def test_build_packet_contains_required_sections() -> None:
     packet = build_packet()
 
     assert "Cash available" in packet
-    assert "hormuz_normal_end_june" in packet
+    assert "strait_hormuz_traffic_returns_normal_october_31_20260810151043583" in packet
     assert "Catalyst Watch" in packet
     assert "Credible Reporting Watch" in packet
     assert "Factual Source Data" in packet
@@ -43,7 +43,7 @@ def test_build_packet_works_with_context_dir(tmp_path) -> None:
     packet = build_packet(context_dir=context_dir)
 
     assert "Polymarket Research Packet" in packet
-    assert "hormuz_normal_end_june" in packet
+    assert "strait_hormuz_traffic_returns_normal_october_31_20260810151043583" in packet
 
 
 def test_build_packet_works_with_snapshot(tmp_path) -> None:
@@ -54,7 +54,7 @@ def test_build_packet_works_with_snapshot(tmp_path) -> None:
   "as_of": "2026-04-26T09:00:00-06:00",
   "markets": [
     {
-      "market_id": "hormuz_normal_end_june",
+      "market_id": "strait_hormuz_traffic_returns_normal_october_31_20260810151043583",
       "yes_price": 0.4,
       "no_price": 0.6,
       "best_bid_yes": 0.39,

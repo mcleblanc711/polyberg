@@ -6,8 +6,8 @@ cash_available: 60.00
 # writes there, and the loaders/GUI prefer the overlay when present, falling
 # back to this sample. This tracked file is never overwritten with real state.
 positions:
-- market_id: hormuz_normal_end_june
-  market_name: Hormuz normal by end of June 2026
+- market_id: strait_hormuz_traffic_returns_normal_october_31_20260810151043583
+  market_name: Strait of Hormuz traffic returns to normal by October 31?
   side: 'NO'
   avg_price: 0.55
   mark_price: 0.72
@@ -15,8 +15,8 @@ positions:
   current_value: 72.00
   pnl: 17.00
   thesis_bucket: 'Iran conflict'
-- market_id: hormuz_normal_jul31
-  market_name: Hormuz normal by July 31 2026
+- market_id: strait_hormuz_traffic_returns_normal_november_30_20260810151158765
+  market_name: Strait of Hormuz traffic returns to normal by November 30?
   side: 'NO'
   avg_price: 0.45
   mark_price: 0.55
@@ -24,8 +24,8 @@ positions:
   current_value: 44.00
   pnl: 8.00
   thesis_bucket: 'Iran conflict'
-- market_id: hormuz_60_ships_any_day_jun30
-  market_name: 60 ships transit Strait of Hormuz on any day by June 30 2026
+- market_id: ships_transit_strait_hormuz_october_31_40
+  market_name: Will __ ships transit the Strait of Hormuz on any day by October 31? — Will at least 40 ships transit the Strait of Hormuz on any day by October 31, 2026?
   side: 'NO'
   avg_price: 0.30
   mark_price: 0.345
