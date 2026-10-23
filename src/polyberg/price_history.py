@@ -1,8 +1,9 @@
 """Per-market price-history orchestration.
 
-Fetches a one-month CLOB price series per registry market, derives 1d / 1w / 1m
-high-low windows, and writes a single ``context/price_history.json`` artifact
-the GUI's ``readContext()`` can splice onto each ``Market``.
+Fetches a one-month price series per registry market (Data API v2, falling back
+to the CLOB route), derives 1d / 1w / 1m high-low windows, and writes a single
+``context/price_history.json`` artifact the GUI's ``readContext()`` can splice
+onto each ``Market``.
 
 This is the Option-2 (Gamma-direct) path. The artifact carries the full series
 so a future Option-3 cache layer can reuse this same file as the on-disk source
@@ -53,7 +54,7 @@ def build_price_history_artifact(
     """Write the price-history artifact. Returns the output path.
 
     ``fetcher`` lets tests inject a deterministic series source; production code
-    leaves it None to hit the real CLOB endpoint.
+    leaves it None to hit the real endpoints.
     """
     registry = load_market_registry(registry_path)
     if now is None:

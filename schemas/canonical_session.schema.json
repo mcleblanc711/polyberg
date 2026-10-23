@@ -107,6 +107,7 @@
         "markdown": {"$ref": "#/$defs/nullable_string"}
       }
     },
+    "resolution_status": {"anyOf": [{"type": "object"}, {"type": "null"}]},
     "market_snapshot": {"type": "object"},
     "catalysts": {
       "type": "object",

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { usePmData, usePmDataRefresh } from '../../lib/pmDataContext'
 import { colors as C, fonts as F } from '../../styles/tokens'
 import type { Market, RuleRisk } from '../../lib/types'
+import { oracleBadge, type OracleTone } from '../../lib/resolution'
 import { AddMarketModal } from './AddMarketModal'
 import { DiscoverMarketsModal } from './DiscoverMarketsModal'
 import { EditMarketModal } from './EditMarketModal'
@@ -11,6 +12,24 @@ const riskColor = (risk: RuleRisk): string =>
 
 const riskBorder = (risk: RuleRisk): string =>
   risk === 'high' ? C.red : risk === 'medium' ? C.amber : C.line
+
+const toneColor = (tone: OracleTone): string =>
+  tone === 'disputed'
+    ? C.red
+    : tone === 'pending'
+      ? C.amber
+      : tone === 'resolved'
+        ? C.magenta
+        : C.textDim
+
+type RunState =
+  | { kind: 'idle' }
+  | { kind: 'running' }
+  | { kind: 'ok' }
+  | { kind: 'error'; message: string }
+
+const runErr = (r: { stderr: string; stdout: string; code: number | null }): string =>
+  (r.stderr || r.stdout || `exit ${r.code}`).slice(0, 200)
 
 export const MarketsScreen = ({
   highlightId = null,
@@ -26,8 +45,13 @@ export const MarketsScreen = ({
   const [editId, setEditId] = useState<string | null>(null)
   const [showExpired, setShowExpired] = useState(false)
   const [flashId, setFlashId] = useState<string | null>(null)
-  const [fetchState, setFetchState] = useState<
-    { kind: 'idle' } | { kind: 'running' } | { kind: 'ok' } | { kind: 'error'; message: string }
+  const [fetchState, setFetchState] = useState<RunState>({ kind: 'idle' })
+  const [oracleState, setOracleState] = useState<RunState>({ kind: 'idle' })
+  // Two-step apply of a suggested lifecycle: first click arms the row,
+  // CONFIRM runs registry-update. Only one row is armed at a time.
+  const [armedId, setArmedId] = useState<string | null>(null)
+  const [applyState, setApplyState] = useState<
+    { kind: 'idle' } | { kind: 'running'; id: string } | { kind: 'error'; id: string; message: string }
   >({ kind: 'idle' })
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
 
@@ -38,14 +62,96 @@ export const MarketsScreen = ({
     setFetchState({ kind: 'running' })
     const result = await window.pm.runStage('fetch-books', [])
     if (!result.ok) {
-      setFetchState({
-        kind: 'error',
-        message: (result.stderr || result.stdout || `exit ${result.code}`).slice(0, 200)
-      })
+      setFetchState({ kind: 'error', message: runErr(result) })
       return
     }
     await refresh()
     setFetchState({ kind: 'ok' })
+  }
+
+  // Read live oracle state for every registry market (resolution-status),
+  // then re-read context so the STATUS column shows it.
+  const checkResolutions = async (): Promise<void> => {
+    if (oracleState.kind === 'running') return
+    setOracleState({ kind: 'running' })
+    const result = await window.pm.runStage('resolution-status', [])
+    if (!result.ok) {
+      setOracleState({ kind: 'error', message: runErr(result) })
+      return
+    }
+    await refresh()
+    setOracleState({ kind: 'ok' })
+  }
+
+  const applyLifecycle = async (m: Market, lifecycle: string): Promise<void> => {
+    setApplyState({ kind: 'running', id: m.id })
+    const result = await window.pm.runStage('registry-update', [
+      '--market-id',
+      m.id,
+      '--lifecycle',
+      lifecycle
+    ])
+    setArmedId(null)
+    if (!result.ok) {
+      setApplyState({ kind: 'error', id: m.id, message: runErr(result) })
+      return
+    }
+    // resolution_status.json still records the old lifecycle; re-run so the
+    // suggestion clears instead of offering the same move again.
+    await window.pm.runStage('resolution-status', [])
+    await refresh()
+    setApplyState({ kind: 'idle' })
+  }
+
+  const renderStatus = (m: Market): JSX.Element => {
+    const badge = oracleBadge(m.resolution)
+    const suggestion = m.resolution?.suggestedLifecycle ?? ''
+    const busy = applyState.kind === 'running' && applyState.id === m.id
+    return (
+      <>
+        {m.lifecycle !== 'active' && <span style={S.lifecycle}>{m.lifecycle}</span>}
+        {badge ? (
+          <span
+            style={{ ...S.chip, color: toneColor(badge.tone), borderColor: toneColor(badge.tone) }}
+            title={badge.title}
+          >
+            {badge.label}
+          </span>
+        ) : (
+          <span style={{ color: C.textMute }}>—</span>
+        )}
+        {suggestion && armedId !== m.id && (
+          <button
+            style={{ ...S.btnGhost, marginLeft: 6, color: C.amber }}
+            title={`set registry lifecycle to ${suggestion} (asks to confirm)`}
+            disabled={busy}
+            onClick={() => setArmedId(m.id)}
+          >
+            {busy ? '$ …' : `→ ${suggestion}`}
+          </button>
+        )}
+        {suggestion && armedId === m.id && (
+          <>
+            <button
+              style={{ ...S.btnGhost, marginLeft: 6, color: C.amber, borderColor: C.amber }}
+              onClick={() => void applyLifecycle(m, suggestion)}
+            >
+              CONFIRM {suggestion} ▸
+            </button>
+            <button
+              style={{ ...S.btnGhost, marginLeft: 4 }}
+              title="cancel"
+              onClick={() => setArmedId(null)}
+            >
+              ✕
+            </button>
+          </>
+        )}
+        {applyState.kind === 'error' && applyState.id === m.id && (
+          <div style={S.fetchNoteErr}>✕ {applyState.message}</div>
+        )}
+      </>
+    )
   }
 
   const active = pmData.markets.filter((m) => !m.expired)
@@ -90,6 +196,7 @@ export const MarketsScreen = ({
         {m.resolutionDate.split('T')[0]}
         {m.expired ? ' ·  past' : ''}
       </td>
+      <td style={{ ...S.td, whiteSpace: 'nowrap' }}>{renderStatus(m)}</td>
       <td style={S.td}>
         <span
           style={{
@@ -148,6 +255,18 @@ export const MarketsScreen = ({
           {fetchState.kind === 'error' && (
             <span style={S.fetchNoteErr}>✕ {fetchState.message}</span>
           )}
+          {oracleState.kind === 'ok' && <span style={S.fetchNoteOk}>● oracle checked</span>}
+          {oracleState.kind === 'error' && (
+            <span style={S.fetchNoteErr}>✕ {oracleState.message}</span>
+          )}
+          <button
+            style={S.btnGhost}
+            onClick={() => void checkResolutions()}
+            disabled={oracleState.kind === 'running'}
+            title="run resolution-status: live UMA oracle state for every registry market"
+          >
+            {oracleState.kind === 'running' ? '$ CHECKING…' : '⚖ CHECK RESOLUTIONS'}
+          </button>
           <button
             style={S.btnGhost}
             onClick={() => void refreshMarkets()}
@@ -173,6 +292,7 @@ export const MarketsScreen = ({
               <th style={S.th}>RULE-KEY</th>
               <th style={S.th}>ORACLE</th>
               <th style={S.th}>RESOLVES</th>
+              <th style={S.th}>STATUS</th>
               <th style={S.th}>RULE-RISK</th>
               <th style={S.th}>MARK · MID</th>
               <th style={S.th} />
@@ -182,7 +302,7 @@ export const MarketsScreen = ({
             {active.map((m) => renderRow(m, false))}
             {expired.length > 0 && (
               <tr>
-                <td colSpan={8} style={S.expiredDivider}>
+                <td colSpan={9} style={S.expiredDivider}>
                   <button style={S.expiredToggle} onClick={() => setShowExpired((v) => !v)}>
                     {showExpired ? '▾' : '▸'} {expired.length} EXPIRED / RESOLVED — kept for history,
                     excluded from fetch-books
@@ -286,6 +406,13 @@ const S: Record<string, CSSProperties> = {
     cursor: 'pointer',
     padding: 0,
     outline: 'none'
+  },
+  lifecycle: {
+    marginRight: 6,
+    color: C.textDim,
+    fontSize: 9.5,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase'
   },
   chip: {
     padding: '2px 7px',

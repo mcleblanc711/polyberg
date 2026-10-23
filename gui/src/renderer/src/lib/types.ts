@@ -11,6 +11,7 @@ export type {
   Mode,
   Catalyst,
   Market,
+  MarketResolution,
   Position,
   OpenOrder,
   WorkflowStage,

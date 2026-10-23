@@ -57,6 +57,37 @@ def suggest_lifecycle(resolution_date: date, today: date) -> str:
     return "active" if resolution_date >= today else "resolving"
 
 
+# Oracle status (Data API v2 /resolutions) -> the lifecycle it implies. Statuses
+# not listed (initialized, posed, active) imply nothing beyond "active".
+_ORACLE_LIFECYCLE = {
+    "proposed": "resolving",
+    "challenged": "resolving",
+    "reproposed": "resolving",
+    "disputed": "resolving",
+    "arbitration": "resolving",
+    "resolved": "resolved",
+}
+_LIFECYCLE_ORDER = ("active", "resolving", "resolved", "archived")
+
+
+def suggest_lifecycle_from_oracle(current: str, oracle_status: str) -> str | None:
+    """Suggest a forward lifecycle move from the live oracle status.
+
+    Unlike :func:`suggest_lifecycle` this can return ``resolved``: a
+    ``resolved`` oracle status means the result is printed on-chain, which is
+    the evidence the module docs ask for. It only ever suggests moving
+    *forward* (active -> resolving -> resolved), never back, so it cannot fight
+    a date-based ``resolving`` or a manual ``archived``. Returns None when no
+    move is suggested. Applying a suggestion stays a human action.
+    """
+    implied = _ORACLE_LIFECYCLE.get(oracle_status)
+    if implied is None or current not in _LIFECYCLE_ORDER:
+        return None
+    if _LIFECYCLE_ORDER.index(implied) > _LIFECYCLE_ORDER.index(current):
+        return implied
+    return None
+
+
 def packet_market_ids(
     registry: MarketRegistry,
     portfolio: Portfolio,

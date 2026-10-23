@@ -16,6 +16,7 @@ from polyberg.collectors.polymarket_account import (
 from polyberg.collectors.polymarket_clob_auth import load_clob_credentials_from_env
 from polyberg.collectors.polymarket_clob_balance import write_clob_balance
 from polyberg.collectors.polymarket_clob_orders import write_clob_open_orders
+from polyberg.collectors.polymarket_data_v2 import DataApiV2Error
 from polyberg.collectors.polymarket_gamma import GammaCollectorError
 from polyberg.config import load_repo_dotenv, repo_path
 from polyberg.loaders import LoaderError, load_yaml_file
@@ -23,6 +24,10 @@ from polyberg.packet_builder import write_model_packets, write_packet
 from polyberg.packet_builder.api import TARGETS
 from polyberg.paste_import import PasteImportError, import_paste
 from polyberg.price_history import build_price_history_artifact, default_price_history_path
+from polyberg.resolution_status import (
+    build_resolution_status_artifact,
+    default_resolution_status_path,
+)
 from polyberg.snapshots import build_market_snapshot, default_snapshot_path, diff_snapshots
 from polyberg.trade_ticket import build_trade_ticket
 from polyberg.validators import (
@@ -530,7 +535,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     price_history = subparsers.add_parser(
         "fetch-price-history",
-        help="Fetch per-market CLOB price-history series and high/low windows.",
+        help="Fetch per-market price-history series (Data API v2, CLOB fallback) "
+        "and high/low windows.",
     )
     price_history.add_argument(
         "--output",
@@ -540,6 +546,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     price_history.add_argument("--context-dir", type=Path, default=None)
     price_history.set_defaults(func=command_fetch_price_history)
+
+    resolution_status = subparsers.add_parser(
+        "resolution-status",
+        help="Read live oracle resolution state per registry market (Data API v2).",
+    )
+    resolution_status.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Output JSON path. Defaults to live/resolution_status.json.",
+    )
+    resolution_status.add_argument("--context-dir", type=Path, default=None)
+    resolution_status.set_defaults(func=command_resolution_status)
 
     search_markets = subparsers.add_parser(
         "search-markets",
@@ -631,6 +650,11 @@ def build_parser() -> argparse.ArgumentParser:
     registry_update.add_argument("--preferred-side", choices=["YES", "NO"], default=None)
     registry_update.add_argument("--thesis-bucket", default=None)
     registry_update.add_argument("--notes", default=None)
+    registry_update.add_argument(
+        "--lifecycle",
+        choices=["active", "resolving", "resolved", "archived"],
+        default=None,
+    )
     registry_update.add_argument(
         "--risk-flags",
         dest="risk_flags",
@@ -1177,6 +1201,18 @@ def command_fetch_price_history(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_resolution_status(args: argparse.Namespace) -> int:
+    output = args.output or default_resolution_status_path()
+    registry_path = args.context_dir / "market_registry.yaml" if args.context_dir else None
+    try:
+        path = build_resolution_status_artifact(output, registry_path=registry_path)
+    except DataApiV2Error as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"Wrote resolution status to {path}")
+    return 0
+
+
 def _load_registry_for_suggest(path: Path):
     import yaml as _yaml
 
@@ -1428,6 +1464,7 @@ def command_registry_update(args: argparse.Namespace) -> int:
         ("oracle_type", args.oracle_type),
         ("preferred_side", args.preferred_side),
         ("notes", args.notes),
+        ("lifecycle", args.lifecycle),
     ):
         if value is not None:
             updates[flag] = value
