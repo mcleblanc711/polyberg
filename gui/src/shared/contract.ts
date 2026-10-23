@@ -35,6 +35,21 @@ export const EMPTY_PRICE_WINDOWS: PriceWindows = {
 // failed (typically a resolved market), 'none' = not fetched / not flagged.
 export type BookStatus = 'ok' | 'unavailable' | 'none'
 
+// Live oracle state for one market from live/resolution_status.json
+// (`resolution-status`). Outcomes are 'YES' | 'NO' | '50-50', '' when unset.
+export interface MarketResolution {
+  // UMA/CTF lifecycle: posed, proposed, challenged, reproposed, disputed,
+  // arbitration, resolved (condition rows may also report active).
+  status: string
+  wasDisputed: boolean
+  proposedOutcome: string
+  settledOutcome: string
+  expectedSettlement: string
+  // Forward-only registry lifecycle suggestion; '' when none.
+  suggestedLifecycle: string
+  asOf: string
+}
+
 export interface Market {
   id: string
   name: string
@@ -50,6 +65,10 @@ export interface Market {
   preferredSide: Side
   resolutionDate: string
   expired: boolean
+  // Registry lifecycle: active | resolving | resolved | archived.
+  lifecycle: string
+  // null until `resolution-status` has produced a row for this market.
+  resolution: MarketResolution | null
   ruleRisk: RuleRisk
   // mark/bid/ask/spread are quotes for preferredSide from live/order_books.json;
   // spread is in cents, liq is total resting notional on that side's book.
@@ -215,6 +234,7 @@ export const ALLOWED_STAGES = [
   'import-clob-orders',
   'import-clob-balance',
   'fetch-price-history',
+  'resolution-status',
   'promote-positions',
   'promote-orders',
   'promote-balance',

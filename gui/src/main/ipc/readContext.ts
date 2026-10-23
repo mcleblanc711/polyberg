@@ -18,6 +18,7 @@ import {
   type FreshnessState,
   type HeatEntry,
   type Market,
+  type MarketResolution,
   type Mode,
   type OpenOrder,
   type PmDataPayload,
@@ -89,6 +90,7 @@ interface RegistryFile {
     notes?: string
     risk_flags?: string[]
     rule_risk?: { dispute_risk?: string }
+    lifecycle?: string
   }>
 }
 
@@ -127,6 +129,21 @@ interface PriceHistoryFile {
       yes_token_id?: string
       series?: Array<{ t?: number; p?: number }>
       windows?: Record<string, { high?: number; low?: number }>
+    }
+  >
+}
+
+interface ResolutionStatusFile {
+  as_of?: string
+  markets?: Record<
+    string,
+    {
+      oracle_status?: string
+      was_disputed?: boolean
+      proposed_outcome?: string | null
+      settled_outcome?: string | null
+      expected_settlement_time?: string | null
+      suggested_lifecycle?: string | null
     }
   >
 }
@@ -173,6 +190,8 @@ const readMarkets = (): Market[] => {
         negRisk: typeof r.neg_risk === 'boolean' ? r.neg_risk : null,
         resolutionDate,
         expired: isExpired(resolutionDate),
+        lifecycle: asString(r.lifecycle, 'active'),
+        resolution: null,
         ruleRisk: asRuleRisk(r.rule_risk?.dispute_risk),
         bookStatus: 'none' as BookStatus,
         mark: 0,
@@ -288,6 +307,33 @@ const applyPriceHistory = (markets: Market[]): Market[] => {
       windowsAsOf: w ? asOf : m.windowsAsOf,
       hist: series ?? m.hist
     }
+  })
+}
+
+// Overlay live oracle state from live/resolution_status.json (written by
+// resolution-status). Markets without a row keep resolution: null.
+const applyResolutionStatus = (markets: Market[]): Market[] => {
+  let raw: ResolutionStatusFile | null = null
+  try {
+    raw = JSON.parse(readFileSync(resolve(REPO_ROOT, 'live', 'resolution_status.json'), 'utf8'))
+  } catch {
+    return markets
+  }
+  const asOf = asString(raw?.as_of)
+  const rows = raw?.markets ?? {}
+  return markets.map((m) => {
+    const row = rows[m.id]
+    if (!row) return m
+    const resolution: MarketResolution = {
+      status: asString(row.oracle_status, 'unknown'),
+      wasDisputed: row.was_disputed === true,
+      proposedOutcome: asString(row.proposed_outcome),
+      settledOutcome: asString(row.settled_outcome),
+      expectedSettlement: asString(row.expected_settlement_time),
+      suggestedLifecycle: asString(row.suggested_lifecycle),
+      asOf
+    }
+    return { ...m, resolution }
   })
 }
 
@@ -492,6 +538,13 @@ const STAGE_OUTPUTS: { id: string; label: string; cli: string; files: string[]; 
     files: ['order_books.md', 'order_books.json'],
     dir: 'live'
   },
+  {
+    id: 'oracle',
+    label: 'Check resolutions',
+    cli: 'resolution-status',
+    files: ['resolution_status.json'],
+    dir: 'live'
+  },
   { id: 'packet', label: 'Build packet', cli: 'build-packet', files: ['packet.md', 'context_packet.md'] },
   {
     id: 'validate',
@@ -550,7 +603,7 @@ const readWorkflow = (freshness: FreshnessEntry[]): WorkflowStage[] => {
 }
 
 export const readContext = (): PmDataPayload => {
-  const markets = applyOrderBooks(applyPriceHistory(readMarkets()))
+  const markets = applyResolutionStatus(applyOrderBooks(applyPriceHistory(readMarkets())))
   const positions = readPositions(markets)
   const openOrders = readOpenOrders(markets)
   const liveState = readLiveState()
