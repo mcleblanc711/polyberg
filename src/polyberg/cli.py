@@ -17,6 +17,11 @@ from polyberg.collectors.polymarket_clob_auth import load_clob_credentials_from_
 from polyberg.collectors.polymarket_clob_balance import write_clob_balance
 from polyberg.collectors.polymarket_clob_orders import write_clob_open_orders
 from polyberg.collectors.polymarket_gamma import GammaCollectorError
+from polyberg.collectors.polymarket_geoblock import (
+    GeoblockError,
+    default_geo_status_path,
+    write_geo_status,
+)
 from polyberg.config import load_repo_dotenv, repo_path
 from polyberg.loaders import LoaderError, load_yaml_file
 from polyberg.packet_builder import write_model_packets, write_packet
@@ -540,6 +545,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     price_history.add_argument("--context-dir", type=Path, default=None)
     price_history.set_defaults(func=command_fetch_price_history)
+
+    geo_check = subparsers.add_parser(
+        "geo-check",
+        help="Check this machine's public IP against Polymarket's geoblock (read-only).",
+    )
+    geo_check.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Output JSON path. Defaults to live/geo_status.json.",
+    )
+    geo_check.set_defaults(func=command_geo_check)
 
     search_markets = subparsers.add_parser(
         "search-markets",
@@ -1174,6 +1191,20 @@ def command_fetch_price_history(args: argparse.Namespace) -> int:
         print(str(exc), file=sys.stderr)
         return 1
     print(f"Wrote price-history artifact to {path}")
+    return 0
+
+
+def command_geo_check(args: argparse.Namespace) -> int:
+    output = args.output or default_geo_status_path()
+    try:
+        status = write_geo_status(output)
+    except GeoblockError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    where = "-".join(part for part in (status["country"], status["region"]) if part) or "unknown"
+    verdict = "BLOCKED" if status["blocked"] else "allowed"
+    print(f"Polymarket geoblock: {where} — {verdict}")
+    print(f"Wrote geo status to {output}")
     return 0
 
 

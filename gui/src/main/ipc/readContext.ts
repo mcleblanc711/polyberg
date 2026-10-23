@@ -16,6 +16,7 @@ import {
   type BookStatus,
   type FreshnessEntry,
   type FreshnessState,
+  type GeoStatus,
   type HeatEntry,
   type Market,
   type Mode,
@@ -549,6 +550,23 @@ const readWorkflow = (freshness: FreshnessEntry[]): WorkflowStage[] => {
   })
 }
 
+// Polymarket geoblock verdict written by `geo-check`; null when absent or
+// malformed (the flag then shows as unchecked).
+const readGeoStatus = (): GeoStatus | null => {
+  try {
+    const raw = JSON.parse(readFileSync(resolve(REPO_ROOT, 'live', 'geo_status.json'), 'utf8'))
+    if (typeof raw?.blocked !== 'boolean') return null
+    return {
+      blocked: raw.blocked,
+      country: asString(raw.country),
+      region: asString(raw.region),
+      asOf: asString(raw.as_of)
+    }
+  } catch {
+    return null
+  }
+}
+
 export const readContext = (): PmDataPayload => {
   const markets = applyOrderBooks(applyPriceHistory(readMarkets()))
   const positions = readPositions(markets)
@@ -589,6 +607,7 @@ export const readContext = (): PmDataPayload => {
     heat,
     intake: [],
     snapshots,
-    accountImport: readAccountImport()
+    accountImport: readAccountImport(),
+    geo: readGeoStatus()
   }
 }

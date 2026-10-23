@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { StageRunnerModal } from './components/StageRunnerModal'
+import { geoChip, type GeoTone } from './lib/geo'
 import { nextRunnableStage } from './lib/pmData'
 import { usePmData, usePmDataRefresh } from './lib/pmDataContext'
 import { useLocalState } from './lib/useLocalState'
@@ -63,6 +64,25 @@ const TopBar = ({
       setRefreshing(false)
     }
   }
+  const [geoChecking, setGeoChecking] = useState(false)
+  const [geoError, setGeoError] = useState('')
+  const runGeoCheck = async (): Promise<void> => {
+    if (geoChecking) return
+    setGeoChecking(true)
+    try {
+      const result = await window.pm.runStage('geo-check', [])
+      setGeoError(result.ok ? '' : (result.stderr || result.stdout || `exit ${result.code}`).slice(0, 200))
+      await refresh()
+    } finally {
+      setGeoChecking(false)
+    }
+  }
+  // Check once per launch: a VPN or travel can change the verdict between sessions.
+  useEffect(() => {
+    void runGeoCheck()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const geo = geoChip(pmData.geo)
   const tabs: Tab[] = [
     { id: 'dashboard', label: 'DASHBOARD' },
     { id: 'intake', label: 'INTAKE', badge: pendingIntake },
@@ -112,6 +132,15 @@ const TopBar = ({
         <span style={{ color: C.textMute }}>⌕</span>
         <span style={{ color: C.textMute, fontSize: 11 }}>jump to market…</span>
         <span style={S.kbd}>⌘K</span>
+      </button>
+      <button
+        style={{ ...S.geoChip, ...GEO_TONE[geo.tone] }}
+        title={geoError ? `${geo.title} Last check failed: ${geoError}` : geo.title}
+        onClick={() => void runGeoCheck()}
+        disabled={geoChecking}
+      >
+        {geoChecking ? '$ geo-check…' : geo.text}
+        {geoError && !geoChecking ? ' !' : ''}
       </button>
       <div style={S.modeChip}>
         <span style={S.modeChipDot} />
@@ -345,6 +374,12 @@ export const App = () => {
   )
 }
 
+const GEO_TONE: Record<GeoTone, CSSProperties> = {
+  blocked: { background: C.redSft, color: C.red, borderColor: C.red },
+  allowed: { background: C.cyanSft, color: C.cyan, borderColor: C.cyan },
+  unknown: { background: 'transparent', color: C.textMute, borderColor: C.line }
+}
+
 const S: Record<string, CSSProperties> = {
   shell: {
     width: '100vw',
@@ -363,7 +398,7 @@ const S: Record<string, CSSProperties> = {
     alignItems: 'center',
     height: 46,
     padding: '0 18px',
-    gap: 12,
+    gap: 8,
     borderBottom: `1px solid ${C.line}`,
     background: C.bgPanel,
     position: 'relative',
@@ -409,7 +444,7 @@ const S: Record<string, CSSProperties> = {
     border: 'none',
     borderBottom: '2px solid transparent',
     color: C.textDim,
-    padding: '14px 11px',
+    padding: '14px 9px',
     fontFamily: F.mono,
     fontSize: 10.5,
     fontWeight: 700,
@@ -466,6 +501,20 @@ const S: Record<string, CSSProperties> = {
     background: C.bg,
     border: `1px solid ${C.line}`,
     letterSpacing: 0.4
+  },
+  geoChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '4px 8px',
+    fontSize: 10.5,
+    fontWeight: 700,
+    letterSpacing: 0.4,
+    border: '1px solid',
+    fontFamily: F.mono,
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
+    outline: 'none'
   },
   modeChip: {
     display: 'inline-flex',

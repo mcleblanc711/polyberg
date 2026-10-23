@@ -48,3 +48,6 @@ gui/*.tsbuildinfo
 # electron-builder buildResources (icons etc) — tracked even though top-level build/ is ignored
 !gui/build/
 !gui/build/**
+
+# Polymarket geoblock check for this machine's IP (`polyberg geo-check`)
+live/geo_status.json
