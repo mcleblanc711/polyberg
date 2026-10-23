@@ -31,7 +31,9 @@ export const registerIpc = (): void => {
     if (typeof text !== 'string') {
       throw new Error('writeClipboard expects a string')
     }
-    clipboard.writeText(text)
+    // Async in the main process since Electron 44; return it so a failure
+    // rejects the renderer's invoke instead of being dropped.
+    return clipboard.writeText(text)
   })
 
   ipcMain.handle(IPC.openExternal, (_evt, url: string) => {

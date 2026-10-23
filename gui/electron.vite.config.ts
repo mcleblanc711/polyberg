@@ -1,14 +1,12 @@
 import { resolve } from 'path'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
+// electron-vite >= 5 externalizes dependencies for main/preload by default
+// (build.externalizeDeps), replacing the deprecated externalizeDepsPlugin().
 export default defineConfig({
-  main: {
-    plugins: [externalizeDepsPlugin()]
-  },
-  preload: {
-    plugins: [externalizeDepsPlugin()]
-  },
+  main: {},
+  preload: {},
   renderer: {
     resolve: {
       alias: {
