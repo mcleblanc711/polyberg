@@ -28,7 +28,7 @@ matching:
 
 ladders:
   # SELL ladder: cash-rebuild by selling NO shares into strength
-  - market_id: hormuz_normal_end_june
+  - market_id: strait_hormuz_traffic_returns_normal_october_31_20260810151043583
     outcome: "NO"
     action: SELL
     rungs:
@@ -40,7 +40,7 @@ ladders:
       purpose: cash_rebuild
 
   # BUY ladder: resting runner bid on the later-dated market
-  - market_id: hormuz_normal_jul31
+  - market_id: strait_hormuz_traffic_returns_normal_november_30_20260810151158765
     outcome: "NO"
     action: BUY
     rungs:

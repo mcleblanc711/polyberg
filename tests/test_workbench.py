@@ -13,6 +13,10 @@ from polyberg.snapshots import build_market_snapshot, diff_snapshots
 from polyberg.trade_ticket import build_trade_ticket
 from polyberg.validators import ResponseValidationError
 
+# Registry ids from the tracked context/market_registry.yaml.
+HORMUZ_NORMAL_OCT31 = "strait_hormuz_traffic_returns_normal_october_31_20260810151043583"
+HORMUZ_NORMAL_NOV30 = "strait_hormuz_traffic_returns_normal_november_30_20260810151158765"
+
 
 def write_json(tmp_path, name: str, payload: dict):
     path = tmp_path / name
@@ -27,13 +31,13 @@ def adjudicator_payload(human_review_required: bool = True) -> dict:
         "disputed_trades": [],
         "rejected_trades": [
             {
-                "market_id": "hormuz_normal_end_june",
+                "market_id": HORMUZ_NORMAL_OCT31,
                 "rationale": "Rejected until rule gap is checked.",
             }
         ],
         "final_order_list": [
             {
-                "market_id": "hormuz_normal_jul31",
+                "market_id": HORMUZ_NORMAL_NOV30,
                 "side": "NO",
                 "action": "sell_ladder",
                 "price": 0.94,
@@ -101,7 +105,7 @@ def test_trade_ticket_emits_ledger_json_sibling(tmp_path) -> None:
     assert len(ticket["decisions"]) == 1
 
     decision = ticket["decisions"][0]
-    assert decision["market_id"] == "hormuz_normal_jul31"
+    assert decision["market_id"] == HORMUZ_NORMAL_NOV30
     assert decision["side"] == "NO"
     assert decision["intent"] == "sell_ladder"
     assert decision["decision_type"] == "EXIT"
@@ -113,7 +117,7 @@ def test_trade_ticket_emits_ledger_json_sibling(tmp_path) -> None:
     assert decision["attributions"][0]["source_model_support"] == "both"
     assert decision["attributions"][0]["recommended_size"] == 15
 
-    assert ticket["rejected"][0]["market_id"] == "hormuz_normal_end_june"
+    assert ticket["rejected"][0]["market_id"] == HORMUZ_NORMAL_OCT31
 
 
 def test_trade_ticket_rejects_false_human_review(tmp_path) -> None:
