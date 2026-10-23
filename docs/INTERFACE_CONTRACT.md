@@ -19,7 +19,8 @@ reports/latest_session.txt   ← bare session_id of the newest complete session
 ```
 
 Schema: `schemas/canonical_session.schema.json` (Draft 2020-12,
-`additionalProperties: false`, all 20 top-level keys required). Validation
+`additionalProperties: false`; 20 top-level keys required, plus the optional
+`resolution_status`). Validation
 helpers: `polyberg.validators.validate_canonical_session_payload` (in-memory)
 and `validate_canonical_session` (file). Producer models live in
 `polyberg.packet_builder.session`.
@@ -46,6 +47,7 @@ truth.
 | `open_orders` | **raw** | `OpenOrders.model_dump(mode="json")` |
 | `market_registry` | **raw** | full `MarketRegistry.model_dump(mode="json")`; packet trimming is re-derived |
 | `order_books` | **raw** | `{"raw": <order_books.json dict or null>, "markdown": <order_books.md text or null>}` |
+| `resolution_status` | **raw**, optional | `<live/resolution_status.json dict>` or `null` when `polyberg resolution-status` has not run. Always written by current producers; absent from sessions written before it existed, which still validate and reconstruct with `null`. Drives the oracle gate items in `completeness_audit.missing_info` and an artifact-staleness line in `freshness_audit.warnings` |
 | `market_snapshot` | **raw** | `MarketSnapshot.model_dump(mode="json")`, or `{}` when the build ran without a snapshot |
 | `catalysts` | **raw** | `{"markdown": <recent_catalysts.md text>}`; windowed watch lists are derived |
 | `freshness_audit` | derived | `{"warnings": [...], "live_state_as_of": ...}` |
@@ -125,6 +127,15 @@ permissive sections) may keep `polyberg_session_v1`. Any breaking change —
 removing/renaming a key, changing a type, tightening a const — requires
 bumping to `polyberg_session_v2`, a new schema file, and a migration note
 here.
+
+Changes under v1:
+
+- **2026-10: optional `resolution_status` top-level key.** Additive: it is
+  not in `required`, so every earlier session still validates, and
+  `packet_state_from_session` reads it with `.get()` so earlier sessions
+  reconstruct unchanged. A consumer pinned to the pre-change schema file
+  would reject new sessions (`additionalProperties: false`); in-repo
+  consumers validate against the checked-in schema, so none are affected.
 
 ## Privacy note
 

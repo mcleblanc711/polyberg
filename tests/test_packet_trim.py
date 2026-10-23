@@ -69,6 +69,7 @@ def _state(
     order_books_markdown: str | None = None,
     now: datetime = _NOW,
     as_of: datetime | None = None,
+    resolution_status: dict | None = None,
 ) -> PacketState:
     as_of = as_of or now
     registry = MarketRegistry.model_validate({"markets": markets})
@@ -108,6 +109,7 @@ def _state(
         catalysts_markdown=catalysts_markdown,
         order_books=order_books,
         order_books_markdown=order_books_markdown,
+        resolution_status=resolution_status,
     )
 
 
@@ -404,3 +406,81 @@ def test_empty_thesis_bucket_is_info_not_blocker() -> None:
     cp = build_canonical_packet(state=state)
     assert not any("THESIS BUCKET EMPTY" in w for w in cp.blocking_warnings)
     assert any("thesis_bucket empty" in item for item in cp.missing_info)
+
+
+# --- oracle resolution status ------------------------------------------------------
+
+
+def _oracle(status: str, **extra) -> dict:
+    return {"oracle_status": status, "was_disputed": False, **extra}
+
+
+def test_oracle_gate_items_scoped_to_active_set() -> None:
+    state = _state(
+        markets=[
+            _market("m_prop"),
+            _market("m_res"),
+            _market("m_disp"),
+            _market("m_open"),
+            _market("m_trimmed", lifecycle="resolved"),
+        ],
+        positions=[_position("m_prop")],
+        resolution_status={
+            "as_of": _NOW.isoformat(),
+            "markets": {
+                "m_prop": _oracle(
+                    "proposed",
+                    proposed_outcome="NO",
+                    expected_settlement_time="2026-06-22T14:00:00Z",
+                ),
+                "m_res": _oracle("resolved", settled_outcome="YES", was_disputed=True),
+                "m_disp": _oracle("disputed"),
+                "m_open": _oracle("posed"),
+                "m_trimmed": _oracle("proposed", proposed_outcome="YES"),
+            },
+        },
+    )
+
+    joined = "\n".join(build_canonical_packet(state=state).missing_info)
+
+    assert (
+        "m_prop: oracle proposal pending (proposed, proposed NO) — trading into a live "
+        "proposal carries resolution risk; expected settlement ~2026-06-22T14:00:00Z"
+    ) in joined
+    assert "m_res: oracle already resolved YES after a dispute" in joined
+    assert "m_disp: oracle DISPUTED (disputed)" in joined
+    assert "m_open" not in joined  # an open oracle is not a gate item
+    assert "m_trimmed" not in joined  # outside the active set
+
+
+def test_oracle_gate_items_absent_without_artifact() -> None:
+    state = _state(markets=[_market("m_a")], positions=[_position("m_a")])
+    assert not any("oracle" in item for item in build_canonical_packet(state=state).missing_info)
+
+
+def test_resolution_status_staleness_is_a_freshness_warning() -> None:
+    markets, positions = [_market("m_a")], [_position("m_a")]
+    stale = _state(
+        markets=markets,
+        positions=positions,
+        resolution_status={"as_of": (_NOW - timedelta(hours=40)).isoformat(), "markets": {}},
+    )
+    fresh = _state(
+        markets=markets,
+        positions=positions,
+        resolution_status={"as_of": _NOW.isoformat(), "markets": {}},
+    )
+    unparseable = _state(
+        markets=markets, positions=positions, resolution_status={"markets": {}}
+    )
+
+    assert any(
+        w.startswith("oracle resolution status is older than")
+        for w in build_canonical_packet(state=stale).freshness_warnings
+    )
+    assert not any(
+        "oracle" in w for w in build_canonical_packet(state=fresh).freshness_warnings
+    )
+    assert "oracle resolution status has no parseable as_of" in (
+        build_canonical_packet(state=unparseable).freshness_warnings
+    )

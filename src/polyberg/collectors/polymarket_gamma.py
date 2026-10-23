@@ -13,6 +13,10 @@ from polyberg.collectors.polymarket_account import (
     AccountImportError,
     ReadOnlyHttpClient,
 )
+from polyberg.collectors.polymarket_data_v2 import (
+    DataApiV2Error,
+    fetch_prices_history_v2,
+)
 
 CLOB_API_BASE_URL = "https://clob.polymarket.com"
 GAMMA_API_BASE_URL = "https://gamma-api.polymarket.com"
@@ -247,6 +251,36 @@ def normalize_gamma_event(event: dict) -> dict:
 
 
 def fetch_price_history(
+    token_id: str,
+    interval: str = "1m",
+    fidelity: int = 60,
+    http: ReadOnlyHttpClient | None = None,
+    clob_http: ReadOnlyHttpClient | None = None,
+) -> list[dict]:
+    """Fetch a token's price-history series: Data API v2 first, CLOB fallback.
+
+    ``/v2/prices-history`` replaced the CLOB-hosted route on 2026-09-04; the
+    CLOB route still answers, so any v2 failure falls back to it. ``http`` is
+    the v2 client and ``clob_http`` the CLOB one. ``fidelity`` is in minutes
+    (the CLOB unit) and becomes v2's ``bucket_seconds``.
+
+    Returns ``{"t": unix_seconds, "p": mark}`` dicts in ascending timestamp
+    order. Raises :class:`GammaCollectorError` when both sources fail.
+    """
+    if not token_id:
+        raise GammaCollectorError("Missing CLOB token_id for price-history fetch")
+    try:
+        return fetch_prices_history_v2(
+            token_id, interval=interval, bucket_seconds=fidelity * 60, http=http
+        )
+    except DataApiV2Error as v2_exc:
+        try:
+            return fetch_clob_price_history(token_id, interval, fidelity, http=clob_http)
+        except GammaCollectorError as exc:
+            raise GammaCollectorError(f"{exc} (v2 also failed: {v2_exc})") from exc
+
+
+def fetch_clob_price_history(
     token_id: str,
     interval: str = "1m",
     fidelity: int = 60,

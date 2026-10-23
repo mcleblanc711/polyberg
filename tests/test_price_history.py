@@ -7,9 +7,11 @@ from pathlib import Path
 import pytest
 
 from polyberg.collectors.polymarket_account import AccountImportError, ReadOnlyHttpClient
+from polyberg.collectors.polymarket_data_v2 import DATA_API_V2_BASE_URL
 from polyberg.collectors.polymarket_gamma import (
     CLOB_API_BASE_URL,
     GammaCollectorError,
+    fetch_clob_price_history,
     fetch_price_history,
 )
 from polyberg.price_history import _windows_from_series, build_price_history_artifact
@@ -39,13 +41,78 @@ class RecordingOpener:
         return FakeResponse(self.payload)
 
 
-def test_fetch_price_history_returns_cleaned_points() -> None:
+class BoomClient:
+    def __init__(self, message: str = "HTTP 502 while reading https://example") -> None:
+        self.message = message
+        self.calls = 0
+
+    def get_json(self, *_args, **_kwargs):
+        self.calls += 1
+        raise AccountImportError(self.message)
+
+
+def test_fetch_price_history_prefers_v2_and_maps_points() -> None:
+    v2 = RecordingOpener(
+        {
+            "data": [
+                {"timestamp": 1, "price": 0.5, "resolution_seconds": 3600},
+                {"timestamp": 2, "price": 0.55, "resolution_seconds": 0},
+                {"timestamp": "bad", "price": 0.1},
+            ],
+            "pagination": {"limit": 10000, "offset": 0, "has_more": False, "next_cursor": None},
+        }
+    )
+    clob = BoomClient()
+
+    series = fetch_price_history(
+        "0xToken",
+        http=ReadOnlyHttpClient(DATA_API_V2_BASE_URL, opener=v2),
+        clob_http=clob,  # type: ignore[arg-type]
+    )
+
+    assert series == [{"t": 1, "p": 0.5}, {"t": 2, "p": 0.55}]
+    assert v2.urls[0].startswith(DATA_API_V2_BASE_URL + "/prices-history?")
+    assert "token_id=0xToken" in v2.urls[0]
+    assert "interval=1m" in v2.urls[0]
+    # CLOB fidelity is minutes; v2 bucket_seconds is seconds.
+    assert "bucket_seconds=3600" in v2.urls[0]
+    assert clob.calls == 0
+
+
+def test_fetch_price_history_falls_back_to_clob_when_v2_fails() -> None:
+    clob = RecordingOpener({"history": [{"t": 1, "p": 0.5}]})
+
+    series = fetch_price_history(
+        "0xToken",
+        http=BoomClient(),  # type: ignore[arg-type]
+        clob_http=ReadOnlyHttpClient(CLOB_API_BASE_URL, opener=clob),
+    )
+
+    assert series == [{"t": 1, "p": 0.5}]
+    assert clob.urls[0].startswith(CLOB_API_BASE_URL + "/prices-history?")
+
+
+def test_fetch_price_history_reports_both_failures() -> None:
+    with pytest.raises(GammaCollectorError, match=r"HTTP 500.*v2 also failed: HTTP 502"):
+        fetch_price_history(
+            "0xToken",
+            http=BoomClient(),  # type: ignore[arg-type]
+            clob_http=BoomClient("HTTP 500 while reading https://clob"),  # type: ignore[arg-type]
+        )
+
+
+def test_fetch_price_history_rejects_blank_token() -> None:
+    with pytest.raises(GammaCollectorError, match="token_id"):
+        fetch_price_history("")
+
+
+def test_fetch_clob_price_history_returns_cleaned_points() -> None:
     opener = RecordingOpener(
         {"history": [{"t": 1, "p": 0.5}, {"t": 2, "p": 0.55}, "junk", {"t": "bad", "p": 0.1}]}
     )
     client = ReadOnlyHttpClient(CLOB_API_BASE_URL, opener=opener)
 
-    series = fetch_price_history("0xToken", http=client)
+    series = fetch_clob_price_history("0xToken", http=client)
 
     assert series == [{"t": 1, "p": 0.5}, {"t": 2, "p": 0.55}]
     assert opener.urls[0].startswith(CLOB_API_BASE_URL + "/prices-history?")
@@ -54,27 +121,18 @@ def test_fetch_price_history_returns_cleaned_points() -> None:
     assert "fidelity=60" in opener.urls[0]
 
 
-def test_fetch_price_history_rejects_blank_token() -> None:
-    with pytest.raises(GammaCollectorError, match="token_id"):
-        fetch_price_history("")
-
-
-def test_fetch_price_history_wraps_http_errors() -> None:
-    class BoomClient:
-        def get_json(self, *_args, **_kwargs):
-            raise AccountImportError("HTTP 502 while reading https://example")
-
+def test_fetch_clob_price_history_wraps_http_errors() -> None:
     with pytest.raises(GammaCollectorError, match="HTTP 502"):
-        fetch_price_history("0xToken", http=BoomClient())  # type: ignore[arg-type]
+        fetch_clob_price_history("0xToken", http=BoomClient())  # type: ignore[arg-type]
 
 
-def test_fetch_price_history_rejects_non_dict_response() -> None:
+def test_fetch_clob_price_history_rejects_non_dict_response() -> None:
     class ListClient:
         def get_json(self, *_args, **_kwargs):
             return ["nope"]
 
     with pytest.raises(GammaCollectorError, match="not an object"):
-        fetch_price_history("0xToken", http=ListClient())  # type: ignore[arg-type]
+        fetch_clob_price_history("0xToken", http=ListClient())  # type: ignore[arg-type]
 
 
 def test_windows_from_series_picks_high_low_per_window() -> None:

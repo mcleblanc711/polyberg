@@ -169,6 +169,7 @@ def build_canonical_packet(
 
     freshness_warnings = _compute_freshness_warnings(state)
     freshness_warnings.extend(_book_freshness_warnings(state, book_ids))
+    freshness_warnings.extend(_resolution_freshness_warnings(state))
     registry_by_id = {m.market_id: m for m in state.registry.markets}
     exposure_summary, exposure_is_fallback, concentration_warnings = _build_exposure(
         state.portfolio, registry_by_id
@@ -277,6 +278,64 @@ def _book_freshness_warnings(state: PacketState, book_ids: set[str]) -> list[str
                 f"order book for {market_id} is older than {max_age:g} hours"
             )
     return warnings
+
+
+def _resolution_freshness_warnings(state: PacketState) -> list[str]:
+    """Staleness of live/resolution_status.json — oracle state moves in hours."""
+    if state.resolution_status is None:
+        return []
+    max_age = get_max_context_age_hours()
+    raw = state.resolution_status.get("as_of")
+    try:
+        as_of = datetime.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        return ["oracle resolution status has no parseable as_of"]
+    age_hours = (state.now - as_of.astimezone(state.now.tzinfo)).total_seconds() / 3600
+    if age_hours > max_age:
+        return [
+            f"oracle resolution status is older than {max_age:g} hours "
+            "(run `polyberg resolution-status`)"
+        ]
+    return []
+
+
+def _oracle_gate_items(state: PacketState, active_ids: set[str]) -> list[str]:
+    """Active-set markets whose oracle is mid-resolution or already settled.
+
+    Read from live/resolution_status.json; markets it does not cover, and
+    markets whose oracle is still open, add nothing.
+    """
+    entries = (state.resolution_status or {}).get("markets")
+    if not isinstance(entries, dict):
+        return []
+    items: list[str] = []
+    for market in state.registry.markets:
+        entry = entries.get(market.market_id)
+        if market.market_id not in active_ids or not isinstance(entry, dict):
+            continue
+        status = str(entry.get("oracle_status") or "")
+        settle = entry.get("expected_settlement_time")
+        settle_note = f"; expected settlement ~{settle}" if settle else ""
+        if status == "resolved":
+            outcome = entry.get("settled_outcome") or "(outcome unknown)"
+            disputed = " after a dispute" if entry.get("was_disputed") else ""
+            items.append(
+                f"{market.market_id}: oracle already resolved {outcome}{disputed} — "
+                "nothing left to trade; redeem any held shares"
+            )
+        elif status in ("disputed", "arbitration"):
+            items.append(
+                f"{market.market_id}: oracle DISPUTED ({status}) — outcome goes to a "
+                f"vote; resolution and timing uncertain{settle_note}"
+            )
+        elif status in ("proposed", "challenged", "reproposed"):
+            proposed = entry.get("proposed_outcome") or "unknown"
+            items.append(
+                f"{market.market_id}: oracle proposal pending ({status}, proposed "
+                f"{proposed}) — trading into a live proposal carries resolution "
+                f"risk{settle_note}"
+            )
+    return items
 
 
 def _build_order_books(state: PacketState, book_ids: set[str]) -> dict[str, object] | None:
@@ -568,6 +627,7 @@ def _build_missing_info(
             missing.append(f"{market.market_id}: missing YES token ID")
         if not market.no_token_id:
             missing.append(f"{market.market_id}: missing NO token ID")
+    missing.extend(_oracle_gate_items(state, active_ids))
     # Empty thesis_bucket is INFO, not a blocker: exposure already falls back to
     # grouping by rule_key, so the condition auto-resolves.
     for position in state.portfolio.positions:

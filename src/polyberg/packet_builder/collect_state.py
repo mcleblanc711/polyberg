@@ -43,6 +43,8 @@ class PacketState:
     # live/order_books.{json,md} from `polyberg fetch-books`; None when not run.
     order_books: dict | None = None
     order_books_markdown: str | None = None
+    # live/resolution_status.json from `polyberg resolution-status`; None when not run.
+    resolution_status: dict | None = None
 
 
 def load_order_books(books_dir: Path | None = None) -> tuple[dict | None, str | None]:
@@ -67,6 +69,19 @@ def load_order_books(books_dir: Path | None = None) -> tuple[dict | None, str | 
     return books_json, books_md
 
 
+def load_resolution_status(live_dir: Path | None = None) -> dict | None:
+    """Read the oracle resolution-status artifact if it has been produced.
+
+    Missing or malformed files are not an error, mirroring order books.
+    """
+    directory = live_dir or repo_path("live")
+    try:
+        parsed = json.loads((directory / "resolution_status.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def collect_packet_state(
     now: datetime | None = None,
     context_dir: Path | None = None,
@@ -84,13 +99,15 @@ def collect_packet_state(
     )
     snapshot = load_market_snapshot(snapshot_path) if snapshot_path else None
     catalysts_markdown = read_text_file(context_path(context_dir, "recent_catalysts.md"))
-    # Books default to the repo live/ dir only for default-context builds;
-    # custom context_dir callers (tests, sandboxes) must opt in via books_dir
-    # so they stay hermetic.
+    # Live artifacts (books, resolution status) default to the repo live/ dir
+    # only for default-context builds; custom context_dir callers (tests,
+    # sandboxes) must opt in via books_dir so they stay hermetic.
     if books_dir is not None or context_dir is None:
         order_books, order_books_markdown = load_order_books(books_dir)
+        resolution_status = load_resolution_status(books_dir)
     else:
         order_books, order_books_markdown = None, None
+        resolution_status = None
 
     if now is None:
         now = datetime.now(get_timezone())
@@ -105,4 +122,5 @@ def collect_packet_state(
         catalysts_markdown=catalysts_markdown,
         order_books=order_books,
         order_books_markdown=order_books_markdown,
+        resolution_status=resolution_status,
     )

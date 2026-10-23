@@ -61,6 +61,7 @@ TOP_LEVEL_KEYS = {
     "open_orders",
     "market_registry",
     "order_books",
+    "resolution_status",
     "market_snapshot",
     "catalysts",
     "freshness_audit",
@@ -117,6 +118,7 @@ def _state(
     order_books: dict | None = None,
     order_books_markdown: str | None = None,
     now: datetime = _NOW,
+    resolution_status: dict | None = None,
 ) -> PacketState:
     registry = MarketRegistry.model_validate({"markets": markets})
     portfolio = Portfolio.model_validate(
@@ -155,6 +157,7 @@ def _state(
         catalysts_markdown=catalysts_markdown,
         order_books=order_books,
         order_books_markdown=order_books_markdown,
+        resolution_status=resolution_status,
     )
 
 
@@ -175,6 +178,17 @@ def _books(now: datetime) -> tuple[dict, str]:
         "### m_404 — BOOK UNAVAILABLE — do not price orders\n- error\n"
     )
     return order_books, md
+
+
+def _resolution_status(now: datetime) -> dict:
+    return {
+        "as_of": now.isoformat(),
+        "markets": {
+            "m_fresh": {"oracle_status": "proposed", "proposed_outcome": "NO"},
+            "m_stale": {"oracle_status": "resolved", "settled_outcome": "YES"},
+        },
+        "skipped": [],
+    }
 
 
 def _catalysts_md() -> str:
@@ -249,6 +263,7 @@ def _rich_state() -> PacketState:
         catalysts_markdown=_catalysts_md(),
         order_books=order_books,
         order_books_markdown=md,
+        resolution_status=_resolution_status(_NOW),
     )
 
 
@@ -408,6 +423,7 @@ def test_packet_state_round_trips_losslessly() -> None:
     assert rebuilt.catalysts_markdown == state.catalysts_markdown
     assert rebuilt.order_books == state.order_books
     assert rebuilt.order_books_markdown == state.order_books_markdown
+    assert rebuilt.resolution_status == state.resolution_status
 
 
 def test_canonical_packet_round_trips() -> None:
@@ -479,6 +495,38 @@ def test_books_absent_stored_as_nulls() -> None:
     rebuilt = packet_state_from_session(payload)
     assert rebuilt.order_books is None
     assert rebuilt.order_books_markdown is None
+    assert canonical_packet_from_session(payload) == cp
+
+
+def test_rich_session_carries_oracle_gate_items() -> None:
+    cp, session = _session(_rich_state())
+    payload = _json_round_trip(session)
+
+    assert payload["resolution_status"] == _resolution_status(_NOW)
+    missing = payload["completeness_audit"]["missing_info"]
+    assert any(item.startswith("m_fresh: oracle proposal pending") for item in missing)
+    assert any(item.startswith("m_stale: oracle already resolved YES") for item in missing)
+
+
+def test_resolution_status_absent_stored_as_null() -> None:
+    state = _state(markets=[_market("m_fresh")], positions=[_position("m_fresh")])
+    cp, session = _session(state)
+    payload = _json_round_trip(session)
+
+    validate_canonical_session_payload(payload)
+    assert payload["resolution_status"] is None
+    assert packet_state_from_session(payload).resolution_status is None
+    assert canonical_packet_from_session(payload) == cp
+
+
+def test_session_predating_resolution_status_still_validates_and_rebuilds() -> None:
+    state = _state(markets=[_market("m_fresh")], positions=[_position("m_fresh")])
+    cp, session = _session(state)
+    payload = _json_round_trip(session)
+    del payload["resolution_status"]  # shape written before the key existed
+
+    validate_canonical_session_payload(payload)
+    assert packet_state_from_session(payload).resolution_status is None
     assert canonical_packet_from_session(payload) == cp
 
 

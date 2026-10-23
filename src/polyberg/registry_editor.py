@@ -41,6 +41,8 @@ EDITABLE_FIELDS = (
     "preferred_side",
     "risk_flags",
     "notes",
+    # Human-set lifecycle; `resolution-status` only suggests a value for it.
+    "lifecycle",
 )
 
 

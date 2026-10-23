@@ -115,6 +115,9 @@ class CanonicalSession(StrictModel):
     market_registry: dict[str, Any]
     # {"raw": <order_books.json dict|null>, "markdown": <order_books.md|null>}
     order_books: dict[str, Any]
+    # Raw live/resolution_status.json dict, or None when it was not produced.
+    # Optional in the schema: sessions written before it existed omit the key.
+    resolution_status: dict[str, Any] | None = None
     # Raw MarketSnapshot dump, or {} when the build ran without a snapshot.
     market_snapshot: dict[str, Any]
     # {"markdown": <recent_catalysts.md text>} — windowed lists are derived.
@@ -162,6 +165,7 @@ def build_canonical_session(
         open_orders=state.open_orders.model_dump(mode="json"),
         market_registry=state.registry.model_dump(mode="json"),
         order_books={"raw": state.order_books, "markdown": state.order_books_markdown},
+        resolution_status=state.resolution_status,
         market_snapshot=state.snapshot.model_dump(mode="json") if state.snapshot else {},
         catalysts={"markdown": state.catalysts_markdown},
         freshness_audit={
@@ -204,6 +208,7 @@ def packet_state_from_session(payload: dict[str, Any]) -> PacketState:
         catalysts_markdown=payload["catalysts"]["markdown"],
         order_books=order_books["raw"],
         order_books_markdown=order_books["markdown"],
+        resolution_status=payload.get("resolution_status"),
     )
 
 
