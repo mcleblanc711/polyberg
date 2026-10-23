@@ -15,6 +15,7 @@ export type {
   OpenOrder,
   WorkflowStage,
   FreshnessEntry,
+  GeoStatus,
   LiveState,
   HeatEntry,
   IntakeItem,

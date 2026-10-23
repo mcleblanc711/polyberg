@@ -157,6 +157,16 @@ export interface AccountImport {
   openOrders: AccountImportFile
 }
 
+// Polymarket's geoblock verdict for this machine's public IP, from
+// live/geo_status.json (`geo-check`). country/region are ISO-style codes
+// ('CA', 'AB'); '' when Polymarket did not report one.
+export interface GeoStatus {
+  blocked: boolean
+  country: string
+  region: string
+  asOf: string
+}
+
 export interface PmDataPayload {
   markets: Market[]
   positions: Position[]
@@ -170,6 +180,8 @@ export interface PmDataPayload {
   intake: IntakeItem[]
   snapshots: SnapshotMeta[]
   accountImport: AccountImport
+  // null until `geo-check` has written live/geo_status.json.
+  geo: GeoStatus | null
 }
 
 export interface RunStageResult {
@@ -215,6 +227,7 @@ export const ALLOWED_STAGES = [
   'import-clob-orders',
   'import-clob-balance',
   'fetch-price-history',
+  'geo-check',
   'promote-positions',
   'promote-orders',
   'promote-balance',
