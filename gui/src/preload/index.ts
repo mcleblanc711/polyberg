@@ -1,3 +1,4 @@
+import { RESEARCH_IPC, type ResearchBridge } from '../shared/research'
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import {
   IPC,
@@ -62,3 +63,17 @@ const pm: PmBridge = {
 }
 
 contextBridge.exposeInMainWorld('pm', pm)
+
+const research: ResearchBridge = {
+  request: (request) => ipcRenderer.invoke(RESEARCH_IPC.request, request),
+  selectWorkspace: (workspace) => ipcRenderer.invoke(RESEARCH_IPC.workspace, workspace),
+  onChange: (cb) => {
+    ipcRenderer.on(RESEARCH_IPC.changed, cb)
+    void ipcRenderer.invoke(RESEARCH_IPC.watchStart)
+    return () => {
+      ipcRenderer.off(RESEARCH_IPC.changed, cb)
+      void ipcRenderer.invoke(RESEARCH_IPC.watchStop)
+    }
+  }
+}
+contextBridge.exposeInMainWorld('research', research)

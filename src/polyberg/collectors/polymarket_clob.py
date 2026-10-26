@@ -7,10 +7,7 @@ sign messages, or drive a browser.
 
 from __future__ import annotations
 
-from polyberg.collectors.polymarket_account import (
-    AccountImportError,
-    ReadOnlyHttpClient,
-)
+from polyberg.http import HttpReadError, ReadOnlyHttpClient
 
 CLOB_API_BASE_URL = "https://clob.polymarket.com"
 USER_AGENT = "polyberg/0.1 (+https://github.com/mcleblanc711/polyberg)"
@@ -28,7 +25,7 @@ def fetch_order_book(token_id: str, http: ReadOnlyHttpClient | None = None) -> d
     client = http or ReadOnlyHttpClient(CLOB_API_BASE_URL)
     try:
         raw = client.get_json("/book", params={"token_id": token_id}, headers=_HEADERS)
-    except AccountImportError as exc:
+    except HttpReadError as exc:
         raise ClobCollectorError(str(exc)) from exc
     if not isinstance(raw, dict):
         raise ClobCollectorError(
@@ -43,7 +40,7 @@ def fetch_midpoint(token_id: str, http: ReadOnlyHttpClient | None = None) -> dic
     client = http or ReadOnlyHttpClient(CLOB_API_BASE_URL)
     try:
         raw = client.get_json("/midpoint", params={"token_id": token_id}, headers=_HEADERS)
-    except AccountImportError as exc:
+    except HttpReadError as exc:
         raise ClobCollectorError(str(exc)) from exc
     if not isinstance(raw, dict) or "mid" not in raw:
         raise ClobCollectorError(
@@ -58,12 +55,10 @@ def fetch_spread(token_id: str, http: ReadOnlyHttpClient | None = None) -> dict:
     client = http or ReadOnlyHttpClient(CLOB_API_BASE_URL)
     try:
         raw = client.get_json("/spread", params={"token_id": token_id}, headers=_HEADERS)
-    except AccountImportError as exc:
+    except HttpReadError as exc:
         raise ClobCollectorError(str(exc)) from exc
     if not isinstance(raw, dict) or "spread" not in raw:
-        raise ClobCollectorError(
-            f"Unexpected spread response shape for token {token_id}: {raw!r}"
-        )
+        raise ClobCollectorError(f"Unexpected spread response shape for token {token_id}: {raw!r}")
     return raw
 
 
@@ -92,7 +87,7 @@ def fetch_clob_market(condition_id: str, http: ReadOnlyHttpClient | None = None)
     client = http or ReadOnlyHttpClient(CLOB_API_BASE_URL)
     try:
         raw = client.get_json(f"/markets/{condition_id}", headers=_HEADERS)
-    except AccountImportError as exc:
+    except HttpReadError as exc:
         raise ClobCollectorError(str(exc)) from exc
     if not isinstance(raw, dict):
         raise ClobCollectorError(

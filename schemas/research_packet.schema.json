@@ -1,0 +1,980 @@
+{
+  "$defs": {
+    "Annotation": {
+      "additionalProperties": false,
+      "properties": {
+        "annotation_id": {
+          "title": "Annotation Id",
+          "type": "integer"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "conditions",
+            "oracle",
+            "resolution_source",
+            "fallback",
+            "ambiguity",
+            "dispute",
+            "measurement_period",
+            "resolution_deadline"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "needs_review": {
+          "default": false,
+          "title": "Needs Review",
+          "type": "boolean"
+        },
+        "rules_version_id": {
+          "title": "Rules Version Id",
+          "type": "integer"
+        },
+        "source_url": {
+          "title": "Source Url",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "annotation_id",
+        "kind",
+        "text",
+        "source_url",
+        "created_at",
+        "rules_version_id"
+      ],
+      "title": "Annotation",
+      "type": "object"
+    },
+    "Entry": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "enum": [
+            "observation",
+            "evidence_summary",
+            "question",
+            "catalyst",
+            "hypothesis",
+            "scenario",
+            "contradiction",
+            "model_interpretation"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "entry_id": {
+          "title": "Entry Id",
+          "type": "integer"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/Source"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "verified_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verified At"
+        }
+      },
+      "required": [
+        "entry_id",
+        "category",
+        "text",
+        "created_at"
+      ],
+      "title": "Entry",
+      "type": "object"
+    },
+    "Event": {
+      "additionalProperties": false,
+      "properties": {
+        "api_url": {
+          "title": "Api Url",
+          "type": "string"
+        },
+        "contracts": {
+          "items": {
+            "$ref": "#/$defs/Identification"
+          },
+          "title": "Contracts",
+          "type": "array"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "string"
+        },
+        "expected_market_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Expected Market Ids",
+          "type": "array"
+        },
+        "page_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Url"
+        },
+        "retrieved_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retrieved At"
+        },
+        "slug": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slug"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "event_id",
+        "title",
+        "api_url"
+      ],
+      "title": "Event",
+      "type": "object"
+    },
+    "Identification": {
+      "additionalProperties": false,
+      "properties": {
+        "api_url": {
+          "title": "Api Url",
+          "type": "string"
+        },
+        "condition_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Condition Id"
+        },
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Event Id"
+        },
+        "lifecycle": {
+          "default": "unknown",
+          "enum": [
+            "active",
+            "closed",
+            "archived",
+            "inactive",
+            "unknown"
+          ],
+          "title": "Lifecycle",
+          "type": "string"
+        },
+        "market_id": {
+          "title": "Market Id",
+          "type": "string"
+        },
+        "outcomes": {
+          "items": {
+            "$ref": "#/$defs/Outcome"
+          },
+          "title": "Outcomes",
+          "type": "array"
+        },
+        "page_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Url"
+        },
+        "protocol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Protocol"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "question_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Question Id"
+        },
+        "slug": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slug"
+        },
+        "trading_end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trading End"
+        },
+        "trading_start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trading Start"
+        }
+      },
+      "required": [
+        "market_id",
+        "question",
+        "api_url"
+      ],
+      "title": "Identification",
+      "type": "object"
+    },
+    "Outcome": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asset Id"
+        },
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "outcome_id": {
+          "title": "Outcome Id",
+          "type": "string"
+        },
+        "position_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Position Id"
+        },
+        "token_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token Id"
+        }
+      },
+      "required": [
+        "outcome_id",
+        "index",
+        "label"
+      ],
+      "title": "Outcome",
+      "type": "object"
+    },
+    "Quote": {
+      "additionalProperties": false,
+      "properties": {
+        "best_ask": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Best Ask"
+        },
+        "best_bid": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Best Bid"
+        },
+        "book_retrieved_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Book Retrieved At"
+        },
+        "book_timestamp": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Book Timestamp"
+        },
+        "displayed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Displayed At"
+        },
+        "displayed_price": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Displayed Price"
+        },
+        "last_trade": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Trade"
+        },
+        "last_trade_retrieved_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Trade Retrieved At"
+        },
+        "midpoint": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Midpoint"
+        },
+        "midpoint_retrieved_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Midpoint Retrieved At"
+        },
+        "outcome_id": {
+          "title": "Outcome Id",
+          "type": "string"
+        },
+        "source_urls": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Urls",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "outcome_id"
+      ],
+      "title": "Quote",
+      "type": "object"
+    },
+    "Relationship": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "explanation": {
+          "title": "Explanation",
+          "type": "string"
+        },
+        "from_market": {
+          "title": "From Market",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "related",
+            "same_topic",
+            "correlated",
+            "mutually_exclusive",
+            "exhaustive",
+            "complementary",
+            "overlapping",
+            "alternative_deadline",
+            "same_measurement",
+            "implication",
+            "causal",
+            "prerequisite"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "relationship_id": {
+          "title": "Relationship Id",
+          "type": "integer"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        },
+        "to_market": {
+          "title": "To Market",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relationship_id",
+        "from_market",
+        "to_market",
+        "kind",
+        "explanation",
+        "created_at"
+      ],
+      "title": "Relationship",
+      "type": "object"
+    },
+    "ResearchMarket": {
+      "additionalProperties": false,
+      "properties": {
+        "annotations_for_review": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "title": "Annotations For Review",
+          "type": "array"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/Entry"
+          },
+          "title": "Entries",
+          "type": "array"
+        },
+        "followed": {
+          "title": "Followed",
+          "type": "boolean"
+        },
+        "identification": {
+          "$ref": "#/$defs/Identification"
+        },
+        "last_attempt_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Attempt At"
+        },
+        "last_success_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Success At"
+        },
+        "projects": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Projects",
+          "type": "array"
+        },
+        "relationships": {
+          "items": {
+            "$ref": "#/$defs/Relationship"
+          },
+          "title": "Relationships",
+          "type": "array"
+        },
+        "rules": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RulesVersion"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "snapshot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Snapshot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "enum": [
+            "discovered",
+            "screening",
+            "researching",
+            "monitoring",
+            "rejected",
+            "archived"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "identification",
+        "status",
+        "followed",
+        "tags",
+        "projects",
+        "entries",
+        "relationships"
+      ],
+      "title": "ResearchMarket",
+      "type": "object"
+    },
+    "RulesVersion": {
+      "additionalProperties": false,
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "title": "Annotations",
+          "type": "array"
+        },
+        "api_url": {
+          "title": "Api Url",
+          "type": "string"
+        },
+        "first_retrieved_at": {
+          "title": "First Retrieved At",
+          "type": "string"
+        },
+        "observations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Observations",
+          "type": "array"
+        },
+        "page_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Url"
+        },
+        "resolution_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolution Source"
+        },
+        "resolution_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolution Status"
+        },
+        "rules_version_id": {
+          "title": "Rules Version Id",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "text_sha256": {
+          "title": "Text Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "text_sha256",
+        "api_url",
+        "rules_version_id",
+        "first_retrieved_at"
+      ],
+      "title": "RulesVersion",
+      "type": "object"
+    },
+    "Snapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "quotes": {
+          "items": {
+            "$ref": "#/$defs/Quote"
+          },
+          "title": "Quotes",
+          "type": "array"
+        },
+        "retrieved_at": {
+          "title": "Retrieved At",
+          "type": "string"
+        },
+        "rules_version_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rules Version Id"
+        },
+        "snapshot_id": {
+          "title": "Snapshot Id",
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "retrieved_at",
+        "quotes"
+      ],
+      "title": "Snapshot",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "properties": {
+        "observed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed At"
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Published At"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "title": "Source",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "events": {
+      "items": {
+        "$ref": "#/$defs/Event"
+      },
+      "title": "Events",
+      "type": "array"
+    },
+    "generated_at": {
+      "title": "Generated At",
+      "type": "string"
+    },
+    "markets": {
+      "items": {
+        "$ref": "#/$defs/ResearchMarket"
+      },
+      "title": "Markets",
+      "type": "array"
+    },
+    "max_age_hours": {
+      "exclusiveMinimum": 0,
+      "title": "Max Age Hours",
+      "type": "number"
+    },
+    "schema_version": {
+      "const": "polyberg_research_packet_v1",
+      "default": "polyberg_research_packet_v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "selection": {
+      "title": "Selection",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "generated_at",
+    "max_age_hours",
+    "selection",
+    "events",
+    "markets",
+    "warnings"
+  ],
+  "title": "ResearchPacket",
+  "type": "object"
+}

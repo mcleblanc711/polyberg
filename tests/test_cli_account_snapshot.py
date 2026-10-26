@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-import polyberg.cli as cli
+import polyberg.legacy_cli as cli
 from polyberg.collectors.polymarket_account import AccountImportError
 
 US_KEY_VARS = ("POLYMARKET_US_API_KEY_ID", "POLYMARKET_US_SECRET_KEY")

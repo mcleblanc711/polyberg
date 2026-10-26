@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from polyberg.cli import main
+from polyberg.legacy_cli import main
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -275,7 +275,7 @@ def test_execute_validation_fail_exit_2(tmp_path, monkeypatch):
 
 
 def test_execute_missing_creds_exit_1(tmp_path, monkeypatch):
-    import polyberg.cli as cli_module
+    import polyberg.legacy_cli as cli_module
     from polyberg.collectors.polymarket_account import AccountImportError
 
     reg = _write_yaml(tmp_path, "market_registry.yaml", _minimal_registry_yaml())
@@ -370,7 +370,7 @@ def test_record_manual_appends_confirmed_entry(tmp_path):
 # ── ladder cancel ─────────────────────────────────────────────────────────────
 
 def test_cancel_logs_ok_on_success(tmp_path, monkeypatch):
-    import polyberg.cli as cli_module
+    import polyberg.legacy_cli as cli_module
 
     monkeypatch.setattr(cli_module, "load_clob_credentials_from_env", lambda env=None: object())
     monkeypatch.setattr(
@@ -386,7 +386,7 @@ def test_cancel_logs_ok_on_success(tmp_path, monkeypatch):
 
 
 def test_cancel_logs_http_error_and_exit_1(tmp_path, monkeypatch):
-    import polyberg.cli as cli_module
+    import polyberg.legacy_cli as cli_module
     from polyberg.ladder.clob_cancel import ClobCancelError
 
     def _boom(creds, order_id, **kw):
@@ -404,7 +404,7 @@ def test_cancel_logs_http_error_and_exit_1(tmp_path, monkeypatch):
 # ── ladder preflight ──────────────────────────────────────────────────────────
 
 def test_preflight_prints_response_json(tmp_path, monkeypatch, capsys):
-    import polyberg.cli as cli_module
+    import polyberg.legacy_cli as cli_module
 
     monkeypatch.setattr(cli_module, "load_clob_credentials_from_env", lambda env=None: object())
     monkeypatch.setattr(

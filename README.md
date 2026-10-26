@@ -22,7 +22,53 @@
 > isolated single-order cancellation path; the interactive and GUI workflows
 > gate it per action.
 
-## Overview
+## Account-free market research
+
+The CLI and desktop now open a market-centric research workspace. Follow public contracts,
+keep verbatim versioned rules and sourced notes in local SQLite, and export reproducible
+canonical JSON, shared Markdown, GPT Markdown and Claude Markdown. No wallet, `.env`,
+account connection, model API key or existing registry is required. Your initial workspace
+is empty; legacy files are never imported.
+
+```bash
+python -m pip install -e '.[dev]'
+python -m polyberg.cli research init
+python -m polyberg.cli research search "your subject"
+python -m polyberg.cli research follow https://polymarket.com/event/EVENT-SLUG
+python -m polyberg.cli research list
+python -m polyberg.cli research note MARKET_ID "Question to investigate" --category question
+python -m polyberg.cli packet build --market MARKET_ID
+```
+
+Use `POLYBERG_RESEARCH_DB` or `--db PATH` for another local database. Exports appear under
+`reports/research/<packet_id>/`, with a manifest marking complete, checksum-verified output.
+Both model packets share the same evidence and snapshot hash. Use `packet render PACKET_ID`
+to reproduce the frozen output exactly. Freshness defaults to 36 hours.
+
+The desktop retains the existing Electron/React styling and starts with followed markets.
+From `gui/`, run `npm ci` then `npm run dev`. Detail tabs expose all outcome prices,
+rules/history, research entries, related contracts/comparison and clipboard/file exports.
+Choose **Legacy portfolio** explicitly to open the former account workspace.
+
+- [Research workflow and CLI reference](docs/RESEARCH_WORKFLOW.md)
+- [Architecture audit and dependency inventory](docs/RESEARCH_ARCHITECTURE.md)
+- [SQLite schema, migrations and backups](docs/RESEARCH_STORAGE.md)
+- [Pinned research and legacy interface contracts](docs/INTERFACE_CONTRACT.md)
+- [Three guaranteed synthetic example packets](examples/research/README.md)
+
+Evidence verification, public refresh and model handoffs are manual. Rules depend on public
+availability; storage is local and single-user. Future priorities are richer source capture,
+scheduled refresh and optional quantitative inputs.
+
+## Legacy portfolio reference
+
+The sections and screenshots below describe the prior portfolio workflow. All previous
+CLI argument shapes are available under `python -m polyberg.cli legacy …`. Only that
+namespace loads dotenv credentials and account code. Optional account cryptography is
+installed with `python -m pip install -e '.[legacy]'`. The legacy session contract remains
+unchanged; its artifacts are separate from research exports.
+
+### Legacy overview
 
 Prediction-market research gets difficult to audit when rules, headlines,
 portfolio state, and model conversations live in one long prompt. Polyberg keeps
@@ -48,7 +94,7 @@ The project is intentionally model-provider agnostic. Polyberg prepares and
 validates the artifacts; the user chooses how and where to run the external
 models.
 
-## Product tour
+## Legacy product tour
 
 ### Research dashboard
 
@@ -76,7 +122,7 @@ context, and the next adjudication step without hiding the on-disk artifacts.
 portfolio-facing captures. The original UI composition and resolution are
 preserved.</sub>
 
-## How it works
+## How the legacy workflow works
 
 ```mermaid
 flowchart LR
@@ -122,7 +168,7 @@ semantics.
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,legacy]"
 ```
 
 On Windows PowerShell, activate the environment with:
@@ -142,7 +188,7 @@ cp .env.example .env
 Build model-specific research packets from the local context:
 
 ```bash
-python -m polyberg.cli packet build --target all
+python -m polyberg.cli legacy packet build --target all
 ```
 
 The command writes GPT and Claude packet views plus a validated canonical
@@ -158,7 +204,7 @@ npm run dev
 
 Build a desktop distribution with `npm run dist`.
 
-## Typical research loop
+## Typical legacy research loop
 
 1. **Curate context.** Add or update resolution rules, market metadata, thesis
    notes, and catalysts.
@@ -174,24 +220,24 @@ Build a desktop distribution with `npm run dist`.
    The ladder tool can prepare a reconciliation plan; its interactive and GUI
    workflows confirm cancellations one at a time.
 
-## Selected CLI commands
+## Selected legacy CLI commands
 
-Run `python -m polyberg.cli --help` for the complete command surface.
+Run `python -m polyberg.cli legacy --help` for the complete command surface.
 
 | Task | Command |
 |---|---|
-| Build GPT and Claude packets | `python -m polyberg.cli packet build --target all` |
-| Build the legacy combined packet | `python -m polyberg.cli build-packet` |
-| Fetch read-only order books | `python -m polyberg.cli fetch-books` |
-| Snapshot registered markets | `python -m polyberg.cli snapshot-markets` |
-| Discover markets | `python -m polyberg.cli search-markets --query "..."` |
-| Register a market | `python -m polyberg.cli registry-add --url <polymarket-url>` |
-| Import read-only account state | `python -m polyberg.cli import-account-snapshot` |
-| Validate a model response | `python -m polyberg.cli validate-response <response.json>` |
-| Build adjudicator context | `python -m polyberg.cli build-adjudicator-input ...` |
-| Render a trade ticket | `python -m polyberg.cli build-trade-ticket ...` |
-| Preview ladder reconciliation | `python -m polyberg.cli ladder plan` |
-| Evaluate event-level payoff | `python -m polyberg.cli hedge` |
+| Build GPT and Claude packets | `python -m polyberg.cli legacy packet build --target all` |
+| Build the legacy combined packet | `python -m polyberg.cli legacy build-packet` |
+| Fetch read-only order books | `python -m polyberg.cli legacy fetch-books` |
+| Snapshot registered markets | `python -m polyberg.cli legacy snapshot-markets` |
+| Discover markets | `python -m polyberg.cli legacy search-markets --query "..."` |
+| Register a market | `python -m polyberg.cli legacy registry-add --url <polymarket-url>` |
+| Import read-only account state | `python -m polyberg.cli legacy import-account-snapshot` |
+| Validate a model response | `python -m polyberg.cli legacy validate-response <response.json>` |
+| Build adjudicator context | `python -m polyberg.cli legacy build-adjudicator-input ...` |
+| Render a trade ticket | `python -m polyberg.cli legacy build-trade-ticket ...` |
+| Preview ladder reconciliation | `python -m polyberg.cli legacy ladder plan` |
+| Evaluate event-level payoff | `python -m polyberg.cli legacy hedge` |
 
 ## Safety model
 

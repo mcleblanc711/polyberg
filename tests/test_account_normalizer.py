@@ -48,7 +48,7 @@ def _registry_for_fixture(tmp_path: Path) -> tuple[Path, MarketRegistry]:
     return path, load_market_registry(path)
 
 
-def test_normalize_real_fixture_maps_every_position(tmp_path: Path) -> None:
+def test_normalize_synthetic_fixture_maps_every_position(tmp_path: Path) -> None:
     _, registry = _registry_for_fixture(tmp_path)
     raw_positions = json.loads(FIXTURE.read_text(encoding="utf-8"))
     portfolio, skipped = normalize_data_api_positions(

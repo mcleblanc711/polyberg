@@ -7,8 +7,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from polyberg.cli import build_parser
 from polyberg.config import windows_safe_timestamp
+from polyberg.legacy_cli import build_parser
 from polyberg.snapshots import build_market_snapshot, diff_snapshots
 from polyberg.trade_ticket import build_trade_ticket
 from polyberg.validators import ResponseValidationError

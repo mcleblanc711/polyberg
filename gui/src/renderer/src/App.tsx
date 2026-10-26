@@ -348,7 +348,7 @@ export const App = () => {
 const S: Record<string, CSSProperties> = {
   shell: {
     width: '100vw',
-    height: '100vh',
+    height: '100%',
     background: C.bg,
     color: C.text,
     fontFamily: F.body,

@@ -1,3 +1,5 @@
+> This document describes the explicitly selected **legacy** workspace. Market research needs no account or dotenv setup. Install `.[legacy]` for optional US account cryptography.
+
 # Read-Only Account Connection
 
 Goal: import portfolio, balances, and open orders into local context files. The
@@ -95,20 +97,20 @@ Implemented commands:
 
 ```bash
 # Positions via public Data API (unauth)
-python -m polyberg.cli import-public-positions --address 0x...
+python -m polyberg.cli legacy import-public-positions --address 0x...
 
 # Open orders via CLOB L2 auth
-python -m polyberg.cli import-clob-orders
+python -m polyberg.cli legacy import-clob-orders
 
 # USDC collateral balance via CLOB L2 auth
-python -m polyberg.cli import-clob-balance
+python -m polyberg.cli legacy import-clob-balance
 
 # Authenticated PM-US snapshot (positions, balances, open orders)
-python -m polyberg.cli import-account-snapshot
+python -m polyberg.cli legacy import-account-snapshot
 
 # Normalize raw imports into canonical context (each is dry-run-able with --dry-run)
-python -m polyberg.cli promote-positions
-python -m polyberg.cli promote-orders
+python -m polyberg.cli legacy promote-positions
+python -m polyberg.cli legacy promote-orders
 ```
 
 `import-public-positions` writes raw public Data API positions for a wallet/proxy-wallet address.
@@ -154,19 +156,19 @@ action; the GUI exposes it as a "RUN PRE-FLIGHT" button.
 
 ```bash
 # Diff target ladders vs live book; print a markdown reconciliation plan (+ paste block)
-python -m polyberg.cli ladder plan
+python -m polyberg.cli legacy ladder plan
 
 # Same, but emit machine-readable JSON (used by the GUI LADDER tab)
-python -m polyberg.cli ladder plan --json
+python -m polyberg.cli legacy ladder plan --json
 
 # Build a fresh plan, then walk it with per-action y/n confirmation
 #   (cancels via API; placements as manual paste lines)
-python -m polyberg.cli ladder execute
+python -m polyberg.cli legacy ladder execute
 
 # GUI-support one-shot subcommands (the GUI confirm modal is the human gate):
-python -m polyberg.cli ladder cancel --order-id <id>          # single API cancel + log
-python -m polyberg.cli ladder preflight                       # fire GET /balance-allowance/update
-python -m polyberg.cli ladder record-manual --market <id> \
+python -m polyberg.cli legacy ladder cancel --order-id <id>          # single API cancel + log
+python -m polyberg.cli legacy ladder preflight                       # fire GET /balance-allowance/update
+python -m polyberg.cli legacy ladder record-manual --market <id> \
     --outcome YES|NO --side BUY|SELL --price <p> --shares <n>  # log a manual placement
 ```
 

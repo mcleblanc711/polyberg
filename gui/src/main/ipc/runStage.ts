@@ -31,7 +31,7 @@ const runOnce = (
       return
     }
     const py = pickPython()
-    const child = spawn(py, ['-m', 'polyberg.cli', name, ...sanitizeArgs(args)], {
+    const child = spawn(py, ['-m', 'polyberg.cli', 'legacy', name, ...sanitizeArgs(args)], {
       cwd: REPO_ROOT,
       env: process.env
     })

@@ -1,0 +1,13 @@
+{
+  "files": {
+    "canonical.json": "ec964eab97be5ee4b257bb2e1d0d0566d12ad0508b47cd2fa1f65a775e9b1f18",
+    "claude.md": "76c277ff6080ab09291818544f3ec3ce8239271ee117382d9f6d7d22c84c4d78",
+    "gpt.md": "128b348c36731f5ccf675d5582110810ad8a6bc000b318d1a506fdc3603928d7",
+    "shared.md": "a356a268d092a6a53c92bc6572c48fc197573e38ca3956bbe48062abc27686a3"
+  },
+  "packet_id": "ec964eab97be5ee4b257bb2e1d0d0566d12ad0508b47cd2fa1f65a775e9b1f18",
+  "scenario": "multiple-deadlines",
+  "schema_version": "polyberg_research_export_v1",
+  "snapshot_sha256": "ec964eab97be5ee4b257bb2e1d0d0566d12ad0508b47cd2fa1f65a775e9b1f18",
+  "synthetic": true
+}
