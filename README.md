@@ -36,6 +36,8 @@ python -m polyberg.cli research init
 python -m polyberg.cli research search "your subject"
 python -m polyberg.cli research follow https://polymarket.com/event/EVENT-SLUG
 python -m polyberg.cli research list
+python -m polyberg.cli research price-history MARKET_ID --span 1w
+python -m polyberg.cli research book MARKET_ID
 python -m polyberg.cli research note MARKET_ID "Question to investigate" --category question
 python -m polyberg.cli packet build --market MARKET_ID
 ```
@@ -49,6 +51,28 @@ The desktop retains the existing Electron/React styling and starts with followed
 From `gui/`, run `npm ci` then `npm run dev`. Detail tabs expose all outcome prices,
 rules/history, research entries, related contracts/comparison and clipboard/file exports.
 Choose **Legacy portfolio** explicitly to open the former account workspace.
+
+### Market viewer
+
+The research screen covers what you would otherwise open polymarket.com to check, so the
+site is only needed to place an order:
+
+- **Price history**: 1D/1W/1M/MAX chart per outcome from Data API v2 (CLOB fallback),
+  with a hover readout. Each span is cached locally and refetched only after it expires.
+- **Market activity**: volume, liquidity, open interest, 24h/1w change and spread. These
+  come from the Gamma payload a refresh already fetches, plus one batched open-interest read.
+- **Event context**: the event's title, verbatim description and page link, kept separate
+  from contract rules.
+- **Book depth**: top 10 levels per side, fetched only when the **Book** tab opens.
+  Read-only, with no order controls.
+- **Rules**: public resolution status, plus a text diff and changed fields whenever the
+  rules version changes.
+- **Sidebar and toolbar**: each sidebar row shows the current price and 24h change;
+  **Refresh followed** updates every followed market.
+
+![Research Overview: price history, outcome quotes and activity](design/screenshots/06-research-overview.png)
+
+![Research Book tab: read-only bid/ask depth ladders](design/screenshots/07-research-book.png)
 
 - [Research workflow and CLI reference](docs/RESEARCH_WORKFLOW.md)
 - [Architecture audit and dependency inventory](docs/RESEARCH_ARCHITECTURE.md)
