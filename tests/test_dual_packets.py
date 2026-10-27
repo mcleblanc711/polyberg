@@ -19,8 +19,8 @@ def _extract_json_blocks(markdown: str) -> list[str]:
 
 
 @pytest.fixture
-def canonical():
-    return build_canonical_packet()
+def canonical(synthetic_context):
+    return build_canonical_packet(context_dir=synthetic_context)
 
 
 def test_both_packets_render_from_same_canonical_object(canonical) -> None:
@@ -105,11 +105,11 @@ def test_empty_buy_orders_render_as_none_not_broken_table(canonical) -> None:
         assert order_table_header not in packet
 
 
-def test_no_market_snapshot_gate_when_books_are_the_live_source() -> None:
-    # The default real build has no snapshot path, so market_snapshot is None.
+def test_no_market_snapshot_gate_when_books_are_the_live_source(synthetic_context) -> None:
+    # A synthetic build without a snapshot path has market_snapshot set to None.
     # Books carry provenance and ARE the live data, so there is no global
     # market_snapshot gate and no "no live bid/ask/depth" framing.
-    canonical = build_canonical_packet()
+    canonical = build_canonical_packet(context_dir=synthetic_context)
     assert canonical.market_snapshot is None
 
     gpt = render_gpt_packet(canonical)
@@ -144,11 +144,12 @@ def test_no_market_orders_are_suggested_in_either_template(canonical) -> None:
         assert "no_market_orders" in low
 
 
-def test_write_model_packets_creates_both_files(tmp_path) -> None:
+def test_write_model_packets_creates_both_files(tmp_path, synthetic_context) -> None:
     out = tmp_path / "packets"
     result = write_model_packets(
         target="all",
         output_dir=out,
+        context_dir=synthetic_context,
         sessions_root=tmp_path / "sessions",
         latest_pointer=tmp_path / "latest_session.txt",
     )
@@ -163,11 +164,12 @@ def test_write_model_packets_creates_both_files(tmp_path) -> None:
     assert result.canonical_path.exists()
 
 
-def test_write_model_packets_single_target(tmp_path) -> None:
+def test_write_model_packets_single_target(tmp_path, synthetic_context) -> None:
     out = tmp_path / "packets"
     result = write_model_packets(
         target="gpt",
         output_dir=out,
+        context_dir=synthetic_context,
         sessions_root=tmp_path / "sessions",
         latest_pointer=tmp_path / "latest_session.txt",
     )

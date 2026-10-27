@@ -5,9 +5,64 @@ repos. **Do not change the shape of anything documented here without updating
 this file in the same PR** (see CLAUDE.md). `decision_export.json` will be
 added to this contract when it lands.
 
+## canonical.json — `polyberg_research_packet_v1`
+
+Default producer: `polyberg packet build`. Models: `research/models.py`.
+Schema: `schemas/research_packet.schema.json` (Draft 2020-12). Every object forbids unknown
+fields. This is independent of the legacy session contract below and contains no raw API,
+portfolio, account, order or legacy-artifact sections.
+
+| Field | Meaning |
+| --- | --- |
+| `schema_version` | Literal `polyberg_research_packet_v1` |
+| `generated_at` | Single persisted UTC generation/freshness anchor |
+| `max_age_hours` | Resolved positive freshness threshold, default 36 |
+| `selection` | Explicit market, event, project, or followed selection |
+| `events` | Separate event identity, description, source URLs, expected child IDs and contract identities |
+| `markets` | Allowlisted identity/all outcomes, lifecycle/research status, follow state, tags/projects, current immutable snapshot and component timestamps, verbatim versioned rules, annotations, research entries/sources and relationships |
+| `warnings` | Selection/event completeness and freshness warnings; per-market and per-quote warnings remain with those records |
+
+Missing market rules are `null`. Event descriptions never replace rules. Market rules retain
+exact text, text SHA-256, API/page sources, first retrieval and all observations of that
+version. `annotations_for_review` retains earlier sourced annotations after a rules change;
+these are separate from the current rules version's established annotations. Outcome IDs
+are `<Gamma market ID>:<public index>`; label, CTF token ID and V2 asset/position ID stay
+separate. Displayed prices, bids, asks, midpoints and last trades are independent nullable
+fields. Trading end is not a resolution deadline. Missing child snapshots are explicit.
+
+The complete packet JSON is persisted before rendering. Its SHA-256 identifies the frozen
+snapshot and export subdirectory. Repeated render reads the saved anchor, freshness threshold,
+evidence, annotations and warnings without consulting the clock, environment, network or
+live workspace. GPT and Claude instructions differ; the bytes between
+`<!-- BEGIN SHARED EVIDENCE -->` and `<!-- END SHARED EVIDENCE -->` are identical to `shared.md`.
+Both include the same snapshot hash. The JSON evidence block in shared Markdown equals
+`canonical.json`.
+
+```
+reports/research/<packet_id>/
+  canonical.json
+  shared.md
+  gpt.md
+  claude.md
+  manifest.json
+```
+
+`manifest.json` uses `polyberg_research_export_v1`, includes `packet_id`,
+`snapshot_sha256`, and the four filename → UTF-8-byte-SHA-256 entries in `files`.
+A sibling staging directory is populated and the manifest written last, then the complete
+directory is renamed into place. Readers validate the manifest and all file hashes before
+accepting an export. No legacy pointers or artifact names are used.
+
+Desktop IPC uses the strict `research.service.Request` contract over JSON stdin. The
+TypeScript allowlist is `gui/src/shared/research.ts`. Research requests cannot supply a
+legacy stage, arbitrary subprocess argument, database path, output path or legacy artifact.
+Database access and export verification belong to Python. Legacy IPC is gated on explicit
+per-window workspace selection. Research watchers cover only research database/sidecars
+and research exports.
+
 ## canonical_session.json — `polyberg_session_v1`
 
-The canonical artifact of every packet build. One session dir per
+The canonical artifact of every **legacy** packet build. One session dir per
 packet-producing CLI run:
 
 ```

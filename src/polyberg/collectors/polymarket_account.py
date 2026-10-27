@@ -14,88 +14,24 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 
 from polyberg.config import get_timezone
+from polyberg.http import (
+    HttpReadError as AccountImportError,
+)
+from polyberg.http import (
+    InvalidJsonResponseError as InvalidJsonResponseError,
+)
+from polyberg.http import (
+    ReadOnlyHttpClient as ReadOnlyHttpClient,
+)
+from polyberg.http import (
+    build_query as build_query,
+)
 
 PUBLIC_DATA_API_BASE_URL = "https://data-api.polymarket.com"
 POLYMARKET_US_API_BASE_URL = "https://api.polymarket.us"
 DEFAULT_USER_AGENT = "polyberg/0.1 (+https://github.com/mcleblanc711/polyberg)"
-
-JsonOpener = Callable[..., Any]
-
-
-class AccountImportError(RuntimeError):
-    pass
-
-
-class InvalidJsonResponseError(AccountImportError):
-    """HTTP request succeeded but the body is not JSON. Carries the raw text
-    for endpoints that legitimately return empty/plain-text bodies."""
-
-    def __init__(self, message: str, raw_text: str) -> None:
-        super().__init__(message)
-        self.raw_text = raw_text
-
-
-class ReadOnlyHttpClient:
-    def __init__(self, base_url: str, opener: JsonOpener = urlopen, timeout: float = 30) -> None:
-        self.base_url = base_url.rstrip("/")
-        self.opener = opener
-        self.timeout = timeout
-
-    def get_json(
-        self,
-        path: str,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> Any:
-        return self.request_json("GET", path, params=params, headers=headers)
-
-    def request_json(
-        self,
-        method: str,
-        path: str,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> Any:
-        if method.upper() != "GET":
-            raise AccountImportError("Account import client only permits GET requests")
-        url = self.build_url(path, params)
-        merged_headers: dict[str, str] = {"User-Agent": DEFAULT_USER_AGENT}
-        if headers:
-            merged_headers.update(headers)
-        # urllib's Request(headers=...) routes through add_header(), which
-        # capitalizes every name (POLY_ADDRESS -> Poly_address). Servers that
-        # check header names case-sensitively (notably Polymarket's CLOB)
-        # reject those. Set headers directly on the underlying dict so the
-        # caller's exact case is preserved on the wire.
-        request = Request(url, method="GET")
-        for header_name, header_value in merged_headers.items():
-            request.headers[header_name] = header_value
-        try:
-            with self.opener(request, timeout=self.timeout) as response:
-                raw = response.read()
-        except HTTPError as exc:
-            raise AccountImportError(f"HTTP {exc.code} while reading {url}") from exc
-        except URLError as exc:
-            raise AccountImportError(f"Unable to read {url}: {exc.reason}") from exc
-        try:
-            return json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise InvalidJsonResponseError(
-                f"Invalid JSON response from {url}",
-                raw_text=raw.decode("utf-8", errors="replace"),
-            ) from exc
-
-    def build_url(self, path: str, params: dict[str, Any] | None = None) -> str:
-        if not path.startswith("/"):
-            path = "/" + path
-        query = build_query(params or {})
-        suffix = f"{path}?{query}" if query else path
-        return self.base_url + suffix
 
 
 class PublicDataAccountClient:
@@ -223,8 +159,7 @@ def write_authenticated_account_snapshot(
         },
     }
     return [
-        write_account_json(output_dir / filename, payload)
-        for filename, payload in outputs.items()
+        write_account_json(output_dir / filename, payload) for filename, payload in outputs.items()
     ]
 
 
@@ -232,18 +167,6 @@ def write_account_json(path: Path, payload: dict[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
-
-
-def build_query(params: dict[str, Any]) -> str:
-    normalized: list[tuple[str, Any]] = []
-    for key, value in params.items():
-        if value is None:
-            continue
-        if isinstance(value, list):
-            normalized.extend((key, item) for item in value)
-        else:
-            normalized.append((key, value))
-    return urlencode(normalized)
 
 
 def build_signed_path(path: str, params: dict[str, Any]) -> str:

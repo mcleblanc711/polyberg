@@ -17,7 +17,6 @@ classifiers = [
   "Operating System :: Microsoft :: Windows",
 ]
 dependencies = [
-  "cryptography>=42.0",
   "jsonschema>=4.22",
   "pydantic>=2.7",
   "pyyaml>=6.0",
@@ -25,7 +24,11 @@ dependencies = [
   "tzdata; sys_platform == 'win32'",
 ]
 
+[project.scripts]
+polyberg = "polyberg.cli:main"
+
 [project.optional-dependencies]
+legacy = ["cryptography>=42.0"]
 dev = [
   "pytest>=8.0",
   "ruff>=0.5",

@@ -12,14 +12,14 @@ from polyberg.loaders import (
 from polyberg.models import LiveState, OpenOrders
 
 
-def test_load_yaml_context_files() -> None:
-    registry = load_market_registry()
-    portfolio = load_portfolio(registry=registry)
-    open_orders = load_open_orders(registry=registry)
-    live_state = load_live_state(registry=registry)
+def test_load_yaml_context_files(synthetic_context) -> None:
+    registry = load_market_registry(synthetic_context / "market_registry.yaml")
+    portfolio = load_portfolio(synthetic_context / "portfolio_current.yaml", registry=registry)
+    open_orders = load_open_orders(synthetic_context / "open_orders.yaml", registry=registry)
+    live_state = load_live_state(synthetic_context / "live_state.yaml", registry=registry)
 
     market_ids = {m.market_id for m in registry.markets}
-    expected = {"hormuz_normal_end_june", "hormuz_normal_jul31", "hormuz_60_ships_any_day_jun30"}
+    expected = {"synthetic_contract"}
     assert expected <= market_ids
     assert portfolio.cash_available >= 0
     assert isinstance(open_orders.buy_orders, list)

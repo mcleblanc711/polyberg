@@ -9,10 +9,7 @@ from __future__ import annotations
 
 import json
 
-from polyberg.collectors.polymarket_account import (
-    AccountImportError,
-    ReadOnlyHttpClient,
-)
+from polyberg.http import HttpReadError, ReadOnlyHttpClient
 
 CLOB_API_BASE_URL = "https://clob.polymarket.com"
 GAMMA_API_BASE_URL = "https://gamma-api.polymarket.com"
@@ -36,7 +33,7 @@ def fetch_event_by_slug(slug: str, http: ReadOnlyHttpClient | None = None) -> di
     client = http or ReadOnlyHttpClient(GAMMA_API_BASE_URL)
     try:
         raw = client.get_json("/events", params={"slug": slug}, headers=_GAMMA_HEADERS)
-    except AccountImportError as exc:
+    except HttpReadError as exc:
         raise GammaCollectorError(str(exc)) from exc
     if not isinstance(raw, list) or not raw:
         raise GammaCollectorError(f"No Gamma event found for slug {slug!r}")
@@ -74,7 +71,7 @@ def search_events(
             params["events_status"] = "active"
         try:
             raw = client.get_json("/public-search", params=params, headers=_GAMMA_HEADERS)
-        except AccountImportError as exc:
+        except HttpReadError as exc:
             raise GammaCollectorError(str(exc)) from exc
         events = raw.get("events") if isinstance(raw, dict) else None
         if not isinstance(events, list):
@@ -91,7 +88,7 @@ def search_events(
         params["tag_slug"] = tag_slug.strip()
     try:
         raw = client.get_json("/events", params=params, headers=_GAMMA_HEADERS)
-    except AccountImportError as exc:
+    except HttpReadError as exc:
         raise GammaCollectorError(str(exc)) from exc
     if not isinstance(raw, list):
         return []
@@ -137,7 +134,7 @@ def fetch_market_by_slug(slug: str, http: ReadOnlyHttpClient | None = None) -> d
     client = http or ReadOnlyHttpClient(GAMMA_API_BASE_URL)
     try:
         raw = client.get_json("/markets", params={"slug": slug}, headers=_GAMMA_HEADERS)
-    except AccountImportError as exc:
+    except HttpReadError as exc:
         raise GammaCollectorError(str(exc)) from exc
     if not isinstance(raw, list) or not raw:
         raise GammaCollectorError(f"No Gamma market found for slug {slug!r}")
@@ -269,7 +266,7 @@ def fetch_price_history(
             params={"market": token_id, "interval": interval, "fidelity": fidelity},
             headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
         )
-    except AccountImportError as exc:
+    except HttpReadError as exc:
         raise GammaCollectorError(str(exc)) from exc
     if not isinstance(raw, dict):
         raise GammaCollectorError(
