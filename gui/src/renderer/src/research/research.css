@@ -61,4 +61,29 @@
 .research-results article span { flex:1; }
 .research-results article strong { flex:2; }
 .research-comparison { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px; }
+.research-history svg { width:100%; height:auto; display:block; }
+.research-chart svg text { fill:#a08aa0; font:11px 'JetBrains Mono',monospace; }
+.research-chart svg .grid { stroke:#2a0928; stroke-width:1; }
+.research-chart svg .crosshair { stroke:#a08aa0; stroke-dasharray:3 3; }
+.research-chart-empty { padding:40px 0; text-align:center; color:#a08aa0; }
+.research-chart-readout { display:flex; flex-wrap:wrap; gap:14px; min-height:18px; font:12px 'JetBrains Mono',monospace; color:#f0e8f5; }
+.research-segmented { gap:4px; }
+.research-app .research-segmented button { padding:6px 10px; font-size:11px; }
+.research-app label.research-toggle { flex-direction:row; align-items:center; gap:6px; flex:0 0 auto; font-size:12px; }
+.research-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:14px; margin-bottom:12px; }
+.research-stats span { display:block; color:#a08aa0; font-size:11px; margin-bottom:4px; }
+.research-stats strong { font:500 16px 'JetBrains Mono',monospace; color:#00ffd1; }
+.research-card details summary { cursor:pointer; color:#5cf3d3; margin:10px 0; }
+.research-ladders { display:grid; grid-template-columns:1fr 1fr; align-items:start; gap:12px; margin:12px 0; }
+.research-app .research-ladder th,.research-app .research-ladder td { padding:7px 10px; }
+.research-ladder.asks td:first-child { color:#ff3df0; }
+.research-ladder td.depth { position:relative; color:#f0e8f5; }
+.research-ladder td.depth span { position:absolute; left:0; top:3px; bottom:3px; background:rgba(0,255,209,.12); border-radius:2px; }
+.research-ladder.asks td.depth span { background:rgba(255,61,240,.12); }
+.research-diff .added { color:#00ffd1; }
+.research-diff .removed { color:#ff3d6b; }
+.market-row .row-price { font:normal 12px 'JetBrains Mono',monospace; color:#00ffd1; }
+.market-row .row-price b { font-weight:normal; color:#a08aa0; }
+.market-row .row-price b.up { color:#00ffd1; }
+.market-row .row-price b.down { color:#ff3d6b; }
 @media(max-width:950px) { .research-sidebar { width:220px; } .research-content { padding:20px 16px; } .workspace-switch span:last-child { display:none; } }

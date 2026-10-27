@@ -2,8 +2,10 @@ export const RESEARCH_OPERATIONS = [
   'init', 'search', 'inspect', 'follow', 'list', 'show', 'refresh', 'unfollow', 'refollow',
   'status', 'tags', 'archive', 'unarchive', 'projects', 'project_create', 'project_add',
   'project_remove', 'note', 'verify', 'rules', 'annotate', 'relate', 'compare', 'history',
-  'packet', 'render'
+  'price_history', 'book', 'packet', 'render'
 ] as const
+export const SPANS = ['1d', '1w', '1m', 'max'] as const
+export type ResearchSpan = typeof SPANS[number]
 export const RESEARCH_IPC = {
   request: 'research:request', watchStart: 'research:watch:start', watchStop: 'research:watch:stop',
   changed: 'research:changed', workspace: 'workspace:select'
@@ -19,6 +21,7 @@ export interface ResearchRequest {
   all_markets?: boolean; include_closed?: boolean; status?: string; tags?: string[]
   category?: string; text?: string; sources?: ResearchSource[]; entry_id?: number
   version_id?: number; kind?: string; source_url?: string; other_market?: string; packet_id?: string
+  span?: ResearchSpan; refetch?: boolean
 }
 export interface ResearchOutcome {
   outcome_id: string; index: number; label: string; token_id: string | null
@@ -60,7 +63,35 @@ export interface ResearchMarket {
   rules: ResearchRules | null; entries: ResearchEntry[]; relationships: ResearchRelationship[]
   last_attempt_at: string | null; last_success_at: string | null; warnings: string[]
 }
-export interface ResearchList { markets: ResearchMarket[]; projects: { name: string; created_at: string }[] }
+export interface ResearchActivity {
+  retrieved_at: string; volume_total: number | null; volume_24h: number | null; volume_1w: number | null
+  liquidity: number | null; price_change_1d: number | null; price_change_1w: number | null; spread: number | null
+  open_interest: number | null; open_interest_retrieved_at: string | null; source_urls: string[]; warnings: string[]
+}
+export interface ResearchEventContext { title: string; description: string | null; page_url: string | null; retrieved_at: string | null }
+export interface ResearchList {
+  markets: ResearchMarket[]; projects: { name: string; created_at: string }[]
+  activity: Record<string, ResearchActivity>; events: Record<string, ResearchEventContext>
+}
+export interface ResearchPricePoint { t: number; p: number; r: number }
+export interface ResearchPriceSeries {
+  outcome_id: string; label: string; asset_id: string | null; span: ResearchSpan
+  source_url: string | null; retrieved_at: string | null; points: ResearchPricePoint[]; warnings: string[]
+}
+export interface ResearchPriceHistory { market_id: string; span: ResearchSpan; series: ResearchPriceSeries[] }
+export interface ResearchBookLevel { price: number; size: number; cumulative: number }
+export interface ResearchOutcomeBook {
+  outcome_id: string; label: string; asset_id: string | null; bids: ResearchBookLevel[]; asks: ResearchBookLevel[]
+  bid_levels: number; ask_levels: number; best_bid: number | null; best_ask: number | null
+  spread: number | null; book_midpoint: number | null
+  tick_size: number | null; min_order_size: number | null; book_timestamp: string | null
+  retrieved_at: string | null; source_url: string | null; warnings: string[]
+}
+export interface ResearchBook { market_id: string; outcomes: ResearchOutcomeBook[] }
+export interface ResearchRulesChange {
+  previous_version_id: number; text_diff: string[]; fields: Record<string, [string | null, string | null]>
+}
+export interface ResearchRulesResult { versions: ResearchRules[]; changes: Record<string, ResearchRulesChange> }
 export interface ResearchDiscovery {
   events: {event_id: string; title: string; expected_market_ids: string[]}[]
   markets: {identification: ResearchIdentity; warnings: string[]}[]; warnings: string[]
@@ -82,10 +113,11 @@ export function validateResearchRequest(value: unknown): ResearchRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid research request')
   const v = value as Record<string, unknown>
   const strings = ['reference', 'market', 'event', 'project', 'status', 'category', 'text', 'kind', 'source_url', 'other_market', 'packet_id']
-  const keys = new Set(['operation', ...strings, 'all_markets', 'include_closed', 'tags', 'sources', 'entry_id', 'version_id'])
+  const keys = new Set(['operation', ...strings, 'all_markets', 'include_closed', 'refetch', 'span', 'tags', 'sources', 'entry_id', 'version_id'])
   if (Object.keys(v).some(k => !keys.has(k)) || !RESEARCH_OPERATIONS.includes(v.operation as never)) throw new Error('Invalid research operation or field')
   for (const key of strings) if (v[key] !== undefined && (typeof v[key] !== 'string' || (v[key] as string).length > 200000)) throw new Error('Invalid research string')
-  for (const key of ['all_markets', 'include_closed']) if (v[key] !== undefined && typeof v[key] !== 'boolean') throw new Error('Invalid research flag')
+  for (const key of ['all_markets', 'include_closed', 'refetch']) if (v[key] !== undefined && typeof v[key] !== 'boolean') throw new Error('Invalid research flag')
+  if (v.span !== undefined && !SPANS.includes(v.span as never)) throw new Error('Invalid price history span')
   for (const key of ['entry_id', 'version_id']) if (v[key] !== undefined && (!Number.isSafeInteger(v[key]) || (v[key] as number) < 1)) throw new Error('Invalid research ID')
   if (v.tags !== undefined && (!Array.isArray(v.tags) || v.tags.some(t => typeof t !== 'string'))) throw new Error('Invalid research tags')
   if (v.sources !== undefined) {
