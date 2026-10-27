@@ -262,11 +262,29 @@ class FrozenPacket(StrictModel):
         return self
 
 
+class MarketActivity(StrictModel):
+    """Public trading activity. Stored beside snapshots; never part of a research packet."""
+
+    retrieved_at: str
+    volume_total: float | None = Field(default=None, ge=0)
+    volume_24h: float | None = Field(default=None, ge=0)
+    volume_1w: float | None = Field(default=None, ge=0)
+    liquidity: float | None = Field(default=None, ge=0)
+    price_change_1d: float | None = Field(default=None, ge=-1, le=1)
+    price_change_1w: float | None = Field(default=None, ge=-1, le=1)
+    spread: float | None = Field(default=None, ge=0, le=1)
+    open_interest: float | None = Field(default=None, ge=0)
+    open_interest_retrieved_at: str | None = None
+    source_urls: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class CollectedMarket(StrictModel):
     identification: Identification
     retrieved_at: str
     quotes: list[Quote]
     rules: RulesInput | None
+    activity: MarketActivity | None = None
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -274,3 +292,61 @@ class Discovery(StrictModel):
     events: list[Event] = Field(default_factory=list)
     markets: list[CollectedMarket] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+
+
+# Viewer models below are returned beside, never inside, the research packet contract.
+HistorySpan = Literal["1d", "1w", "1m", "max"]
+
+
+class PricePoint(StrictModel):
+    t: int = Field(ge=0)
+    p: float = Field(ge=0, le=1)
+    r: int = Field(ge=0)
+
+
+class PriceSeries(StrictModel):
+    outcome_id: str
+    label: str
+    asset_id: str | None = None
+    span: HistorySpan
+    source_url: str | None = None
+    retrieved_at: str | None = None
+    points: list[PricePoint] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class PriceHistory(StrictModel):
+    market_id: str
+    span: HistorySpan
+    series: list[PriceSeries]
+
+
+class BookLevel(StrictModel):
+    price: float = Field(ge=0, le=1)
+    size: float = Field(ge=0)
+    cumulative: float = Field(ge=0)
+
+
+class OutcomeBook(StrictModel):
+    outcome_id: str
+    label: str
+    asset_id: str | None = None
+    bids: list[BookLevel] = Field(default_factory=list)
+    asks: list[BookLevel] = Field(default_factory=list)
+    bid_levels: int = 0
+    ask_levels: int = 0
+    best_bid: float | None = Field(default=None, ge=0, le=1)
+    best_ask: float | None = Field(default=None, ge=0, le=1)
+    spread: float | None = Field(default=None, ge=-1, le=1)
+    book_midpoint: float | None = Field(default=None, ge=0, le=1)
+    tick_size: float | None = Field(default=None, ge=0)
+    min_order_size: float | None = Field(default=None, ge=0)
+    book_timestamp: str | None = None
+    retrieved_at: str | None = None
+    source_url: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+class MarketBook(StrictModel):
+    market_id: str
+    outcomes: list[OutcomeBook]

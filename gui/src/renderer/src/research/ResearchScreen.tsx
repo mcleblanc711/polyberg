@@ -1,12 +1,16 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { ANNOTATIONS, CATEGORIES, RELATIONSHIPS, STATUSES, type ResearchDiscovery, type ResearchMarket, type ResearchPacketResult, type ResearchRules } from '../../../shared/research'
+import { useEffect, useState, type FormEvent } from 'react'
+import { ANNOTATIONS, CATEGORIES, RELATIONSHIPS, STATUSES, type ResearchDiscovery, type ResearchMarket, type ResearchPacketResult, type ResearchRules, type ResearchRulesChange, type ResearchRulesResult } from '../../../shared/research'
+import { SourceLink, attempt, px, signedPx, when } from './common'
+import { ActivityCard, BookPanel, EventContextCard, PriceHistoryPanel } from './MarketViewer'
 import { useResearch } from './ResearchProvider'
 
-const when = (at: string | null): string => at ? new Date(at).toLocaleString() : 'Unavailable'
-const px = (value: number | null | undefined): string => value == null ? '—' : `${(value * 100).toFixed(1)}¢`
-const attempt = (work: () => Promise<unknown>): void => { void work().catch(() => undefined) }
-function SourceLink({url, children}: {url: string; children?: ReactNode}): JSX.Element {
-  return <button className="research-link" onClick={() => attempt(() => window.pm.openExternal(url))}>{children || url}</button>
+function RulesChange({change}: {change: ResearchRulesChange}): JSX.Element {
+  const fields = Object.entries(change.fields)
+  return <div className="research-card"><h3>Changes from v{change.previous_version_id}</h3>
+    {fields.map(([field, [before, after]]) => <p key={field}>{field}: <span className="muted">{before ?? 'unset'}</span> → <strong>{after ?? 'unset'}</strong></p>)}
+    {change.text_diff.length ? <pre className="verbatim research-diff">{change.text_diff.map((line, i) => <span key={i} className={line.startsWith('+') && !line.startsWith('+++') ? 'added' : line.startsWith('-') && !line.startsWith('---') ? 'removed' : ''}>{line}{'\n'}</span>)}</pre>
+      : <p className="muted">Rules text unchanged; only public metadata changed.</p>}
+  </div>
 }
 function Prices({market}: {market: ResearchMarket}): JSX.Element {
   const quotes = new Map(market.snapshot?.quotes.map(q => [q.outcome_id, q]))
@@ -44,6 +48,7 @@ function EntryForm({market}: {market: ResearchMarket}): JSX.Element {
 function RulesPanel({market}: {market: ResearchMarket}): JSX.Element {
   const {request, loading} = useResearch()
   const [versions, setVersions] = useState<ResearchRules[]>([])
+  const [changes, setChanges] = useState<ResearchRulesResult['changes']>({})
   const [selectedVersion, setSelectedVersion] = useState('')
   const [kind, setKind] = useState<string>('conditions')
   const [text, setText] = useState('')
@@ -51,7 +56,7 @@ function RulesPanel({market}: {market: ResearchMarket}): JSX.Element {
   const id = market.identification.market_id
   useEffect(() => {
     let alive = true
-    void window.research.request<{versions: ResearchRules[]}>({operation: 'rules', market: id}).then(result => { if (alive) setVersions(result.versions) }).catch(() => undefined)
+    void window.research.request<ResearchRulesResult>({operation: 'rules', market: id}).then(result => { if (alive) { setVersions(result.versions); setChanges(result.changes || {}) } }).catch(() => undefined)
     return () => { alive = false }
   }, [id, market.rules, loading])
   const version = versions.find(v => String(v.rules_version_id) === selectedVersion) || market.rules
@@ -65,6 +70,8 @@ function RulesPanel({market}: {market: ResearchMarket}): JSX.Element {
       <SourceLink url={version.api_url}>Public API source</SourceLink>{version.page_url && <SourceLink url={version.page_url}>Market page</SourceLink>}
       <p>Retrieved: {version.observations.map(at => when(at)).join(' · ')}</p>
       {version.resolution_source && <p>Public resolution source: {version.resolution_source}</p>}
+      <p>Public resolution status: {version.resolution_status || 'Not reported'} · Trading end: {market.identification.trading_end || 'Unavailable'}</p>
+      {changes[String(version.rules_version_id)] && <RulesChange change={changes[String(version.rules_version_id)]} />}
       <h3>Sourced annotations</h3>
       {version.annotations.length === 0 && <p className="muted">No established annotations. Trading dates do not establish resolution deadlines or measurement periods.</p>}
       {version.annotations.map(a => <article className="research-card" key={a.annotation_id}><strong>{a.kind}</strong>{a.needs_review && <span className="warning"> · Requires review</span>}<p>{a.text}</p><SourceLink url={a.source_url} /></article>)}
@@ -133,8 +140,9 @@ function MarketDetail({market}: {market: ResearchMarket}): JSX.Element {
       <button disabled={loading} onClick={() => attempt(() => request({operation: market.followed ? 'unfollow' : 'refollow', market: id}))}>{market.followed ? 'Unfollow' : 'Follow again'}</button>
       <button disabled={loading} onClick={() => attempt(() => request({operation: market.status === 'archived' ? 'unarchive' : 'archive', market: id}))}>{market.status === 'archived' ? 'Unarchive' : 'Archive'}</button>
     </div><p className="muted">Last public metadata: {when(market.last_success_at)}</p>
-  </header><nav className="research-tabs">{['Overview', 'Rules', 'Research', 'Relationships', 'Exports'].map(t => <button className={tab === t ? 'selected' : ''} key={t} onClick={() => setTab(t)}>{t}</button>)}</nav>
-  {tab === 'Overview' && <section className="research-stack"><Prices market={market} />
+  </header><nav className="research-tabs">{['Overview', 'Book', 'Rules', 'Research', 'Relationships', 'Exports'].map(t => <button className={tab === t ? 'selected' : ''} key={t} onClick={() => setTab(t)}>{t}</button>)}</nav>
+  {tab === 'Overview' && <section className="research-stack"><PriceHistoryPanel market={market} /><Prices market={market} />
+    <div className="research-comparison"><ActivityCard activity={data.activity[id]} /><EventContextCard event={market.identification.event_id ? data.events[market.identification.event_id] : undefined} /></div>
     <div className="research-card"><h3>Identification & timing</h3><dl><dt>Event ID</dt><dd>{market.identification.event_id || 'Unavailable'}</dd><dt>Condition ID</dt><dd>{market.identification.condition_id || 'Unavailable'}</dd><dt>Question ID</dt><dd>{market.identification.question_id || 'Unavailable'}</dd><dt>Trading start</dt><dd>{market.identification.trading_start || 'Unavailable'}</dd><dt>Trading end</dt><dd>{market.identification.trading_end || 'Unavailable'}</dd></dl><small>Trading dates do not establish a resolution deadline. Establish measurement periods in sourced rules annotations.</small>{market.identification.page_url && <SourceLink url={market.identification.page_url}>Open market page ↗</SourceLink>}</div>
     <form className="research-row" onSubmit={e => {e.preventDefault(); attempt(() => request({operation: 'tags', market: id, tags: tags.split(',').map(t => t.trim()).filter(Boolean)}))}}><label>Tags · comma separated<input value={tags} onChange={e => setTags(e.target.value)} /></label><button disabled={loading}>Save tags</button></form>
     <div className="research-card"><h3>Projects</h3>{market.projects.map(p => <div className="research-row" key={p}><span>{p}</span><button disabled={loading} onClick={() => attempt(() => request({operation: 'project_remove', project: p, market: id}))}>Remove membership</button></div>)}
@@ -142,10 +150,17 @@ function MarketDetail({market}: {market: ResearchMarket}): JSX.Element {
     {[...market.warnings, ...(market.snapshot?.warnings || [])].map((w, i) => <p className="warning" key={`${i}:${w}`}>{w}</p>)}
     {market.snapshot?.quotes.map(q => <article key={q.outcome_id} className="research-card"><strong>Outcome {q.outcome_id}</strong><p>Book retrieved: {when(q.book_retrieved_at)}</p><p>Midpoint retrieved: {when(q.midpoint_retrieved_at)}</p><p>Last trade retrieved: {when(q.last_trade_retrieved_at)}</p>{q.warnings.map(w => <p className="warning" key={w}>{w}</p>)}</article>)}
   </section>}
+  {tab === 'Book' && <BookPanel market={market} />}
   {tab === 'Rules' && <RulesPanel market={market} />}
   {tab === 'Research' && <section className="research-stack"><h2>Research entries</h2><EntryForm market={market} />{market.entries.map(e => <article key={e.entry_id} className="research-card"><div className="research-row"><strong>{e.category}</strong><small>{when(e.created_at)}</small></div><p className="preserve">{e.text}</p>{e.sources.map((s, i) => <div key={`${i}:${s.url}`}><SourceLink url={s.url} /><small>Published {s.published_at || 'unknown'} · Observed {s.observed_at || 'unknown'}</small></div>)}{e.verified_at ? <p className="success">User verified · {when(e.verified_at)}</p> : e.category === 'observation' && <button disabled={!e.sources.length || loading} onClick={() => attempt(() => request({operation: 'verify', entry_id: e.entry_id}))}>Mark observation verified</button>}</article>)}</section>}
   {tab === 'Relationships' && <Relationships market={market} />}{tab === 'Exports' && <Exports market={market} />}
   </div>
+}
+function RowPrice({market, change}: {market: ResearchMarket; change: number | null | undefined}): JSX.Element | null {
+  const outcome = market.identification.outcomes[0]
+  const quote = market.snapshot?.quotes.find(q => q.outcome_id === outcome?.outcome_id)
+  if (!outcome || quote?.displayed_price == null) return null
+  return <em className="row-price">{outcome.label} {px(quote.displayed_price)}{change != null && <b className={change > 0 ? 'up' : change < 0 ? 'down' : ''}> {signedPx(change)} 24h</b>}</em>
 }
 export function ResearchScreen(): JSX.Element {
   const {data, query, setQuery, request, loading, error} = useResearch()
@@ -158,7 +173,8 @@ export function ResearchScreen(): JSX.Element {
     <div className="research-toolbar"><form className="research-search" onSubmit={e => {e.preventDefault(); attempt(async () => setDiscovery(await request<ResearchDiscovery>({operation: 'search', reference})))}}>
       <input aria-label="Search or public reference" required value={reference} onChange={e => setReference(e.target.value)} placeholder="Search public markets or paste a Polymarket URL…" />
       <button disabled={loading}>Search</button><button type="button" disabled={loading || !reference} className="primary" onClick={() => attempt(async () => {const result = await request<{market_ids: string[]}>({operation: 'follow', reference, project: query.project || 'default'}); setSelected(result.market_ids[0]); setDiscovery(null)})}>Follow URL / ID</button>
-    </form><div className="research-row"><select aria-label="Project filter" value={query.project || ''} onChange={e => setQuery(e.target.value ? {project: e.target.value} : {})}><option value="">Followed markets</option>{data.projects.map(p => <option value={p.name} key={p.name}>{p.name}</option>)}</select><button aria-pressed={!!query.all_markets} onClick={() => setQuery(query.all_markets ? {} : {all_markets: true})}>All saved</button></div></div>
+    </form><div className="research-row"><select aria-label="Project filter" value={query.project || ''} onChange={e => setQuery(e.target.value ? {project: e.target.value} : {})}><option value="">Followed markets</option>{data.projects.map(p => <option value={p.name} key={p.name}>{p.name}</option>)}</select><button aria-pressed={!!query.all_markets} onClick={() => setQuery(query.all_markets ? {} : {all_markets: true})}>All saved</button>
+      <button disabled={loading} onClick={() => attempt(() => request(query.project ? {operation: 'refresh', project: query.project} : {operation: 'refresh'}))}>{query.project ? 'Refresh project' : 'Refresh followed'}</button></div></div>
     {error && <div className="research-error" role="alert">{error}</div>}{loading && <div className="research-progress" role="status">Working… public requests may take a moment.</div>}
     {discovery && <section className="research-results"><div className="research-row"><h2>Public search results</h2><button onClick={() => setDiscovery(null)}>Close</button></div>
       {discovery.events.map(e => <article key={e.event_id}><strong>{e.title}</strong><span>{e.expected_market_ids.length} contracts</span><button disabled={loading} onClick={() => attempt(async () => {await request({operation: 'follow', reference: `event:${e.event_id}`, project: query.project || 'default'}); setDiscovery(null)})}>Follow entire event</button></article>)}
@@ -166,7 +182,7 @@ export function ResearchScreen(): JSX.Element {
       {discovery.events.length === 0 && <p>No public matches.</p>}{discovery.warnings.map(w => <p key={w}>{w}</p>)}
     </section>}
     <div className="research-layout"><aside className="research-sidebar"><div className="research-eyebrow">{data.markets.length} CONTRACTS</div>
-      {data.markets.map(m => <button className={`market-row ${market?.identification.market_id === m.identification.market_id ? 'selected' : ''}`} key={m.identification.market_id} onClick={() => setSelected(m.identification.market_id)}><strong>{m.identification.question}</strong><span>{m.status} · {m.identification.lifecycle}</span><small>{m.tags.join(' · ')}</small></button>)}
+      {data.markets.map(m => <button className={`market-row ${market?.identification.market_id === m.identification.market_id ? 'selected' : ''}`} key={m.identification.market_id} onClick={() => setSelected(m.identification.market_id)}><strong>{m.identification.question}</strong><RowPrice market={m} change={data.activity[m.identification.market_id]?.price_change_1d} /><span>{m.status} · {m.identification.lifecycle}</span><small>{m.tags.join(' · ')}</small></button>)}
       <form className="research-form project-form" onSubmit={e => {e.preventDefault(); attempt(async () => {await request({operation: 'project_create', project: projectName}); setProjectName('')})}}><label>New project<input required value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="Project name" /></label><button disabled={loading}>Create project</button></form>
     </aside><div className="research-content">{market ? <MarketDetail market={market} key={market.identification.market_id} /> : <div className="research-empty"><div className="research-eyebrow">YOUR PUBLIC RESEARCH WORKSPACE</div><h1>Start with a market question.</h1><p>Search for an event, or paste a public Polymarket URL and follow it.</p><p>Collect outcome prices and verbatim rules, record sourced research, and export the same evidence to GPT and Claude.</p><small>This workspace starts empty. No account connection is needed.</small></div>}</div></div>
     <footer className="research-footer">PUBLIC DATA · LOCAL RESEARCH <span>Manual evidence verification · Manual model handoffs</span></footer>

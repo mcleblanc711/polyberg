@@ -62,6 +62,39 @@ Entry categories: observation, evidence_summary, question, catalyst, hypothesis,
 
 Rules annotations support conditions, oracle, resolution_source, fallback, ambiguity, dispute, measurement_period and resolution_deadline. They require a rules version and supporting source. Unknown annotations remain empty. Trading end dates do not imply resolution dates or weekly measurement periods.
 
+## Price history, activity and depth
+
+```bash
+python -m polyberg.cli research price-history MARKET_ID --span 1w   # 1d | 1w | 1m | max
+python -m polyberg.cli research price-history MARKET_ID --span max --refetch
+python -m polyberg.cli research book MARKET_ID
+```
+
+These commands return the following, per outcome:
+
+- **Price history** comes from Data API v2 `/v2/prices-history`, using grain-aligned buckets:
+  300 s for 1d, 1,800 s for 1w, 10,800 s for 1m and 43,200 s for max.
+  - If v2 fails, the CLOB `/prices-history` series is used and its URL is recorded.
+  - Each (outcome, span) keeps only its latest successful retrieval.
+  - That retrieval is served from SQLite until it expires: 5 minutes for 1d, 30 minutes
+    for 1w, 2 hours for 1m and 12 hours for max. `--refetch` overrides this.
+  - A failed refetch keeps the cached series and adds a warning with its retrieval time.
+- **Book depth** is the top 10 levels per side from CLOB `/book`. It is sorted
+  independently of upstream order, with cumulative size, tick size and minimum order
+  size. It is a live view and is never stored. The book's `last_trade_price` is
+  market-wide, so it is not shown; use the outcome's last trade from `show`.
+
+Each `follow` or `refresh` also records market activity next to the snapshot:
+
+- volume (total, 24h, 1w), liquidity, 1d/1w price change and spread, all from the Gamma
+  payload already fetched;
+- open interest, from one batched Data API `/v2/oi` read of up to 20 conditions.
+
+A failed open-interest read leaves the value missing with a warning; it never fails the
+refresh. `list` returns `activity` and `events` (title, description, page URL) maps beside
+the markets. `rules` adds `changes`: a unified text diff and the changed public fields
+against each version's predecessor. None of this enters research packets.
+
 ## Relationships and comparison
 
 ```bash
@@ -90,7 +123,7 @@ Use `--db PATH` before the namespace or after the research/packet subcommand, or
 
 ## Desktop
 
-From `gui/`, run `npm ci` and `npm run dev`. The app opens **Market research**, showing followed markets or an empty-state prompt. Search public events, follow one contract or the entire event, filter by project, and use **All saved** to recover unfollowed/archived research. The detail tabs expose outcomes, timestamps, identifiers, rules/history, sourced annotations, categorized research, explicit relationships/comparison, and frozen exports. The export tab supports contract, event, current project, or followed-market scope; all four files are written locally and the selected representation can be copied to the clipboard.
+From `gui/`, run `npm ci` and `npm run dev`. The app opens **Market research**, showing followed markets or an empty-state prompt. Search public events, follow one contract or the entire event, filter by project, and use **All saved** to recover unfollowed/archived research. The detail tabs expose outcomes, timestamps, identifiers, rules/history, sourced annotations, categorized research, explicit relationships/comparison, and frozen exports. **Overview** adds a price-history chart (span buttons, outcome toggles, fit-range, refetch, hover readout), a market-activity card and the event context. **Book** loads read-only depth on demand. **Rules** shows the public resolution status and what changed from the previous version. Sidebar rows show each contract's first-outcome price and 24h change. **Refresh followed** (or **Refresh project**) refreshes the current view. The export tab supports contract, event, current project, or followed-market scope; all four files are written locally and the selected representation can be copied to the clipboard.
 
 **Legacy portfolio** is an explicit selection. Its provider and screens load only then; failures stay in that workspace and the top-level switch remains available. Returning to research revokes legacy IPC access and stops the legacy watcher. Research watches only its configured database/sidecars and research export directory.
 

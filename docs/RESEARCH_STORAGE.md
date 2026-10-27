@@ -25,6 +25,17 @@ JSON columns store validated allowlisted objects for immutable views; no raw API
 
 Rules deduplication hashes the full allowlisted rules version, including source URLs and established resolution metadata. `text_sha256` separately hashes only the verbatim text. Old versions and annotations remain available after text changes or a later unavailable response. Earlier annotations are flagged for review, never silently applied to a changed version.
 
+## Schema 2
+
+Migration 2 adds two tables. Databases at schema 1 upgrade in place on the next open, and a failed upgrade rolls back to schema 1.
+
+| Table | Records |
+| --- | --- |
+| `market_activity` | Allowlisted volume, liquidity, price-change, spread and open-interest figures, keyed to the snapshot they were collected with. Append-only, with immutable triggers |
+| `price_history_fetches` | Latest validated price-history series per (outcome, span `1d`/`1w`/`1m`/`max`), with its supplying URL, retrieval time and warnings |
+
+`price_history_fetches` is the one deliberate exception to append-only storage. It is a cache of public series that can be re-read: a successful fetch inserts the new row and deletes older rows for that outcome and span in the same transaction. Failed fetches write nothing. Neither table is read by packet building, so `polyberg_research_packet_v1` is unchanged.
+
 ## Backups and upgrades
 
 For a consistent backup while the application is open, use SQLite's backup API or the `sqlite3 .backup` command. A simple file copy is suitable when all CLI and desktop processes using the database are closed. Keep backups and exported packets private according to the content of your own research notes.

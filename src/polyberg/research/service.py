@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import difflib
 from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import Field, model_validator
 
 from polyberg.config import get_max_context_age_hours
-from polyberg.research.models import Source, StrictModel
+from polyberg.research.models import HistorySpan, RulesVersion, Source, StrictModel
 from polyberg.research.packets import export_packet, freeze, load_frozen, market_warnings, render
 from polyberg.research.workspace import Workspace
 
@@ -39,6 +40,8 @@ class Request(StrictModel):
         "relate",
         "compare",
         "history",
+        "price_history",
+        "book",
         "packet",
         "render",
     ]
@@ -59,6 +62,8 @@ class Request(StrictModel):
     source_url: str | None = None
     other_market: str | None = None
     packet_id: str | None = None
+    span: HistorySpan | None = None
+    refetch: bool = False
 
     @model_validator(mode="after")
     def selection(self):
@@ -74,6 +79,33 @@ def required(value):
     if value is None or value == "":
         raise ValueError("Required research parameter missing")
     return value
+
+
+_RULES_FIELDS = ("api_url", "page_url", "resolution_source", "resolution_status")
+
+
+def rules_changes(versions: list[RulesVersion]) -> dict[str, dict]:
+    """Per version: verbatim text diff and changed public fields against its predecessor."""
+    changes = {}
+    for before, after in zip(versions, versions[1:], strict=False):
+        changes[str(after.rules_version_id)] = {
+            "previous_version_id": before.rules_version_id,
+            "text_diff": list(
+                difflib.unified_diff(
+                    before.text.splitlines(),
+                    after.text.splitlines(),
+                    f"v{before.rules_version_id}",
+                    f"v{after.rules_version_id}",
+                    lineterm="",
+                )
+            ),
+            "fields": {
+                field: [getattr(before, field), getattr(after, field)]
+                for field in _RULES_FIELDS
+                if getattr(before, field) != getattr(after, field)
+            },
+        }
+    return changes
 
 
 def dispatch(workspace: Workspace, request: Request, *, output_dir=None) -> dict:
@@ -96,11 +128,32 @@ def dispatch(workspace: Workspace, request: Request, *, output_dir=None) -> dict
         markets = [workspace.show(m) for m in ids]
         for market in markets:
             market.warnings = market_warnings(market, now, threshold)
-        return {"markets": [m.model_dump() for m in markets], "projects": workspace.projects()}
+        event_ids = {m.identification.event_id for m in markets}
+        # Viewer context travels beside the packet-shaped markets, never inside them.
+        activity = {m: workspace.activity(m) for m in ids}
+        return {
+            "markets": [m.model_dump() for m in markets],
+            "projects": workspace.projects(),
+            "activity": {m: a.model_dump() for m, a in activity.items() if a},
+            "events": {
+                e.event_id: {
+                    "title": e.title,
+                    "description": e.description,
+                    "page_url": e.page_url,
+                    "retrieved_at": e.retrieved_at,
+                }
+                for e in workspace.events()
+                if e.event_id in event_ids
+            },
+        }
     if op == "show":
         market = workspace.show(required(mid))
         market.warnings = market_warnings(market, datetime.now(UTC), get_max_context_age_hours())
         return market.model_dump()
+    if op == "price_history":
+        return workspace.price_history(required(mid), r.span or "1w", r.refetch).model_dump()
+    if op == "book":
+        return workspace.book(required(mid)).model_dump()
     if op == "refresh":
         if r.event:
             return workspace.refresh_event(r.event)
@@ -130,8 +183,10 @@ def dispatch(workspace: Workspace, request: Request, *, output_dir=None) -> dict
     elif op == "verify":
         workspace.verify_entry(required(r.entry_id))
     elif op == "rules":
+        versions = workspace.rules_history(required(mid))
         return {
-            "versions": [v.model_dump() for v in workspace.rules_history(required(mid))],
+            "versions": [v.model_dump() for v in versions],
+            "changes": rules_changes(versions),
             "observations": workspace.store.all(
                 "SELECT rules_version_id,retrieved_at FROM rules_observations WHERE market_id=? "
                 "ORDER BY observation_id",

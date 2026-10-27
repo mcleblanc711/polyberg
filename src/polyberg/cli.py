@@ -63,6 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
         "relate",
         "compare",
         "history",
+        "price-history",
+        "book",
         "rpc",
     ]:
         p = sub.add_parser(op)
@@ -91,8 +93,13 @@ def build_parser() -> argparse.ArgumentParser:
             "relate",
             "compare",
             "history",
+            "price-history",
+            "book",
         }:
             p.add_argument("market")
+        if op == "price-history":
+            p.add_argument("--span", choices=["1d", "1w", "1m", "max"], default="1w")
+            p.add_argument("--refetch", action="store_true")
         if op == "status":
             p.add_argument("status")
         if op == "tags":
@@ -158,6 +165,8 @@ def main(argv: list[str] | None = None) -> int:
                 args["operation"] = (
                     "packet" if args.pop("packet_operation") == "build" else "render"
                 )
+            if args.get("operation") == "price-history":
+                args["operation"] = "price_history"
             if args.get("operation") == "projects":
                 action = args.pop("project_operation")
                 args["operation"] = "projects" if action == "list" else f"project_{action}"

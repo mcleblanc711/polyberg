@@ -7,7 +7,8 @@ The default CLI and desktop workspace use public market data and a new local SQL
 | Component | Role | Permitted inputs |
 | --- | --- | --- |
 | `polyberg.cli` | Default CLI and structured stdin RPC | Validated research requests, explicit database path |
-| `research.public` | Discovery, identifiers, public normalization and prices | Gamma events/markets/search; CLOB public book, midpoint and last-trade endpoints |
+| `research.public` | Discovery, identifiers, public normalization, prices, activity and on-demand depth | Gamma events/markets/search; CLOB public book, midpoint and last-trade endpoints; Data API v2 open interest |
+| `research.history` | Outcome price history | Data API v2 `/v2/prices-history`; CLOB `/prices-history` fallback |
 | `research.storage` | Python-owned SQLite access and numbered migrations | Validated research records |
 | `research.workspace` | Follow, refresh, research entries, projects, rules and relationships | Research database and public client |
 | `research.packets` | Freeze, render and publish packets | Explicitly allowlisted research records; persisted packet snapshots |
@@ -48,6 +49,8 @@ Public identifiers remain distinct: event ID, Gamma market ID, condition ID, que
 Displayed prices, best bid, best ask, midpoint, and last trade are independent fields. The collector visits each available outcome asset. Best bid uses `max`; best ask uses `min`, without depending on book ordering. Missing prices stay missing; incomplete distributions are never rescaled and complementary prices are never manufactured. See the [official pricing documentation](https://docs.polymarket.com/market-data/prices-order-books).
 
 Market `description` is preserved byte-for-byte as a Python string, with a SHA-256 of its UTF-8 representation. Event descriptions remain separate. The collector never invents rules or substitutes event text. Rules and displayed quotes record the actual supplying API URL, including when market data came from an event response. Rules versions include source URLs and established public resolution source/status; retrieval observations retain every successful observation, including unavailable rules. Identical rules versions deduplicate. Changes flag prior annotations for review. Annotation kinds cover conditions, oracle, resolution source, fallback, ambiguity, dispute, measurement period and resolution deadline. Unknowns stay empty. Trading start/end values are explicitly labelled trading dates.
+
+Market activity uses only allowlisted Gamma figures from the payload a refresh already fetches, plus one batched open-interest read. Values that are missing or out of range stay missing. Price history is validated point by point; malformed points are dropped with a warning. The series served is the latest successful retrieval, and its supplying URL is recorded. Book depth is a read-only live view: levels are sorted by price, the top 10 per side are kept, and nothing is stored. The book's market-wide `last_trade_price` is not attributed to an outcome. All viewer data travels in separate models and response keys outside `ResearchPacket`.
 
 Network requests finish before transactional writes. Metadata failure records a failed attempt and preserves the last snapshot and successful retrieval time. Component failures retain historical quotes only for matching outcome assets, with their original retrieval timestamps and explicit warnings. A valid empty book replaces the old book with unavailable best quotes; it does not resurrect old liquidity.
 

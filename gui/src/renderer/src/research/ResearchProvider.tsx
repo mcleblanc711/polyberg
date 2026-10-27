@@ -8,7 +8,7 @@ interface Context {
 }
 const ResearchContext = createContext<Context | null>(null)
 export function ResearchProvider({ children }: {children: ReactNode}): JSX.Element {
-  const [data, setData] = useState<ResearchList>({markets: [], projects: []})
+  const [data, setData] = useState<ResearchList>({markets: [], projects: [], activity: {}, events: {}})
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState<{project?: string; all_markets?: boolean}>({})

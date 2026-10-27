@@ -119,15 +119,39 @@ _IMMUTABLE = (
     "workspace_history",
     "exports",
 )
-MIGRATIONS[0] = (
-    1,
-    MIGRATIONS[0][1]
-    + "\n".join(
+
+
+def _immutable(tables: tuple[str, ...]) -> str:
+    return "\n".join(
         f"CREATE TRIGGER immutable_{table}_{action.lower()} BEFORE {action} ON {table} "
         "BEGIN SELECT RAISE(ABORT, 'Immutable research record'); END;"
-        for table in _IMMUTABLE
+        for table in tables
         for action in ("UPDATE", "DELETE")
-    ),
+    )
+
+
+MIGRATIONS[0] = (1, MIGRATIONS[0][1] + _immutable(_IMMUTABLE))
+# Activity is append-only provenance like snapshots. Price history is a prunable cache:
+# each (outcome, span) keeps only its latest successful retrieval.
+MIGRATIONS.append(
+    (
+        2,
+        """
+CREATE TABLE market_activity (
+ snapshot_id INTEGER PRIMARY KEY REFERENCES market_snapshots(snapshot_id),
+ market_id TEXT NOT NULL REFERENCES markets(market_id), data TEXT NOT NULL
+);
+CREATE INDEX market_activity_market ON market_activity(market_id, snapshot_id);
+CREATE TABLE price_history_fetches (
+ fetch_id INTEGER PRIMARY KEY, outcome_id TEXT NOT NULL REFERENCES outcomes(outcome_id),
+ span TEXT NOT NULL CHECK(span IN ('1d','1w','1m','max')),
+ source_url TEXT NOT NULL, retrieved_at TEXT NOT NULL, points TEXT NOT NULL,
+ warnings TEXT NOT NULL
+);
+CREATE INDEX price_history_latest ON price_history_fetches(outcome_id, span, fetch_id);
+"""
+        + _immutable(("market_activity",)),
+    )
 )
 
 
