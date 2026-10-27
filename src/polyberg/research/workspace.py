@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import get_args
 
+from polyberg.research.history import SPANS, fetch_series
 from polyberg.research.models import (
     SYMMETRIC,
     Annotation,
@@ -15,6 +17,11 @@ from polyberg.research.models import (
     Entry,
     Event,
     Identification,
+    MarketActivity,
+    MarketBook,
+    PriceHistory,
+    PricePoint,
+    PriceSeries,
     Quote,
     RelationKind,
     Relationship,
@@ -176,6 +183,11 @@ class Workspace:
             self.db.execute(
                 "INSERT INTO outcome_quotes VALUES (?,?,?)", (snapshot, q.outcome_id, canonical(q))
             )
+        if market.activity:
+            self.db.execute(
+                "INSERT INTO market_activity VALUES (?,?,?)",
+                (snapshot, mid, canonical(market.activity)),
+            )
         self.db.execute(
             "UPDATE markets SET last_attempt_at=?,last_success_at=? WHERE market_id=?",
             (at, at, mid),
@@ -188,6 +200,7 @@ class Workspace:
             discovery = self.public.resolve(reference)
             for market in discovery.markets:
                 self.public.collect_quotes(market)
+            self.public.collect_open_interest(discovery.markets)
         except PublicDataError:
             self.failure(reference, started)
             raise
@@ -217,7 +230,7 @@ class Workspace:
     def refresh(self, market_ids: list[str]) -> dict:
         for mid in market_ids:
             self.require(mid)
-        refreshed, failed = [], []
+        collected, failed = [], []
         for mid in market_ids:
             started = utcnow()
             try:
@@ -230,9 +243,12 @@ class Workspace:
                 self.failure(f"market:{mid}", started, mid)
                 failed.append(mid)
                 continue
+            collected.append((mid, started, discovery))
+        # One batched open-interest read covers every successfully collected market.
+        self.public.collect_open_interest([m for *_, d in collected for m in d.markets])
+        for _, started, discovery in collected:
             self.ingest(discovery, started_at=started)
-            refreshed.append(mid)
-        return {"refreshed": refreshed, "failed": failed}
+        return {"refreshed": [mid for mid, *_ in collected], "failed": failed}
 
     def refresh_event(self, event_id: str) -> dict:
         started = utcnow()
@@ -241,6 +257,7 @@ class Workspace:
             discovery = self.public.resolve(f"event:{event_id}")
             for market in discovery.markets:
                 self.public.collect_quotes(market)
+            self.public.collect_open_interest(discovery.markets)
         except PublicDataError:
             for mid in known:
                 self.failure(f"event:{event_id}", started, mid)
@@ -582,3 +599,91 @@ class Workspace:
             Event.model_validate_json(e["data"])
             for e in self.store.all("SELECT data FROM events ORDER BY event_id")
         ]
+
+    def activity(self, market_id: str) -> MarketActivity | None:
+        row = self.store.one(
+            "SELECT data FROM market_activity WHERE market_id=? ORDER BY snapshot_id DESC LIMIT 1",
+            (market_id,),
+        )
+        return MarketActivity.model_validate_json(row["data"]) if row else None
+
+    def book(self, market_id: str) -> MarketBook:
+        identity = Identification.model_validate_json(self.require(market_id)["identification"])
+        return self.public.order_book(identity)
+
+    def price_history(self, market_id: str, span: str, refetch: bool = False) -> PriceHistory:
+        """Serve cached series; fetch only missing, expired or explicitly refetched outcomes."""
+        if span not in SPANS:
+            raise ValueError("Unsupported price history span")
+        identity = Identification.model_validate_json(self.require(market_id)["identification"])
+        ttl, now = SPANS[span][1], datetime.now(UTC)
+        cached, fetched, failed = {}, {}, set()
+        for outcome in identity.outcomes:
+            row = self.store.one(
+                "SELECT * FROM price_history_fetches WHERE outcome_id=? AND span=? "
+                "ORDER BY fetch_id DESC LIMIT 1",
+                (outcome.outcome_id, span),
+            )
+            if row:
+                cached[outcome.outcome_id] = row
+            if not outcome.asset_id:
+                continue
+            if row and not refetch:
+                age = now - datetime.fromisoformat(row["retrieved_at"])
+                if 0 <= age.total_seconds() < ttl:
+                    continue
+            try:
+                fetched[outcome.outcome_id] = (
+                    *fetch_series(self.public.data, self.public.clob, outcome.asset_id, span),
+                    utcnow(),
+                )
+            except PublicDataError:
+                failed.add(outcome.outcome_id)
+        if fetched:
+            with self.store.transaction():
+                for oid, (points, url, warnings, at) in fetched.items():
+                    fid = self.db.execute(
+                        "INSERT INTO price_history_fetches"
+                        "(outcome_id,span,source_url,retrieved_at,points,warnings) "
+                        "VALUES (?,?,?,?,?,?)",
+                        (
+                            oid,
+                            span,
+                            url,
+                            at,
+                            canonical([p.model_dump() for p in points]),
+                            canonical(warnings),
+                        ),
+                    ).lastrowid
+                    self.db.execute(
+                        "DELETE FROM price_history_fetches WHERE outcome_id=? AND span=? "
+                        "AND fetch_id<?",
+                        (oid, span, fid),
+                    )
+        series = []
+        for outcome in identity.outcomes:
+            entry = PriceSeries(
+                outcome_id=outcome.outcome_id,
+                label=outcome.label,
+                asset_id=outcome.asset_id,
+                span=span,
+            )
+            series.append(entry)
+            if outcome.outcome_id in fetched:
+                points, url, warnings, at = fetched[outcome.outcome_id]
+                entry.points, entry.source_url, entry.retrieved_at = points, url, at
+                entry.warnings = list(warnings)
+            elif row := cached.get(outcome.outcome_id):
+                entry.points = [PricePoint.model_validate(p) for p in json.loads(row["points"])]
+                entry.source_url, entry.retrieved_at = row["source_url"], row["retrieved_at"]
+                entry.warnings = json.loads(row["warnings"])
+                if outcome.outcome_id in failed:
+                    entry.warnings.append(
+                        f"Price history refresh failed; showing data retrieved at "
+                        f"{row['retrieved_at']}"
+                    )
+            if not outcome.asset_id:
+                entry.warnings.append("Public outcome asset ID unavailable")
+            elif outcome.outcome_id in failed and outcome.outcome_id not in cached:
+                entry.warnings.append("Public price history unavailable")
+        return PriceHistory(market_id=market_id, span=span, series=series)

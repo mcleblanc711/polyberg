@@ -10,11 +10,15 @@ from urllib.parse import quote, unquote, urlencode, urlsplit
 from polyberg.collectors.polymarket_gamma import search_events
 from polyberg.http import HttpReadError, ReadOnlyHttpClient
 from polyberg.research.models import (
+    BookLevel,
     CollectedMarket,
     Discovery,
     Event,
     Identification,
+    MarketActivity,
+    MarketBook,
     Outcome,
+    OutcomeBook,
     Quote,
     RulesInput,
     digest,
@@ -23,6 +27,9 @@ from polyberg.research.models import (
 
 GAMMA = "https://gamma-api.polymarket.com"
 CLOB = "https://clob.polymarket.com"
+DATA = "https://data-api.polymarket.com"
+OPEN_INTEREST_BATCH = 20
+BOOK_DEPTH = 10
 
 
 class PublicDataError(ValueError):
@@ -51,6 +58,57 @@ def price(value: object) -> float | None:
         return number if math.isfinite(number) and 0 <= number <= 1 else None
     except ValueError:
         return None
+
+
+def number(value: object, low: float | None = None, high: float | None = None) -> float | None:
+    """Finite numeric field (Gamma sends some as strings); out-of-range values stay missing."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return None
+    try:
+        result = float(value)
+    except ValueError:
+        return None
+    if not math.isfinite(result) or (low is not None and result < low):
+        return None
+    return None if high is not None and result > high else result
+
+
+def book_levels(
+    raw_levels: object, side: str, warnings: list[str]
+) -> list[tuple[float, float | None]]:
+    """(price, size) pairs in upstream order; malformed prices are omitted with a warning."""
+    if not isinstance(raw_levels, list):
+        warnings.append(f"Malformed {side}")
+        raise PublicDataError("Malformed order book levels")
+    levels = []
+    for level in raw_levels:
+        p = price(level.get("price")) if isinstance(level, dict) else None
+        if p is None:
+            warnings.append(f"Malformed {side} level omitted")
+        else:
+            levels.append((p, number(level.get("size"), low=0)))
+    return levels
+
+
+def activity(raw: dict, at: str, source_api_url: str) -> MarketActivity:
+    def first(*keys: str, low: float | None = 0, high: float | None = None) -> float | None:
+        for key in keys:
+            value = number(raw.get(key), low, high)
+            if value is not None:
+                return value
+        return None
+
+    return MarketActivity(
+        retrieved_at=at,
+        volume_total=first("volumeNum", "volume"),
+        volume_24h=first("volume24hr"),
+        volume_1w=first("volume1wk"),
+        liquidity=first("liquidityNum", "liquidity"),
+        price_change_1d=first("oneDayPriceChange", low=-1, high=1),
+        price_change_1w=first("oneWeekPriceChange", low=-1, high=1),
+        spread=first("spread", high=1),
+        source_urls=[source_api_url],
+    )
 
 
 def market_identity(
@@ -169,6 +227,7 @@ def normalize_market(
         retrieved_at=at,
         quotes=quotes,
         rules=rules,
+        activity=activity(raw, at, source_api_url),
         warnings=warnings,
     )
 
@@ -209,10 +268,14 @@ def normalize_event(
 
 class PublicClient:
     def __init__(
-        self, gamma: ReadOnlyHttpClient | None = None, clob: ReadOnlyHttpClient | None = None
+        self,
+        gamma: ReadOnlyHttpClient | None = None,
+        clob: ReadOnlyHttpClient | None = None,
+        data: ReadOnlyHttpClient | None = None,
     ):
         self.gamma = gamma or ReadOnlyHttpClient(GAMMA, timeout=15)
         self.clob = clob or ReadOnlyHttpClient(CLOB, timeout=15)
+        self.data = data or ReadOnlyHttpClient(DATA, timeout=15)
 
     def _get(self, path: str, params: dict | None = None) -> object:
         try:
@@ -350,20 +413,10 @@ class PublicClient:
                 asset = string(raw.get("asset_id"))
                 if asset and asset != outcome.asset_id:
                     raise PublicDataError("Book identity mismatch")
-                levels = []
-                for side in ("bids", "asks"):
-                    values = []
-                    raw_levels = raw.get(side)
-                    if not isinstance(raw_levels, list):
-                        quote_data.warnings.append(f"Malformed {side}")
-                        raise PublicDataError("Malformed order book levels")
-                    for level in raw_levels:
-                        p = price(level.get("price")) if isinstance(level, dict) else None
-                        if p is None:
-                            quote_data.warnings.append(f"Malformed {side} level omitted")
-                        else:
-                            values.append(p)
-                    levels.append(values)
+                levels = [
+                    [p for p, _ in book_levels(raw.get(side), side, quote_data.warnings)]
+                    for side in ("bids", "asks")
+                ]
                 quote_data.best_bid = max(levels[0]) if levels[0] else None
                 quote_data.best_ask = min(levels[1]) if levels[1] else None
                 quote_data.book_timestamp = string(raw.get("timestamp"))
@@ -390,3 +443,99 @@ class PublicClient:
                 except (RuntimeError, ValueError, OSError, TimeoutError):
                     quote_data.warnings.append(f"Public {attr} unavailable")
         return market
+
+    def collect_open_interest(self, markets: list[CollectedMarket]) -> None:
+        """Batched Data API open interest. Failure leaves the value missing, never the refresh."""
+        pending: dict[str, list[MarketActivity]] = {}
+        for market in markets:
+            if market.activity is None:
+                continue
+            cid = market.identification.condition_id
+            if cid and re.fullmatch(r"0x[0-9a-fA-F]{64}", cid):
+                pending.setdefault(cid.lower(), []).append(market.activity)
+            else:
+                market.activity.warnings.append("Open interest needs a public condition ID")
+        conditions = sorted(pending)
+        for start in range(0, len(conditions), OPEN_INTEREST_BATCH):
+            chunk = conditions[start : start + OPEN_INTEREST_BATCH]
+            params = {"condition": ",".join(chunk)}
+            values: dict[str, float] | None = {}
+            try:
+                raw = self.data.get_json("/v2/oi", params=params)
+                rows = raw.get("data") if isinstance(raw, dict) else None
+                if not isinstance(rows, list):
+                    raise PublicDataError("Malformed open interest")
+                for row in rows:
+                    cid = string(row.get("condition_id")) if isinstance(row, dict) else None
+                    value = number(row.get("value"), low=0) if cid else None
+                    if cid and value is not None:
+                        values[cid.lower()] = value
+            except (RuntimeError, ValueError, OSError, TimeoutError):
+                values = None
+            at, url = utcnow(), f"{DATA}/v2/oi?{urlencode(params)}"
+            for cid in chunk:
+                for record in pending[cid]:
+                    if values is None:
+                        record.warnings.append("Public open interest unavailable")
+                    elif cid not in values:
+                        record.warnings.append("Open interest not reported for this condition")
+                    else:
+                        record.open_interest = values[cid]
+                        record.open_interest_retrieved_at = at
+                        record.source_urls.append(url)
+
+    def order_book(self, identity: Identification) -> MarketBook:
+        """On-demand top-of-book depth per outcome. A live view: nothing is persisted."""
+        books = []
+        for outcome in identity.outcomes:
+            book = OutcomeBook(
+                outcome_id=outcome.outcome_id, label=outcome.label, asset_id=outcome.asset_id
+            )
+            books.append(book)
+            if not outcome.asset_id:
+                book.warnings.append("Public outcome asset ID unavailable")
+                continue
+            params = {"token_id": outcome.asset_id}
+            try:
+                raw = self.clob.get_json("/book", params=params)
+                if not isinstance(raw, dict):
+                    raise PublicDataError("Malformed book")
+                asset = string(raw.get("asset_id"))
+                if asset and asset != outcome.asset_id:
+                    raise PublicDataError("Book identity mismatch")
+                sides = {}
+                for side in ("bids", "asks"):
+                    levels = book_levels(raw.get(side), side, book.warnings)
+                    sized = [(p, size) for p, size in levels if size is not None]
+                    if len(sized) != len(levels):
+                        book.warnings.append(f"{side.capitalize()} level without size omitted")
+                    # Never depend on upstream ordering: best bid is highest, best ask lowest.
+                    sized.sort(key=lambda level: level[0], reverse=side == "bids")
+                    sides[side] = sized
+            except (RuntimeError, ValueError, OSError, TimeoutError):
+                book.warnings.append("Public order book unavailable")
+                continue
+            for side, sized in sides.items():
+                total, depth = 0.0, []
+                for p, size in sized[:BOOK_DEPTH]:
+                    total += size
+                    depth.append(BookLevel(price=p, size=size, cumulative=total))
+                setattr(book, side, depth)
+                setattr(book, f"{side[:-1]}_levels", len(sized))
+            book.best_bid = sides["bids"][0][0] if sides["bids"] else None
+            book.best_ask = sides["asks"][0][0] if sides["asks"] else None
+            if book.best_bid is not None and book.best_ask is not None:
+                book.spread = round(book.best_ask - book.best_bid, 6)
+                book.book_midpoint = round((book.best_ask + book.best_bid) / 2, 6)
+                if book.spread < 0:
+                    book.warnings.append("Crossed order book")
+            else:
+                book.warnings.append("Incomplete order book")
+            # The book's last_trade_price is market-wide (identical for every outcome token,
+            # verified live 2026-10-27), so it is not shown as an outcome's last trade.
+            book.tick_size = number(raw.get("tick_size"), low=0)
+            book.min_order_size = number(raw.get("min_order_size"), low=0)
+            book.book_timestamp = string(raw.get("timestamp"))
+            book.retrieved_at = utcnow()
+            book.source_url = f"{CLOB}/book?{urlencode(params)}"
+        return MarketBook(market_id=identity.market_id, outcomes=books)

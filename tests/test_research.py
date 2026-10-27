@@ -81,10 +81,22 @@ def raw_event():
     }
 
 
+def history_rows(count=3, start=1793000000, step=1800):
+    return [
+        {
+            "timestamp": start + i * step,
+            "price": round(0.3 + i / 100, 4),
+            "resolution_seconds": step,
+        }
+        for i in range(count)
+    ]
+
+
 class FakeHttp:
-    def __init__(self, *, event=None, clob=False):
+    def __init__(self, *, event=None, clob=False, data=False):
         self.event = event or raw_event()
         self.clob = clob
+        self.data = data
         self.calls = []
         self.fail = set()
         self.store = None
@@ -111,6 +123,16 @@ class FakeHttp:
                 return {"mid": ".30", "portfolio": {"wallet": SENTINEL}}
             if path == "/last-trade-price":
                 return {"price": ".28", "balance": SENTINEL}
+            if path == "/prices-history":
+                return {"history": [{"t": 1793000000, "p": 0.25}, {"t": 1793003600, "p": 0.27}]}
+            raise AssertionError(f"Unexpected public endpoint: {path}")
+        if self.data:
+            if path == "/v2/oi":
+                conditions = params["condition"].split(",")
+                rows = [{"condition_id": c, "value": 1000.0 + i} for i, c in enumerate(conditions)]
+                return {"data": rows, "account": SENTINEL}
+            if path == "/v2/prices-history":
+                return {"data": history_rows(), "pagination": {"has_more": False}}
             raise AssertionError(f"Unexpected public endpoint: {path}")
         if path == "/public-search":
             return {"events": [copy.deepcopy(self.event)], "account": SENTINEL}
@@ -137,9 +159,9 @@ class FakeHttp:
 @pytest.fixture
 def workspace(tmp_path):
     with Store(tmp_path / "research.sqlite3") as store:
-        gamma, clob = FakeHttp(), FakeHttp(clob=True)
-        gamma.store = clob.store = store
-        yield Workspace(store, PublicClient(gamma, clob))
+        gamma, clob, data = FakeHttp(), FakeHttp(clob=True), FakeHttp(data=True)
+        gamma.store = clob.store = data.store = store
+        yield Workspace(store, PublicClient(gamma, clob, data))
 
 
 def test_empty_init_and_reopen_without_imports(tmp_path, monkeypatch, capsys):
@@ -519,8 +541,8 @@ config.load_repo_dotenv = lambda *a, **kw: (_ for _ in ()).throw(AssertionError(
 fixtures = runpy.run_path("tests/test_research.py")
 from polyberg.research.public import PublicClient
 from polyberg.research import workspace
-workspace.PublicClient = lambda: PublicClient(
-    fixtures["FakeHttp"](), fixtures["FakeHttp"](clob=True))
+workspace.PublicClient = lambda: PublicClient(fixtures["FakeHttp"](),
+    fixtures["FakeHttp"](clob=True), fixtures["FakeHttp"](data=True))
 from polyberg.cli import main
 commands = [["research", "init"], ["research", "search", "synthetic"],
  ["research", "follow", "https://polymarket.com/event/synthetic-week/synthetic-900001"],
